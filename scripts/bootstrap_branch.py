@@ -198,10 +198,33 @@ def repoint_semantic_model(dev_ws_id: str, dev_lh_id: str,
     return False
 
 
+def repoint_notebooks(dev_ws_id: str, dev_lh_id: str,
+                      new_ws_id: str, new_lh_id: str, *, dry_run: bool) -> list[str]:
+    """Replace dev IDs in all notebook META dependency blocks."""
+    changed = []
+    for nb_file in FABRIC_DIR.glob("*.Notebook/notebook-content.py"):
+        content = nb_file.read_text(encoding="utf-8")
+        original = content
+        content = content.replace(dev_ws_id, new_ws_id)
+        content = content.replace(dev_lh_id, new_lh_id)
+        if content != original:
+            rel = nb_file.relative_to(REPO_ROOT)
+            if dry_run:
+                print(f"  [dry-run] Would repoint: {rel}")
+            else:
+                nb_file.write_text(content, encoding="utf-8")
+                print(f"  Repointed: {rel}")
+            changed.append(str(rel))
+    if not changed:
+        print("  No notebooks with dev IDs found.")
+    return changed
+
+
 def validate_no_dev_ids(dev_ws_id: str, dev_lh_id: str) -> list[str]:
     """Scan rewritten files for leftover dev IDs."""
     critical_files = [
         EXPRESSIONS_FILE,
+        *FABRIC_DIR.glob("*.Notebook/notebook-content.py"),
     ]
     warnings = []
     for f in critical_files:
@@ -258,7 +281,12 @@ def main() -> None:
     if repoint_semantic_model(dev_ws_id, dev_lh_id, new_ws_id, new_lh_id, dry_run=dry_run):
         changes.append(f"Repointed: {EXPRESSIONS_FILE.relative_to(REPO_ROOT)}")
 
-    print("\n5. Validating...")
+    print("\n5. Repointing notebooks...")
+    repointed_nbs = repoint_notebooks(dev_ws_id, dev_lh_id, new_ws_id, new_lh_id, dry_run=dry_run)
+    for nb in repointed_nbs:
+        changes.append(f"Repointed: {nb}")
+
+    print("\n6. Validating...")
     if dry_run:
         print("  [dry-run] Skipping validation (files unchanged).")
     else:

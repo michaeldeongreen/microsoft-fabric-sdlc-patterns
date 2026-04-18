@@ -1,5 +1,23 @@
 # Best Practices with Fabric CI/CD Overview
 
+## Table of Contents
+
+- [Introduction — Why CI/CD in Fabric?](#introduction--why-cicd-in-fabric)
+- [Git Integration in Fabric](#git-integration-in-fabric)
+- [Development Process](#development-process)
+- [Release Options](#release-options)
+  - [Option 1 – Fabric Deployment Pipelines](#option-1--fabric-deployment-pipelines)
+  - [Option 2 – Git-based Deployments](#option-2--git-based-deployments)
+  - [Option 3 – Git-based with Build Environments](#option-3--git-based-with-build-environments)
+- [Infrastructure & Resource Provisioning](#infrastructure--resource-provisioning)
+- [Comparison Summary](#comparison-summary)
+- [My Recommendation](#my-recommendation)
+- [Best Practices](#best-practices)
+- [References](#references)
+- [Acknowledgments](#acknowledgments)
+
+---
+
 ## Introduction — Why CI/CD in Fabric?
 
 Microsoft Fabric workspaces contain items — notebooks, pipelines, lakehouses, semantic models, and more — that need to move reliably between development, test, and production environments. Beyond items, **data** must also be ingested and transformed in each stage to validate that everything works end-to-end. CI/CD in Fabric provides the mechanisms to version-control these items, track changes over time, and automate their deployment and data workflows across stages.

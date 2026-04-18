@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 280" font-family="Segoe UI, Arial, sans-serif" font-size="13">
+  <defs>
+    <marker id="arrow2" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#4A90D9"/></marker>
+  </defs>
+  <rect width="960" height="280" rx="8" fill="#f8f9fa" stroke="#dee2e6"/>
+  <text x="480" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#1a1a2e">Reset Flow — Revert to Dev and Merge</text>
+
+  <!-- Row 1 -->
+  <rect x="20" y="55" width="155" height="50" rx="6" fill="#E8873A" stroke="#d47a30"/>
+  <text x="97" y="77" text-anchor="middle" fill="white" font-weight="bold">branch_env.py</text>
+  <text x="97" y="92" text-anchor="middle" fill="white">--reset --dry-run</text>
+
+  <line x1="175" y1="80" x2="200" y2="80" stroke="#4A90D9" stroke-width="2" marker-end="url(#arrow2)"/>
+
+  <rect x="200" y="55" width="155" height="50" rx="6" fill="#E8873A" stroke="#d47a30"/>
+  <text x="277" y="77" text-anchor="middle" fill="white" font-weight="bold">branch_env.py</text>
+  <text x="277" y="92" text-anchor="middle" fill="white">--reset (apply)</text>
+
+  <line x1="355" y1="80" x2="380" y2="80" stroke="#4A90D9" stroke-width="2" marker-end="url(#arrow2)"/>
+
+  <rect x="380" y="55" width="130" height="50" rx="6" fill="#5BA88B" stroke="#4a9a7a"/>
+  <text x="445" y="77" text-anchor="middle" fill="white" font-weight="bold">git commit</text>
+  <text x="445" y="92" text-anchor="middle" fill="white">&amp; push</text>
+
+  <line x1="510" y1="80" x2="535" y2="80" stroke="#4A90D9" stroke-width="2" marker-end="url(#arrow2)"/>
+
+  <rect x="535" y="55" width="130" height="50" rx="6" fill="#5BA88B" stroke="#4a9a7a"/>
+  <text x="600" y="77" text-anchor="middle" fill="white" font-weight="bold">Open PR</text>
+  <text x="600" y="92" text-anchor="middle" fill="white">to dev</text>
+
+  <line x1="665" y1="80" x2="690" y2="80" stroke="#4A90D9" stroke-width="2" marker-end="url(#arrow2)"/>
+
+  <rect x="690" y="55" width="140" height="50" rx="6" fill="#D64545" stroke="#c63535"/>
+  <text x="760" y="72" text-anchor="middle" fill="white" font-weight="bold">GitHub Actions</text>
+  <text x="760" y="87" text-anchor="middle" fill="white">validate-branch-</text>
+  <text x="760" y="100" text-anchor="middle" fill="white">env.yml</text>
+
+  <line x1="830" y1="80" x2="855" y2="80" stroke="#4A90D9" stroke-width="2" marker-end="url(#arrow2)"/>
+
+  <rect x="855" y="55" width="90" height="50" rx="6" fill="#5BA88B" stroke="#4a9a7a"/>
+  <text x="900" y="77" text-anchor="middle" fill="white" font-weight="bold">Merge</text>
+  <text x="900" y="92" text-anchor="middle" fill="white">to dev</text>
+
+  <!-- What the reset does -->
+  <rect x="20" y="135" width="450" height="75" rx="6" fill="#f0f0f0" stroke="#ccc"/>
+  <text x="30" y="157" font-weight="bold" fill="#333">branch_env.py --reset:</text>
+  <text x="30" y="177" fill="#555">• Reverts semantic model and notebooks to dev IDs</text>
+  <text x="30" y="197" fill="#555">• Deletes feature value set and cleans settings.json</text>
+
+  <!-- What the action checks -->
+  <rect x="490" y="135" width="450" height="75" rx="6" fill="#f0f0f0" stroke="#ccc"/>
+  <text x="500" y="157" font-weight="bold" fill="#333">validate-branch-env.yml checks:</text>
+  <text x="500" y="177" fill="#555">• Semantic model and notebooks contain dev IDs</text>
+  <text x="500" y="197" fill="#555">• No feature value set files exist (only Test/Prod allowed)</text>
+
+  <!-- Post merge -->
+  <rect x="20" y="235" width="920" height="30" rx="6" fill="#e8f4fd" stroke="#b8daef"/>
+  <text x="480" y="255" text-anchor="middle" fill="#1a5276" font-weight="bold">After merge: delete feature branch (local + remote) and optionally delete the feature workspace in Fabric</text>
+</svg>

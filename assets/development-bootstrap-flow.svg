@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 320" font-family="Segoe UI, Arial, sans-serif" font-size="13">
+  <defs>
+    <marker id="arrow1" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#4A90D9"/></marker>
+  </defs>
+  <rect width="960" height="320" rx="8" fill="#f8f9fa" stroke="#dee2e6"/>
+  <text x="480" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#1a1a2e">Bootstrap Flow — Branch Out to Working Feature Workspace</text>
+
+  <!-- Row 1 -->
+  <rect x="20" y="55" width="130" height="50" rx="6" fill="#4A90D9" stroke="#3a7bc8"/>
+  <text x="85" y="77" text-anchor="middle" fill="white" font-weight="bold">Fabric UI</text>
+  <text x="85" y="92" text-anchor="middle" fill="white">Branch Out</text>
+
+  <line x1="150" y1="80" x2="175" y2="80" stroke="#4A90D9" stroke-width="2" marker-end="url(#arrow1)"/>
+
+  <rect x="175" y="55" width="130" height="50" rx="6" fill="#5BA88B" stroke="#4a9a7a"/>
+  <text x="240" y="77" text-anchor="middle" fill="white" font-weight="bold">git checkout</text>
+  <text x="240" y="92" text-anchor="middle" fill="white">&lt;branch&gt;</text>
+
+  <line x1="305" y1="80" x2="330" y2="80" stroke="#4A90D9" stroke-width="2" marker-end="url(#arrow1)"/>
+
+  <rect x="330" y="55" width="150" height="50" rx="6" fill="#E8873A" stroke="#d47a30"/>
+  <text x="405" y="77" text-anchor="middle" fill="white" font-weight="bold">branch_env.py</text>
+  <text x="405" y="92" text-anchor="middle" fill="white">--dry-run (preview)</text>
+
+  <line x1="480" y1="80" x2="505" y2="80" stroke="#4A90D9" stroke-width="2" marker-end="url(#arrow1)"/>
+
+  <rect x="505" y="55" width="150" height="50" rx="6" fill="#E8873A" stroke="#d47a30"/>
+  <text x="580" y="77" text-anchor="middle" fill="white" font-weight="bold">branch_env.py</text>
+  <text x="580" y="92" text-anchor="middle" fill="white">(apply changes)</text>
+
+  <line x1="655" y1="80" x2="680" y2="80" stroke="#4A90D9" stroke-width="2" marker-end="url(#arrow1)"/>
+
+  <rect x="680" y="55" width="130" height="50" rx="6" fill="#5BA88B" stroke="#4a9a7a"/>
+  <text x="745" y="77" text-anchor="middle" fill="white" font-weight="bold">git commit</text>
+  <text x="745" y="92" text-anchor="middle" fill="white">&amp; push</text>
+
+  <line x1="810" y1="80" x2="835" y2="80" stroke="#4A90D9" stroke-width="2" marker-end="url(#arrow1)"/>
+
+  <rect x="835" y="55" width="110" height="50" rx="6" fill="#4A90D9" stroke="#3a7bc8"/>
+  <text x="890" y="77" text-anchor="middle" fill="white" font-weight="bold">Fabric UI</text>
+  <text x="890" y="92" text-anchor="middle" fill="white">Update from Git</text>
+
+  <!-- Row 2 -->
+  <line x1="890" y1="105" x2="890" y2="150" stroke="#4A90D9" stroke-width="2" marker-end="url(#arrow1)"/>
+
+  <rect x="745" y="150" width="180" height="50" rx="6" fill="#4A90D9" stroke="#3a7bc8"/>
+  <text x="835" y="172" text-anchor="middle" fill="white" font-weight="bold">Fabric UI</text>
+  <text x="835" y="187" text-anchor="middle" fill="white">Activate feature value set</text>
+
+  <line x1="745" y1="175" x2="720" y2="175" stroke="#4A90D9" stroke-width="2" marker-end="url(#arrow1)"/>
+
+  <rect x="530" y="150" width="190" height="50" rx="6" fill="#4A90D9" stroke="#3a7bc8"/>
+  <text x="625" y="172" text-anchor="middle" fill="white" font-weight="bold">Fabric UI</text>
+  <text x="625" y="187" text-anchor="middle" fill="white">Run Import Data notebook</text>
+
+  <line x1="530" y1="175" x2="505" y2="175" stroke="#4A90D9" stroke-width="2" marker-end="url(#arrow1)"/>
+
+  <rect x="350" y="150" width="155" height="50" rx="6" fill="#7B68EE" stroke="#6a58de"/>
+  <text x="427" y="177" text-anchor="middle" fill="white" font-weight="bold">Develop in workspace</text>
+
+  <!-- What the script does -->
+  <rect x="20" y="230" width="920" height="75" rx="6" fill="#f0f0f0" stroke="#ccc"/>
+  <text x="30" y="252" font-weight="bold" fill="#333">branch_env.py creates:</text>
+  <text x="30" y="272" fill="#555">• Feature value set (valueSets/&lt;branch-name&gt;.json) with workspace and lakehouse IDs</text>
+  <text x="30" y="292" fill="#555">• Rewrites semantic model Direct Lake URL and notebook META blocks from dev → feature IDs</text>
+</svg>

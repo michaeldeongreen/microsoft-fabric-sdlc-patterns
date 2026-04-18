@@ -8,8 +8,7 @@ Microsoft Fabric workspaces contain items — notebooks, pipelines, lakehouses, 
 
 ## Git Integration in Fabric
 
-<details>
-<summary><strong>How It Works</strong></summary>
+### How It Works
 
 - **Workspace-level integration** — Git integration operates at the workspace level. Developers connect a Fabric workspace to a Git repository and sync all supported items in a single process.
 - **Supported Git providers** — Azure DevOps (cloud), GitHub (cloud), and GitHub Enterprise (cloud).
@@ -21,10 +20,8 @@ Microsoft Fabric workspaces contain items — notebooks, pipelines, lakehouses, 
 - **Tenant admin switches required** — Git sync, GitHub sync, and workspace creation switches must be enabled in the Fabric admin portal.
 - **Fabric capacity required** — A Fabric or Power BI Premium capacity is needed to use Git integration.
 
-</details>
 
-<details>
-<summary><strong>Unsupported Items</strong></summary>
+### Unsupported Items
 
 Git integration only works with a specific set of Fabric items. **Any item not on the supported list is ignored** — it stays in the workspace but is not synced, committed, or deleted.
 
@@ -32,14 +29,12 @@ For the full list of supported items, see the [official documentation](https://l
 
 > **Important:** **Ontologies are not supported** by Git integration at this time.
 
-</details>
 
 ---
 
 ## Development Process
 
-<details>
-<summary><strong>Isolated Environments</strong></summary>
+### Isolated Environments
 
 The development process is the same regardless of which deployment option you choose. Developers should always work in isolation — never directly in the shared team workspace.
 
@@ -57,14 +52,12 @@ Alternatively, developers working on items available in client tools (e.g., Powe
 
 > **Key takeaway:** The Fabric workspace is a shared, live environment. Any changes made directly in it affect all users. Always work in an isolated feature workspace or local environment and merge changes through PRs.
 
-</details>
 
 ---
 
 ## Release Options
 
-<details>
-<summary><strong>Option 1 – Fabric Deployment Pipelines</strong></summary>
+### Option 1 – Fabric Deployment Pipelines
 
 With this option, Git is connected only to the **Dev** workspace. From there, deployments happen **workspace-to-workspace** (Dev → Test → Prod) using Fabric's built-in Deployment Pipelines feature.
 
@@ -121,10 +114,8 @@ With this option, Git is connected only to the **Dev** workspace. From there, de
 - **Limited configuration management** — Deployment rules support only a subset of item properties (e.g., data source connections, parameters). Complex workspace-specific configuration changes may require additional API calls post-deployment.
 - **Permissions overhead** — Creating and managing Deployment Pipelines requires workspace admin permissions on all assigned stages, plus a Fabric capacity for each workspace.
 
-</details>
 
-<details>
-<summary><strong>Option 2 – Git-based Deployments</strong></summary>
+### Option 2 – Git-based Deployments
 
 With this option, all deployments originate from the **Git repository**. Each stage in the release pipeline has its own **dedicated branch** (e.g., `dev`, `test`, `prod`), and each branch is connected to its corresponding Fabric workspace. Content moves between stages via **Pull Requests between branches**, not workspace-to-workspace.
 
@@ -181,10 +172,8 @@ With this option, all deployments originate from the **Git repository**. Each st
 - **PR discipline required** — The promotion process depends entirely on PR quality. Incomplete or poorly reviewed PRs directly affect the target stage workspace.
 - **Cherry-pick complexity** — Moving a subset of changes between stages often requires release branches with cherry-picked commits rather than a simple full merge.
 
-</details>
 
-<details>
-<summary><strong>Option 3 – Git-based with Build Environments</strong></summary>
+### Option 3 – Git-based with Build Environments
 
 With this option, all deployments originate from a **single branch** (e.g., `main`) in the Git repository. Each stage has its own **build and release pipeline** that spins up a build environment to run tests and **alter workspace-specific configurations** before deploying to the target workspace.
 
@@ -261,14 +250,12 @@ With this option, all deployments originate from a **single branch** (e.g., `mai
 - **Build environment overhead** — Each deployment spins up a build environment, adding time and compute cost to the pipeline.
 - **Trunk-based discipline** — Requires that `main` is always in a deployable state. Broken commits to `main` can cascade to all stages.
 
-</details>
 
 ---
 
 ## Infrastructure & Resource Provisioning
 
-<details>
-<summary><strong>Bicep & Terraform</strong></summary>
+### Bicep & Terraform
 
 Bicep and Terraform operate at a **different layer** than the release options above. They are **infrastructure-as-code (IaC)** tools for provisioning and managing the *containers and resources* that Fabric runs on — not for deploying content between environments.
 
@@ -308,12 +295,10 @@ Technically, the Terraform provider can *create* items like notebooks in a targe
 - For **workspace setup**, **deployment pipeline creation**, **role assignments**, and **Git connections**, use either the Fabric Terraform provider, Fabric REST APIs, or manual setup in the portal — depending on your team's IaC preference.
 - Use **fabric-cicd** and **Deployment Pipelines** for content deployment (as described in the Release Options and My Recommendation sections).
 
-</details>
 
 ---
 
-<details>
-<summary><h2>Comparison Summary</h2></summary>
+## Comparison Summary
 
 | | **Option 1 – Deployment Pipelines** | **Option 2 – Git-based** | **Option 3 – Git-based + Build Env** |
 |---|---|---|---|
@@ -330,12 +315,10 @@ Technically, the Terraform provider can *create* items like notebooks in a targe
 | **Key limitation** | Linear structure; API lacks dependency resolution | Multi-branch merge complexity; no deployment rules | Full deploy every run (no diffs); parameter file maintenance |
 | **Best for** | Teams wanting Fabric-native tooling with minimal setup | Teams wanting Git as full source of truth with Gitflow | Teams needing build-time config transformation per stage |
 
-</details>
 
 ---
 
-<details>
-<summary><h2>My Recommendation</h2></summary>
+## My Recommendation
 
 ### Hybrid Approach — fabric-cicd + Deployment Pipelines
 
@@ -464,12 +447,10 @@ When Ontologies (and any other currently unsupported items) gain Git integration
 - **Connections/configs** match Prod targets (Variable Libraries and deploy-time parameters applied correctly).
 - **Deployment history and pairing** look correct in the pipeline (for unsupported items).
 
-</details>
 
 ---
 
-<details>
-<summary><h2>Best Practices</h2></summary>
+## Best Practices
 
 - Use service principals for automation
 - Use Terraform or Bicep to provision Fabric CI/CD environment infrastructure *(Note: The Customer uses Bicep today — Bicep covers Fabric capacities; for broader resource management such as workspaces and deployment pipelines, consider supplementing with the Fabric Terraform provider or REST APIs)*
@@ -480,12 +461,10 @@ When Ontologies (and any other currently unsupported items) gain Git integration
 - Develop workflows to automate syncing workspace items from Git branches
 - Develop workflows to automate continuous deployment using the fabric-cicd library
 
-</details>
 
 ---
 
-<details>
-<summary><h2>References</h2></summary>
+## References
 
 - [What is Microsoft Fabric Git integration?](https://learn.microsoft.com/en-us/fabric/cicd/git-integration/intro-to-git-integration)
 - [Get started with Git integration](https://learn.microsoft.com/en-us/fabric/cicd/git-integration/git-get-started)
@@ -509,7 +488,6 @@ When Ontologies (and any other currently unsupported items) gain Git integration
 - [Best practices for lifecycle management in Fabric](https://learn.microsoft.com/en-us/fabric/cicd/best-practices-cicd)
 - [FabricDevCamp: fabric-cicd-best-practices](https://github.com/FabricDevCamp/fabric-cicd-best-practices)
 
-</details>
 
 ---
 

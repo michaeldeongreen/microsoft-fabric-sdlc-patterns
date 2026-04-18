@@ -1,4 +1,4 @@
-# Feature Branch Development Process
+# Development Process
 
 This document describes the two primary approaches for feature branch development in Microsoft Fabric with Git integration, the tradeoffs of each, and how this repository implements the **Branch Out** pattern.
 
@@ -76,6 +76,8 @@ A Python script at `scripts/branch_env.py` handles the full lifecycle of feature
 
 #### Step-by-Step: Setting Up a Feature Branch
 
+![Bootstrap Flow](assets/development-bootstrap-flow.svg)
+
 1. **Branch out** from the Fabric UI Source Control panel.
 2. **Clone/pull** the feature branch locally:
    ```
@@ -107,6 +109,8 @@ A Python script at `scripts/branch_env.py` handles the full lifecycle of feature
 7. **Run the import data notebook** to populate the feature lakehouse.
 
 #### Step-by-Step: Reverting Before PR to Dev
+
+![Reset Flow](assets/development-reset-flow.svg)
 
 Before merging back to `dev`, all feature-specific changes must be reverted so dev IDs are restored:
 

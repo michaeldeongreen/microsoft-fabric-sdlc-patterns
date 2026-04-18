@@ -72,7 +72,8 @@ The same pattern applies to Prod (`deploy-prod.yml` → `etl-prod.yml`), trigger
 microsoft-fabric-sdlc-patterns/
 ├── .github/
 │   ├── instructions/
-│   │   └── actions.instructions.md          # Copilot instructions for workflow authoring
+│   │   ├── actions.instructions.md          # Copilot instructions for workflow authoring
+│   │   └── python.instructions.md           # Copilot instructions for Python scripts
 │   └── workflows/
 │       ├── deploy-test.yml                  # Orchestrator: push to test → 3-job sandwich
 │       ├── deploy-prod.yml                  # Orchestrator: push to main → 3-job sandwich
@@ -82,7 +83,8 @@ microsoft-fabric-sdlc-patterns/
 │       ├── reusable-deploy-unsupported.yml  # Template: SKELETON (Deployment Pipeline)
 │       ├── reusable-deploy-supported-       # Template: SKELETON (dependent items)
 │       │   dependent-on-unsupported.yml
-│       └── reusable-fabric-etl.yml          # Template: run Notebook via Fabric REST API
+│       ├── reusable-fabric-etl.yml          # Template: run Notebook via Fabric REST API
+│       └── validate-branch-env.yml          # PR check: blocks feature IDs from merging to dev
 ├── data/
 │   └── fabric/                              # Fabric item definitions (repository_directory)
 │       ├── parameter.yml                    # fabric-cicd deploy-time parameterization
@@ -97,9 +99,12 @@ microsoft-fabric-sdlc-patterns/
 │       ├── Import_Patterns_Data.            # ETL notebook (creates Delta tables)
 │       │   Notebook/
 │       └── Patterns_Patients_Data.Notebook/ # Query notebook (reads patients table)
+├── scripts/
+│   └── branch_env.py                       # Bootstrap/reset feature branch workspace bindings
 ├── assets/                                  # Architecture diagrams (SVG)
 ├── fabric-cicd-release-options.md           # CI/CD strategy and release option comparison
 ├── hybrid-cicd-implementation-guide.md      # This file
+├── development-process.md                   # Feature branch development process
 └── README.md                                # Repository landing page
 ```
 

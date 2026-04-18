@@ -1,0 +1,75 @@
+name: Validate Branch Environment
+
+on:
+  pull_request:
+    branches: [dev]
+    paths: ["data/fabric/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  validate-branch-env:
+    name: Check for non-dev IDs in Fabric items
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Extract dev IDs from variables.json
+        id: dev-ids
+        run: |
+          WS_ID=$(jq -r '.variables[] | select(.name == "target_workspace_id") | .value' data/fabric/Patterns_Variables.VariableLibrary/variables.json)
+          LH_ID=$(jq -r '.variables[] | select(.name == "target_lakehouse_id") | .value' data/fabric/Patterns_Variables.VariableLibrary/variables.json)
+          echo "ws_id=$WS_ID" >> "$GITHUB_OUTPUT"
+          echo "lh_id=$LH_ID" >> "$GITHUB_OUTPUT"
+          echo "Dev workspace ID: $WS_ID"
+          echo "Dev lakehouse ID: $LH_ID"
+
+      - name: Check semantic model uses dev IDs
+        run: |
+          FILE="data/fabric/Patterns_Semantic_Model.SemanticModel/definition/expressions.tmdl"
+          ERRORS=0
+          if ! grep -q "${{ steps.dev-ids.outputs.ws_id }}" "$FILE"; then
+            echo "::error file=$FILE::Semantic model does not contain dev workspace ID"
+            ERRORS=1
+          fi
+          if ! grep -q "${{ steps.dev-ids.outputs.lh_id }}" "$FILE"; then
+            echo "::error file=$FILE::Semantic model does not contain dev lakehouse ID"
+            ERRORS=1
+          fi
+          exit $ERRORS
+
+      - name: Check notebooks use dev IDs
+        run: |
+          ERRORS=0
+          for NB in data/fabric/*.Notebook/notebook-content.py; do
+            [ -f "$NB" ] || continue
+            # Only check notebooks that have lakehouse dependencies
+            if grep -q "default_lakehouse" "$NB"; then
+              if ! grep -q "${{ steps.dev-ids.outputs.ws_id }}" "$NB"; then
+                echo "::error file=$NB::Notebook does not contain dev workspace ID"
+                ERRORS=1
+              fi
+              if ! grep -q "${{ steps.dev-ids.outputs.lh_id }}" "$NB"; then
+                echo "::error file=$NB::Notebook does not contain dev lakehouse ID"
+                ERRORS=1
+              fi
+            fi
+          done
+          exit $ERRORS
+
+      - name: Check for feature branch value sets
+        run: |
+          ERRORS=0
+          for VS in data/fabric/Patterns_Variables.VariableLibrary/valueSets/*.json; do
+            [ -f "$VS" ] || continue
+            BASENAME=$(basename "$VS" .json)
+            if [[ "$BASENAME" != "Test" && "$BASENAME" != "Prod" ]]; then
+              echo "::error file=$VS::Feature branch value set '$BASENAME' must be removed before merging to dev"
+              ERRORS=1
+            fi
+          done
+          exit $ERRORS

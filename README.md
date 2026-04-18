@@ -45,8 +45,8 @@ Git repo (dev branch)
 | Document | Description |
 |---|---|
 | [CI/CD Release Options](fabric-cicd-release-options.md) | Evaluates all CI/CD release options for Fabric (Deployment Pipelines, Git-based, Build-based, Hybrid) and recommends the Hybrid approach. **Start here** if you're deciding on a strategy. |
-| [Hybrid CI/CD Implementation Guide](hybrid-cicd-implementation-guide.md) | Deep dive into the implementation: workflow structure, sandwich pattern, configuration strategy, prerequisites, setup steps, and gotchas. |
-| [Development Process](development-process.md) | How developers work day-to-day: branch-out workflow, environment bootstrap/reset script, and PR validation. |
+| [Hybrid CI/CD Implementation Guide](fabric-hybrid-cicd-guide.md) | Deep dive into the implementation: workflow structure, sandwich pattern, configuration strategy, prerequisites, setup steps, and gotchas. |
+| [Development Process](fabric-development-process.md) | How developers work day-to-day: branch-out workflow, environment bootstrap/reset script, and PR validation. |
 
 ---
 
@@ -66,7 +66,7 @@ Not all Fabric items can be managed the same way. From a lifecycle management pe
 
 > **Important:** Both supported items lists evolve as Microsoft adds capabilities. Always verify against the official documentation before assuming an item falls into a particular category.
 
-This categorization directly impacts your CI/CD strategy. The [Hybrid CI/CD Implementation Guide](hybrid-cicd-implementation-guide.md) uses the "sandwich pattern" specifically to handle the gap between git-tracked and deployment-pipeline-only items.
+This categorization directly impacts your CI/CD strategy. The [Hybrid CI/CD Implementation Guide](fabric-hybrid-cicd-guide.md) uses the "sandwich pattern" specifically to handle the gap between git-tracked and deployment-pipeline-only items.
 
 ### Variable Libraries: Dynamic vs Static Metadata
 
@@ -77,7 +77,7 @@ Some Fabric items resolve environment-specific values **at runtime** through [Va
 | **Dynamic (Variable Library)** | The item reads IDs from the Variable Library at runtime. Changing the active value set automatically switches the environment context — no file changes needed. | Notebooks using `notebookutils.variableLibrary.getLibrary()` |
 | **Static (hardcoded)** | The item definition contains literal workspace/lakehouse GUIDs that must be rewritten per environment — either at deploy time (via `parameter.yml`) or via script (`branch_env.py`). | Semantic Model Direct Lake URL (`expressions.tmdl`), Notebook META dependency blocks (`default_lakehouse`, `default_lakehouse_workspace_id`) |
 
-When designing your development and CI/CD processes, identify which items in your workspace are dynamic vs static. Static items need either deploy-time parameterization (`parameter.yml` for CI/CD) or script-based rewriting (`branch_env.py` for feature branches). The [Development Process](development-process.md) doc covers how this repo handles both.
+When designing your development and CI/CD processes, identify which items in your workspace are dynamic vs static. Static items need either deploy-time parameterization (`parameter.yml` for CI/CD) or script-based rewriting (`branch_env.py` for feature branches). The [Development Process](fabric-development-process.md) doc covers how this repo handles both.
 
 ---
 
@@ -99,7 +99,7 @@ When designing your development and CI/CD processes, identify which items in you
 4. Create `dev`, `test`, and `main` branches
 5. Develop on `dev`, merge to `test` (triggers Test deploy), merge to `main` (triggers Prod deploy)
 
-For detailed setup instructions, see the [Implementation Guide](hybrid-cicd-implementation-guide.md#prerequisites--setup).
+For detailed setup instructions, see the [Implementation Guide](fabric-hybrid-cicd-guide.md#prerequisites--setup).
 
 ---
 

@@ -103,8 +103,8 @@ microsoft-fabric-sdlc-patterns/
 │   └── branch_env.py                       # Bootstrap/reset feature branch workspace bindings
 ├── assets/                                  # Architecture diagrams (SVG)
 ├── fabric-cicd-release-options.md           # CI/CD strategy and release option comparison
-├── hybrid-cicd-implementation-guide.md      # This file
-├── development-process.md                   # Feature branch development process
+├── fabric-hybrid-cicd-guide.md               # This file
+├── fabric-development-process.md             # Development process
 └── README.md                                # Repository landing page
 ```
 

@@ -1,7 +1,7 @@
 # Reusable workflow: Run a Fabric Notebook or Data Pipeline via the Fabric REST API.
 #
 # After items are deployed to a workspace, this workflow triggers an ETL job
-# (e.g., the Import_Fabulous_One_Data notebook) to ingest and transform data.
+# (e.g., the Import_Patterns_Data notebook) to ingest and transform data.
 # The item is resolved by name at runtime via the Fabric List Items API, avoiding
 # the need to know item IDs ahead of time (which differ per workspace).
 # The Fabric Jobs API is asynchronous — this workflow starts the job, then polls
@@ -27,7 +27,7 @@ on:
         required: true
         type: string
       item_name:
-        description: "The display name of the Fabric item to run (e.g., Import_Fabulous_One_Data)"
+        description: "The display name of the Fabric item to run (e.g., Import_Patterns_Data)"
         required: true
         type: string
       item_type:

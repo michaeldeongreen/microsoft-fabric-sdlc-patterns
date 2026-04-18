@@ -3,7 +3,7 @@
   "version": "4.0",
   "datasetReference": {
     "byPath": {
-      "path": "../Fabulous_One_Semantic_Model.SemanticModel"
+      "path": "../Patterns_Semantic_Model.SemanticModel"
     }
   }
 }

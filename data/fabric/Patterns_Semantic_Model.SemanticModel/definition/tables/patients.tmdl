@@ -72,5 +72,5 @@ table patients
 		source
 			entityName: patients
 			schemaName: dbo
-			expressionSource: 'DirectLake - FabulousLakehouse'
+			expressionSource: 'DirectLake - PatternsLakehouse'
 

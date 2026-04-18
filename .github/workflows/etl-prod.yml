@@ -23,5 +23,5 @@ jobs:
     uses: ./.github/workflows/reusable-fabric-etl.yml
     with:
       environment: Prod
-      item_name: Import_Fabulous_One_Data
+      item_name: Import_Patterns_Data
     secrets: inherit

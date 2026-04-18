@@ -19,31 +19,31 @@ find_replace:
     # Replace Dev lakehouse ID with the actual lakehouse ID in the target workspace.
     # fabric-cicd deploys the Lakehouse before the Variable Library, so the ID
     # is guaranteed to be available when this replacement runs.
-    - find_value: "7694ebac-deb9-4a40-a846-0782b36b3bda"
+    - find_value: "c185283c-9dd9-4e40-a17c-aa6303e3a2e9"
       replace_value:
-          _ALL_: "$items.Lakehouse.FabulousLakehouse.$id"
+          _ALL_: "$items.Lakehouse.PatternsLakehouse.$id"
       item_type: "VariableLibrary"
 
     # Replace Dev workspace ID in Semantic Model Direct Lake connection.
-    - find_value: "ca5566de-3273-4656-a4ad-8d300301f6b2"
+    - find_value: "d7270f11-feba-4990-baa6-d45e47f23737"
       replace_value:
           _ALL_: "$workspace.$id"
       item_type: "SemanticModel"
 
     # Replace Dev lakehouse ID in Semantic Model Direct Lake connection.
-    - find_value: "7694ebac-deb9-4a40-a846-0782b36b3bda"
+    - find_value: "c185283c-9dd9-4e40-a17c-aa6303e3a2e9"
       replace_value:
-          _ALL_: "$items.Lakehouse.FabulousLakehouse.$id"
+          _ALL_: "$items.Lakehouse.PatternsLakehouse.$id"
       item_type: "SemanticModel"
 
     # Replace Dev lakehouse ID in Notebook default_lakehouse dependency.
-    - find_value: "7694ebac-deb9-4a40-a846-0782b36b3bda"
+    - find_value: "c185283c-9dd9-4e40-a17c-aa6303e3a2e9"
       replace_value:
-          _ALL_: "$items.Lakehouse.FabulousLakehouse.$id"
+          _ALL_: "$items.Lakehouse.PatternsLakehouse.$id"
       item_type: "Notebook"
 
     # Replace Dev workspace ID in Notebook default_lakehouse_workspace_id.
-    - find_value: "ca5566de-3273-4656-a4ad-8d300301f6b2"
+    - find_value: "d7270f11-feba-4990-baa6-d45e47f23737"
       replace_value:
           _ALL_: "$workspace.$id"
       item_type: "Notebook"

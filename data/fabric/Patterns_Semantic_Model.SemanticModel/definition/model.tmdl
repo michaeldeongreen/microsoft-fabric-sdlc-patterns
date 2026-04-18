@@ -6,7 +6,7 @@ model Model
 		legacyRedirects
 		returnErrorValuesAsNull
 
-annotation PBI_QueryOrder = ["DirectLake - FabulousLakehouse"]
+annotation PBI_QueryOrder = ["DirectLake - PatternsLakehouse"]
 
 annotation __PBI_TimeIntelligenceEnabled = 1
 

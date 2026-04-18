@@ -62,5 +62,5 @@ table doctors
 		source
 			entityName: doctors
 			schemaName: dbo
-			expressionSource: 'DirectLake - FabulousLakehouse'
+			expressionSource: 'DirectLake - PatternsLakehouse'
 

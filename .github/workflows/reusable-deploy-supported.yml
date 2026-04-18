@@ -94,7 +94,7 @@ jobs:
           # fabric-cicd's \$items dynamic variables resolve by querying the live
           # workspace during parameterization. On first deployment to an empty
           # workspace, the Lakehouse must exist before Variable Library and
-          # Semantic Model can resolve \$items.Lakehouse.FabulousLakehouse.\$id.
+          # Semantic Model can resolve \$items.Lakehouse.PatternsLakehouse.\$id.
           # On subsequent deployments, the Lakehouse already exists and this
           # phase simply updates it (idempotent).
           print('Phase 1: Deploying Lakehouse...')

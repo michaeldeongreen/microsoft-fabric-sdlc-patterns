@@ -5,25 +5,25 @@
       "name": "target_workspace_id",
       "note": "",
       "type": "Guid",
-      "value": "ca5566de-3273-4656-a4ad-8d300301f6b2"
+      "value": "d7270f11-feba-4990-baa6-d45e47f23737"
     },
     {
       "name": "target_lakehouse_name",
       "note": "",
       "type": "String",
-      "value": "FabulousLakehouse"
+      "value": "PatternsLakehouse"
     },
     {
       "name": "target_workspace_name",
       "note": "",
       "type": "String",
-      "value": "fabulous-one-dev"
+      "value": "microsoft-fabric-sdlc-patterns-dev"
     },
     {
       "name": "target_lakehouse_id",
       "note": "",
       "type": "Guid",
-      "value": "7694ebac-deb9-4a40-a846-0782b36b3bda"
+      "value": "c185283c-9dd9-4e40-a17c-aa6303e3a2e9"
     }
   ]
 }

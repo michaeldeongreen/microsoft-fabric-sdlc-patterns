@@ -14,7 +14,7 @@
 # Fabric notebook source
 
 # CELL ********************
-VARIABLE_LIBRARY_NAME = "Fabulous_One_Variables"
+VARIABLE_LIBRARY_NAME = "Patterns_Variables"
 
 variable_library = notebookutils.variableLibrary.getLibrary(VARIABLE_LIBRARY_NAME)
 

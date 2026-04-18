@@ -2,10 +2,10 @@
   "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
   "metadata": {
     "type": "VariableLibrary",
-    "displayName": "Fabulous_One_Variables"
+    "displayName": "Patterns_Variables"
   },
   "config": {
     "version": "2.0",
-    "logicalId": "1a06d35c-23c7-ad68-4851-cc1b9629bfbe"
+    "logicalId": "5220202a-b30f-98d4-4d3f-e74d9a98a4f0"
   }
 }

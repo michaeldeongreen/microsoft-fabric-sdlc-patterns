@@ -1,9 +1,13 @@
 """
-Bootstrap a feature-branch workspace for Fabric.
+Manage feature-branch workspace bindings for Fabric.
 
-Run after checking out and pulling a feature branch:
-    python scripts/bootstrap_branch.py
-    python scripts/bootstrap_branch.py --dry-run
+Bootstrap (repoint dev → feature):
+    python scripts/branch_env.py
+    python scripts/branch_env.py --dry-run
+
+Reset (revert feature → dev, before PR):
+    python scripts/branch_env.py --reset
+    python scripts/branch_env.py --reset --dry-run
 
 No arguments required — reads the current git branch automatically.
 """
@@ -237,11 +241,56 @@ def validate_no_dev_ids(dev_ws_id: str, dev_lh_id: str) -> list[str]:
     return warnings
 
 
+def validate_no_feature_ids(feature_ws_id: str, feature_lh_id: str) -> list[str]:
+    """Scan rewritten files for leftover feature IDs after reset."""
+    critical_files = [
+        EXPRESSIONS_FILE,
+        *FABRIC_DIR.glob("*.Notebook/notebook-content.py"),
+    ]
+    warnings = []
+    for f in critical_files:
+        if not f.exists():
+            continue
+        text = f.read_text(encoding="utf-8")
+        for label, fid in [("workspace", feature_ws_id), ("lakehouse", feature_lh_id)]:
+            if fid in text:
+                warnings.append(f"  {f.relative_to(REPO_ROOT)}: still contains feature {label} ID")
+    return warnings
+
+
+def remove_value_set(value_set_path: Path, *, dry_run: bool) -> bool:
+    if not value_set_path.exists():
+        print("  Value set already removed.")
+        return False
+    rel = value_set_path.relative_to(REPO_ROOT)
+    if dry_run:
+        print(f"  [dry-run] Would delete: {rel}")
+        return True
+    value_set_path.unlink()
+    print(f"  Deleted: {rel}")
+    return True
+
+
+def remove_from_settings(branch_label: str, *, dry_run: bool) -> bool:
+    settings = load_json(SETTINGS_FILE)
+    if branch_label in settings["valueSetsOrder"]:
+        if dry_run:
+            print(f"  [dry-run] Would remove '{branch_label}' from settings.json valueSetsOrder")
+            return True
+        settings["valueSetsOrder"].remove(branch_label)
+        save_json(SETTINGS_FILE, settings)
+        print(f"  Removed '{branch_label}' from settings.json valueSetsOrder")
+        return True
+    return False
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Bootstrap feature-branch Fabric workspace bindings.")
+    parser = argparse.ArgumentParser(description="Manage feature-branch Fabric workspace bindings.")
     parser.add_argument("--dry-run", action="store_true", help="Show what would change without writing files.")
+    parser.add_argument("--reset", action="store_true", help="Revert feature IDs back to dev and remove value set.")
     args = parser.parse_args()
     dry_run: bool = args.dry_run
+    reset: bool = args.reset
 
     if dry_run:
         print("=== DRY RUN — no files will be modified ===\n")
@@ -260,6 +309,14 @@ def main() -> None:
     print(f"  Dev workspace : {dev_ws_id}")
     print(f"  Dev lakehouse : {dev_lh_id}")
 
+    if reset:
+        _run_reset(branch, branch_label, value_set_path, dev_ws_id, dev_lh_id, dry_run=dry_run)
+    else:
+        _run_bootstrap(branch, branch_label, value_set_path, dev_ws_id, dev_lh_id, dry_run=dry_run)
+
+
+def _run_bootstrap(branch: str, branch_label: str, value_set_path: Path,
+                   dev_ws_id: str, dev_lh_id: str, *, dry_run: bool) -> None:
     print("\n2. Resolving feature environment IDs...")
     new_ws_id, new_lh_id = resolve_feature_ids(branch, value_set_path)
     print(f"  Feature workspace : {new_ws_id}")
@@ -268,7 +325,6 @@ def main() -> None:
     if new_ws_id == dev_ws_id and new_lh_id == dev_lh_id:
         sys.exit("ERROR: Feature IDs are identical to dev IDs. Nothing to do.")
 
-    # Track changes for summary
     changes: list[str] = []
 
     print("\n3. Creating/updating value set...")
@@ -298,11 +354,62 @@ def main() -> None:
         else:
             print("  Clean — no dev IDs in critical files.")
 
-    # Summary
-    print("\n── Summary ──────────────────────────────────────")
+    _print_summary(branch, dev_ws_id, dev_lh_id, new_ws_id, new_lh_id, changes, dry_run=dry_run)
+
+
+def _run_reset(branch: str, branch_label: str, value_set_path: Path,
+               dev_ws_id: str, dev_lh_id: str, *, dry_run: bool) -> None:
+    print("\n2. Loading feature IDs from value set...")
+    if not value_set_path.exists():
+        sys.exit(f"ERROR: No value set found at {value_set_path.relative_to(REPO_ROOT)}. Nothing to reset.")
+
+    overrides = load_json(value_set_path)["variableOverrides"]
+    lookup = {o["name"]: o["value"] for o in overrides}
+    feature_ws_id = lookup["target_workspace_id"]
+    feature_lh_id = lookup["target_lakehouse_id"]
+    print(f"  Feature workspace : {feature_ws_id}")
+    print(f"  Feature lakehouse : {feature_lh_id}")
+
+    changes: list[str] = []
+
+    print("\n3. Reverting semantic model to dev...")
+    if repoint_semantic_model(feature_ws_id, feature_lh_id, dev_ws_id, dev_lh_id, dry_run=dry_run):
+        changes.append(f"Reverted:  {EXPRESSIONS_FILE.relative_to(REPO_ROOT)}")
+
+    print("\n4. Reverting notebooks to dev...")
+    reverted_nbs = repoint_notebooks(feature_ws_id, feature_lh_id, dev_ws_id, dev_lh_id, dry_run=dry_run)
+    for nb in reverted_nbs:
+        changes.append(f"Reverted:  {nb}")
+
+    print("\n5. Removing feature value set...")
+    if remove_value_set(value_set_path, dry_run=dry_run):
+        changes.append(f"Deleted:   {value_set_path.relative_to(REPO_ROOT)}")
+    if remove_from_settings(branch_label, dry_run=dry_run):
+        changes.append(f"Settings:  {SETTINGS_FILE.relative_to(REPO_ROOT)}")
+
+    print("\n6. Validating...")
+    if dry_run:
+        print("  [dry-run] Skipping validation (files unchanged).")
+    else:
+        warnings = validate_no_feature_ids(feature_ws_id, feature_lh_id)
+        if warnings:
+            print("  WARNINGS — feature IDs still found:")
+            for w in warnings:
+                print(w)
+        else:
+            print("  Clean — no feature IDs in critical files.")
+
+    _print_summary(branch, feature_ws_id, feature_lh_id, dev_ws_id, dev_lh_id, changes, dry_run=dry_run, reset=True)
+
+
+def _print_summary(branch: str, old_ws_id: str, old_lh_id: str,
+                   new_ws_id: str, new_lh_id: str, changes: list[str],
+                   *, dry_run: bool, reset: bool = False) -> None:
+    mode = "RESET" if reset else "BOOTSTRAP"
+    print(f"\n── Summary ({mode}) ──────────────────────────────")
     print(f"  Branch:            {branch}")
-    print(f"  Workspace ID:      {dev_ws_id} → {new_ws_id}")
-    print(f"  Lakehouse ID:      {dev_lh_id} → {new_lh_id}")
+    print(f"  Workspace ID:      {old_ws_id} → {new_ws_id}")
+    print(f"  Lakehouse ID:      {old_lh_id} → {new_lh_id}")
     print(f"  Files {'that would change' if dry_run else 'changed'}:")
     for c in changes:
         print(f"    {c}")

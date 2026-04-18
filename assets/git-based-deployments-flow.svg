@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 380" font-family="Segoe UI, Arial, sans-serif">
+  <!-- Background -->
+  <rect width="900" height="380" fill="#f9f9f9" rx="8"/>
+
+  <!-- Title -->
+  <text x="450" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#333">Option 2 – Git-based Deployments</text>
+
+  <!-- Git Repo box -->
+  <rect x="30" y="55" width="130" height="170" rx="8" fill="#0078d4" stroke="#005a9e" stroke-width="1.5"/>
+  <text x="95" y="78" text-anchor="middle" font-size="13" fill="#fff" font-weight="bold">Git Repository</text>
+
+  <!-- Dev branch -->
+  <rect x="42" y="92" width="106" height="32" rx="5" fill="#28a745" stroke="#1e7e34" stroke-width="1"/>
+  <text x="95" y="113" text-anchor="middle" font-size="11" fill="#fff" font-weight="bold">dev branch</text>
+
+  <!-- Test branch -->
+  <rect x="42" y="132" width="106" height="32" rx="5" fill="#fd7e14" stroke="#e8590c" stroke-width="1"/>
+  <text x="95" y="153" text-anchor="middle" font-size="11" fill="#fff" font-weight="bold">test branch</text>
+
+  <!-- Prod branch -->
+  <rect x="42" y="172" width="106" height="32" rx="5" fill="#dc3545" stroke="#bd2130" stroke-width="1"/>
+  <text x="95" y="193" text-anchor="middle" font-size="11" fill="#fff" font-weight="bold">prod branch</text>
+
+  <!-- Arrow: dev branch → Dev Workspace -->
+  <line x1="148" y1="108" x2="250" y2="108" stroke="#28a745" stroke-width="2" marker-end="url(#arrowGreen)"/>
+  <text x="199" y="100" text-anchor="middle" font-size="9" fill="#28a745">Update from Git</text>
+
+  <!-- Arrow: test branch → Test Workspace -->
+  <line x1="148" y1="148" x2="250" y2="148" stroke="#fd7e14" stroke-width="2" marker-end="url(#arrowOrange)"/>
+  <text x="199" y="140" text-anchor="middle" font-size="9" fill="#e8590c">Update from Git</text>
+
+  <!-- Arrow: prod branch → Prod Workspace -->
+  <line x1="148" y1="188" x2="250" y2="188" stroke="#dc3545" stroke-width="2" marker-end="url(#arrowRed)"/>
+  <text x="199" y="180" text-anchor="middle" font-size="9" fill="#dc3545">Update from Git</text>
+
+  <!-- Dev Workspace -->
+  <rect x="255" y="88" width="150" height="40" rx="8" fill="#28a745" stroke="#1e7e34" stroke-width="1.5"/>
+  <text x="330" y="113" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Dev Workspace</text>
+
+  <!-- Test Workspace -->
+  <rect x="255" y="128" width="150" height="40" rx="8" fill="#fd7e14" stroke="#e8590c" stroke-width="1.5"/>
+  <text x="330" y="153" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Test Workspace</text>
+
+  <!-- Prod Workspace -->
+  <rect x="255" y="168" width="150" height="40" rx="8" fill="#dc3545" stroke="#bd2130" stroke-width="1.5"/>
+  <text x="330" y="193" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Prod Workspace</text>
+
+  <!-- PR flow on the right side -->
+  <rect x="500" y="55" width="370" height="180" rx="8" fill="#e8f0fe" stroke="#0078d4" stroke-width="1"/>
+  <text x="685" y="78" text-anchor="middle" font-size="13" font-weight="bold" fill="#0078d4">Promotion Flow (via PRs)</text>
+
+  <!-- Step boxes -->
+  <rect x="520" y="90" width="330" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
+  <text x="535" y="109" font-size="10" fill="#333"><tspan font-weight="bold">1.</tspan> PR merged into dev branch → triggers release pipeline</text>
+
+  <rect x="520" y="124" width="330" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
+  <text x="535" y="143" font-size="10" fill="#333"><tspan font-weight="bold">2.</tspan> Pipeline calls Update from Git API → Dev Workspace syncs</text>
+
+  <rect x="520" y="158" width="330" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
+  <text x="535" y="177" font-size="10" fill="#333"><tspan font-weight="bold">3.</tspan> PR created from dev → test branch (review + approve)</text>
+
+  <rect x="520" y="192" width="330" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
+  <text x="535" y="211" font-size="10" fill="#333"><tspan font-weight="bold">4.</tspan> Repeat: Update from Git → Test, then PR to prod</text>
+
+  <!-- Key difference callout -->
+  <rect x="30" y="260" width="840" height="100" rx="8" fill="#fff3cd" stroke="#f9a825" stroke-width="1.5"/>
+  <text x="450" y="285" text-anchor="middle" font-size="13" font-weight="bold" fill="#856404">Key Concept</text>
+  <text x="450" y="305" text-anchor="middle" font-size="11" fill="#856404">Git is the single source of truth. Each stage has its own dedicated branch.</text>
+  <text x="450" y="325" text-anchor="middle" font-size="11" fill="#856404">Content moves between stages via Pull Requests between branches, not workspace-to-workspace.</text>
+  <text x="450" y="345" text-anchor="middle" font-size="11" fill="#856404">Workspaces sync from their branch using the Fabric Git "Update from Git" API.</text>
+
+  <!-- Arrow markers -->
+  <defs>
+    <marker id="arrowGreen" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#28a745"/>
+    </marker>
+    <marker id="arrowOrange" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#fd7e14"/>
+    </marker>
+    <marker id="arrowRed" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#dc3545"/>
+    </marker>
+  </defs>
+</svg>

@@ -1,0 +1,69 @@
+table appointments
+	lineageTag: f446d89c-f9e6-4983-8c07-49455dea88f9
+	sourceLineageTag: [dbo].[appointments]
+
+	column appointment_id
+		dataType: int64
+		formatString: 0
+		lineageTag: 00b99464-5f52-44d9-b256-a2397a550045
+		sourceLineageTag: appointment_id
+		summarizeBy: sum
+		sourceColumn: appointment_id
+
+		annotation SummarizationSetBy = Automatic
+
+	column patient_id
+		dataType: int64
+		formatString: 0
+		lineageTag: cbdbb7c8-49c9-4cdf-b26e-c6afa01611ab
+		sourceLineageTag: patient_id
+		summarizeBy: sum
+		sourceColumn: patient_id
+
+		annotation SummarizationSetBy = Automatic
+
+	column doctor_id
+		dataType: int64
+		formatString: 0
+		lineageTag: a980e16a-9023-4e04-9781-a8b6996c696f
+		sourceLineageTag: doctor_id
+		summarizeBy: sum
+		sourceColumn: doctor_id
+
+		annotation SummarizationSetBy = Automatic
+
+	column appointment_date
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 1a039811-2829-4cf5-9a6e-805b3d457d12
+		sourceLineageTag: appointment_date
+		summarizeBy: none
+		sourceColumn: appointment_date
+
+		annotation SummarizationSetBy = Automatic
+
+	column reason
+		dataType: string
+		lineageTag: 919ce099-436b-4746-94e8-c3b9bc3dfe4b
+		sourceLineageTag: reason
+		summarizeBy: none
+		sourceColumn: reason
+
+		annotation SummarizationSetBy = Automatic
+
+	column status
+		dataType: string
+		lineageTag: d5bdcd16-d927-40f1-be36-32b6d503e057
+		sourceLineageTag: status
+		summarizeBy: none
+		sourceColumn: status
+
+		annotation SummarizationSetBy = Automatic
+
+	partition appointments = entity
+		mode: directLake
+		source
+			entityName: appointments
+			schemaName: dbo
+			expressionSource: 'DirectLake - FabulousLakehouse'
+

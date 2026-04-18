@@ -1,0 +1,76 @@
+table patients
+	lineageTag: c40da1fc-ceb7-44d3-8258-22b5790d4857
+	sourceLineageTag: [dbo].[patients]
+
+	column patient_id
+		dataType: int64
+		formatString: 0
+		lineageTag: 5dd36516-e2c1-4ce1-a434-00fb03939249
+		sourceLineageTag: patient_id
+		summarizeBy: sum
+		sourceColumn: patient_id
+
+		annotation SummarizationSetBy = Automatic
+
+	column first_name
+		dataType: string
+		lineageTag: d89494e5-8d5b-4b6a-a8a0-a7e2be1d2430
+		sourceLineageTag: first_name
+		summarizeBy: none
+		sourceColumn: first_name
+
+		annotation SummarizationSetBy = Automatic
+
+	column last_name
+		dataType: string
+		lineageTag: c3eed328-30b7-454b-96ef-66550cdfdfca
+		sourceLineageTag: last_name
+		summarizeBy: none
+		sourceColumn: last_name
+
+		annotation SummarizationSetBy = Automatic
+
+	column date_of_birth
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: df86207d-c73d-48c7-afe2-77b6c92b7619
+		sourceLineageTag: date_of_birth
+		summarizeBy: none
+		sourceColumn: date_of_birth
+
+		annotation SummarizationSetBy = Automatic
+
+	column gender
+		dataType: string
+		lineageTag: edf0b4fe-025c-47d3-8d2c-08bbce3896c3
+		sourceLineageTag: gender
+		summarizeBy: none
+		sourceColumn: gender
+
+		annotation SummarizationSetBy = Automatic
+
+	column phone_number
+		dataType: string
+		lineageTag: c58f0c2a-78a3-4940-88f9-07b60f17513b
+		sourceLineageTag: phone_number
+		summarizeBy: none
+		sourceColumn: phone_number
+
+		annotation SummarizationSetBy = Automatic
+
+	column email
+		dataType: string
+		lineageTag: 85a5b880-9b0d-4327-9a7d-099161d73d25
+		sourceLineageTag: email
+		summarizeBy: none
+		sourceColumn: email
+
+		annotation SummarizationSetBy = Automatic
+
+	partition patients = entity
+		mode: directLake
+		source
+			entityName: patients
+			schemaName: dbo
+			expressionSource: 'DirectLake - FabulousLakehouse'
+

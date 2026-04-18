@@ -1,0 +1,185 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 720" font-family="Segoe UI, Arial, sans-serif">
+  <!-- Background -->
+  <rect width="1100" height="720" fill="#f9f9f9" rx="8"/>
+
+  <!-- Title -->
+  <text x="550" y="28" text-anchor="middle" font-size="16" font-weight="bold" fill="#333">Hybrid Approach — Recommended CI/CD Flow</text>
+
+  <!-- ==================== GIT REPO ==================== -->
+  <rect x="30" y="50" width="160" height="175" rx="8" fill="#0078d4" stroke="#005a9e" stroke-width="1.5"/>
+  <text x="110" y="73" text-anchor="middle" font-size="13" fill="#fff" font-weight="bold">Git Repository</text>
+
+  <!-- Branches -->
+  <rect x="42" y="85" width="136" height="28" rx="5" fill="#28a745" stroke="#1e7e34" stroke-width="1"/>
+  <text x="110" y="104" text-anchor="middle" font-size="11" fill="#fff" font-weight="bold">dev branch</text>
+
+  <rect x="42" y="120" width="136" height="28" rx="5" fill="#fd7e14" stroke="#e8590c" stroke-width="1"/>
+  <text x="110" y="139" text-anchor="middle" font-size="11" fill="#fff" font-weight="bold">test branch</text>
+
+  <rect x="42" y="155" width="136" height="28" rx="5" fill="#dc3545" stroke="#bd2130" stroke-width="1"/>
+  <text x="110" y="174" text-anchor="middle" font-size="11" fill="#fff" font-weight="bold">main branch</text>
+
+  <!-- Feature workspace -->
+  <rect x="30" y="260" width="160" height="55" rx="8" fill="#6f42c1" stroke="#59359a" stroke-width="1.5"/>
+  <text x="110" y="284" text-anchor="middle" font-size="11" fill="#fff" font-weight="bold">Feature Workspace</text>
+  <text x="110" y="300" text-anchor="middle" font-size="9" fill="#d4c5f9">(feature branch)</text>
+
+  <!-- Arrow: dev → feature -->
+  <line x1="110" y1="225" x2="110" y2="260" stroke="#6f42c1" stroke-width="2" marker-end="url(#arrowPurple)"/>
+  <text x="125" y="246" font-size="8" fill="#6f42c1">Branch out</text>
+
+  <!-- Arrow: feature → dev (PR) -->
+  <path d="M 190 287 Q 230 287 230 200 Q 230 99 190 99" fill="none" stroke="#6f42c1" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrowPurple)"/>
+  <text x="238" y="200" font-size="8" fill="#6f42c1">PR → dev</text>
+
+  <!-- ==================== DEV STAGE ==================== -->
+  <rect x="280" y="50" width="230" height="275" rx="8" fill="#e8f5e9" stroke="#28a745" stroke-width="1.5"/>
+  <text x="395" y="73" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e7e34">DEV STAGE</text>
+  <text x="395" y="88" text-anchor="middle" font-size="9" fill="#555">Trigger: PR merged → dev branch</text>
+
+  <!-- Dev Workspace -->
+  <rect x="300" y="100" width="190" height="40" rx="6" fill="#28a745" stroke="#1e7e34" stroke-width="1.5"/>
+  <text x="395" y="125" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Dev Workspace</text>
+
+  <!-- Arrow: dev branch → Dev Workspace -->
+  <line x1="178" y1="99" x2="300" y2="120" stroke="#28a745" stroke-width="2" marker-end="url(#arrowGreen)"/>
+  <text x="230" y="100" font-size="8" fill="#28a745">Update from Git</text>
+
+  <!-- Step 1 -->
+  <rect x="300" y="150" width="190" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
+  <text x="310" y="169" font-size="9" fill="#333"><tspan font-weight="bold">1.</tspan> Update from Git API</text>
+
+  <!-- Step 2 -->
+  <rect x="300" y="184" width="190" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
+  <text x="310" y="203" font-size="9" fill="#333"><tspan font-weight="bold">2.</tspan> Run Data Pipelines / Notebooks</text>
+
+  <!-- Step 3 -->
+  <rect x="300" y="218" width="190" height="28" rx="4" fill="#fff3cd" stroke="#f9a825" stroke-width="1"/>
+  <text x="310" y="237" font-size="9" fill="#856404"><tspan font-weight="bold">3.</tspan> Unsupported items (manual)</text>
+
+  <!-- Step 4 -->
+  <rect x="300" y="252" width="190" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
+  <text x="310" y="271" font-size="9" fill="#333"><tspan font-weight="bold">4.</tspan> Validate &amp; test in Dev</text>
+
+  <!-- ==================== TEST STAGE ==================== -->
+  <rect x="545" y="50" width="230" height="315" rx="8" fill="#fff3e0" stroke="#fd7e14" stroke-width="1.5"/>
+  <text x="660" y="73" text-anchor="middle" font-size="13" font-weight="bold" fill="#e8590c">TEST STAGE</text>
+  <text x="660" y="88" text-anchor="middle" font-size="9" fill="#555">Trigger: PR merged → test branch</text>
+
+  <!-- Test Workspace -->
+  <rect x="565" y="100" width="190" height="40" rx="6" fill="#fd7e14" stroke="#e8590c" stroke-width="1.5"/>
+  <text x="660" y="125" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Test Workspace</text>
+
+  <!-- fabric-cicd sandwich -->
+  <rect x="565" y="150" width="190" height="28" rx="4" fill="#e8f0fe" stroke="#0078d4" stroke-width="1"/>
+  <text x="575" y="169" font-size="9" fill="#0078d4"><tspan font-weight="bold">1.</tspan> fabric-cicd (independent items)</text>
+
+  <rect x="565" y="184" width="190" height="28" rx="4" fill="#fff3cd" stroke="#f9a825" stroke-width="1"/>
+  <text x="575" y="203" font-size="9" fill="#856404"><tspan font-weight="bold">2.</tspan> Deployment Pipeline (unsupported)</text>
+
+  <rect x="565" y="218" width="190" height="28" rx="4" fill="#e8f0fe" stroke="#0078d4" stroke-width="1"/>
+  <text x="575" y="237" font-size="9" fill="#0078d4"><tspan font-weight="bold">3.</tspan> fabric-cicd (dependent items)</text>
+
+  <rect x="565" y="252" width="190" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
+  <text x="575" y="271" font-size="9" fill="#333"><tspan font-weight="bold">4.</tspan> Run Data Pipelines / Notebooks</text>
+
+  <rect x="565" y="286" width="190" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
+  <text x="575" y="305" font-size="9" fill="#333"><tspan font-weight="bold">5.</tspan> Automated &amp; manual testing</text>
+
+  <!-- Sandwich bracket -->
+  <text x="660" y="340" text-anchor="middle" font-size="9" font-style="italic" fill="#6f42c1">"fabric-cicd sandwich"</text>
+
+  <!-- Arrow: Dev → Test -->
+  <line x1="510" y1="175" x2="565" y2="175" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- ==================== PROD STAGE ==================== -->
+  <rect x="810" y="50" width="260" height="315" rx="8" fill="#fce4ec" stroke="#dc3545" stroke-width="1.5"/>
+  <text x="940" y="73" text-anchor="middle" font-size="13" font-weight="bold" fill="#bd2130">PROD STAGE</text>
+  <text x="940" y="88" text-anchor="middle" font-size="9" fill="#555">Trigger: PR merged → main branch</text>
+
+  <!-- Prod Workspace -->
+  <rect x="835" y="100" width="210" height="40" rx="6" fill="#dc3545" stroke="#bd2130" stroke-width="1.5"/>
+  <text x="940" y="125" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Prod Workspace</text>
+
+  <!-- fabric-cicd sandwich -->
+  <rect x="835" y="150" width="210" height="28" rx="4" fill="#e8f0fe" stroke="#0078d4" stroke-width="1"/>
+  <text x="845" y="169" font-size="9" fill="#0078d4"><tspan font-weight="bold">1.</tspan> fabric-cicd (independent items)</text>
+
+  <rect x="835" y="184" width="210" height="28" rx="4" fill="#fff3cd" stroke="#f9a825" stroke-width="1"/>
+  <text x="845" y="203" font-size="9" fill="#856404"><tspan font-weight="bold">2.</tspan> Deployment Pipeline (unsupported)</text>
+
+  <rect x="835" y="218" width="210" height="28" rx="4" fill="#e8f0fe" stroke="#0078d4" stroke-width="1"/>
+  <text x="845" y="237" font-size="9" fill="#0078d4"><tspan font-weight="bold">3.</tspan> fabric-cicd (dependent items)</text>
+
+  <rect x="835" y="252" width="210" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
+  <text x="845" y="271" font-size="9" fill="#333"><tspan font-weight="bold">4.</tspan> Run Data Pipelines / Notebooks</text>
+
+  <rect x="835" y="286" width="210" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
+  <text x="845" y="305" font-size="9" fill="#333"><tspan font-weight="bold">5.</tspan> Production validation</text>
+
+  <!-- Sandwich bracket -->
+  <text x="940" y="340" text-anchor="middle" font-size="9" font-style="italic" fill="#6f42c1">"fabric-cicd sandwich"</text>
+
+  <!-- Arrow: Test → Prod -->
+  <line x1="775" y1="175" x2="835" y2="175" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- ==================== DEPLOYMENT PIPELINE ==================== -->
+  <rect x="545" y="385" width="525" height="50" rx="6" fill="none" stroke="#6f42c1" stroke-width="2" stroke-dasharray="6,3"/>
+  <text x="807" y="415" text-anchor="middle" font-size="11" fill="#6f42c1" font-weight="bold">Fabric Deployment Pipeline (unsupported items only: Ontologies, etc.)</text>
+  <text x="807" y="430" text-anchor="middle" font-size="9" fill="#6f42c1">Dev → Test → Prod (drops away when items gain Git/fabric-cicd support)</text>
+
+  <!-- ==================== CONFIGURATION ==================== -->
+  <rect x="30" y="460" width="520" height="120" rx="8" fill="#e8f0fe" stroke="#0078d4" stroke-width="1"/>
+  <text x="290" y="485" text-anchor="middle" font-size="13" font-weight="bold" fill="#0078d4">Configuration Strategy</text>
+
+  <rect x="45" y="498" width="240" height="70" rx="5" fill="#fff" stroke="#ccc" stroke-width="1"/>
+  <text x="165" y="518" text-anchor="middle" font-size="11" font-weight="bold" fill="#333">Variable Libraries (Runtime)</text>
+  <text x="165" y="534" text-anchor="middle" font-size="9" fill="#555">Value sets per environment auto-bind</text>
+  <text x="165" y="548" text-anchor="middle" font-size="9" fill="#555">workspace IDs, lakehouse IDs, etc.</text>
+  <text x="165" y="562" text-anchor="middle" font-size="9" fill="#555">at notebook execution time</text>
+
+  <rect x="300" y="498" width="240" height="70" rx="5" fill="#fff" stroke="#ccc" stroke-width="1"/>
+  <text x="420" y="518" text-anchor="middle" font-size="11" font-weight="bold" fill="#333">parameter.yml (Deploy-time)</text>
+  <text x="420" y="534" text-anchor="middle" font-size="9" fill="#555">Rewrites metadata GUIDs, connection</text>
+  <text x="420" y="548" text-anchor="middle" font-size="9" fill="#555">IDs, spark pools before upload.</text>
+  <text x="420" y="562" text-anchor="middle" font-size="9" fill="#555">$items dynamic replacement at deploy.</text>
+
+  <!-- ==================== FUTURE STATE ==================== -->
+  <rect x="580" y="460" width="490" height="120" rx="8" fill="#e8f5e9" stroke="#28a745" stroke-width="1"/>
+  <text x="825" y="485" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e7e34">Future State</text>
+  <text x="825" y="510" text-anchor="middle" font-size="10" fill="#333">When Ontologies (and other unsupported items) gain</text>
+  <text x="825" y="528" text-anchor="middle" font-size="10" fill="#333">Git integration and fabric-cicd support:</text>
+  <text x="825" y="552" text-anchor="middle" font-size="10" fill="#28a745" font-weight="bold">→ Drop the Deployment Pipeline entirely</text>
+  <text x="825" y="570" text-anchor="middle" font-size="10" fill="#28a745" font-weight="bold">→ fabric-cicd handles all items end-to-end</text>
+
+  <!-- ==================== LEGEND ==================== -->
+  <rect x="30" y="610" width="1040" height="95" rx="8" fill="#f5f5f5" stroke="#ccc" stroke-width="1"/>
+  <text x="550" y="632" text-anchor="middle" font-size="12" font-weight="bold" fill="#333">Legend</text>
+
+  <rect x="50" y="645" width="14" height="14" rx="2" fill="#e8f0fe" stroke="#0078d4" stroke-width="1"/>
+  <text x="72" y="657" font-size="10" fill="#333">fabric-cicd deployment step</text>
+
+  <rect x="250" y="645" width="14" height="14" rx="2" fill="#fff3cd" stroke="#f9a825" stroke-width="1"/>
+  <text x="272" y="657" font-size="10" fill="#333">Unsupported item / manual step</text>
+
+  <rect x="500" y="645" width="14" height="14" rx="2" fill="#fff" stroke="#ccc" stroke-width="1"/>
+  <text x="522" y="657" font-size="10" fill="#333">Standard pipeline step</text>
+
+  <rect x="700" y="645" width="14" height="14" rx="2" fill="none" stroke="#6f42c1" stroke-width="1.5" stroke-dasharray="3,2"/>
+  <text x="722" y="657" font-size="10" fill="#333">Deployment Pipeline (unsupported items)</text>
+
+  <text x="50" y="685" font-size="10" fill="#555">Dev = Git-connected (Update from Git API) | Test &amp; Prod = fabric-cicd + Deployment Pipelines (sandwich pattern when dependencies exist)</text>
+
+  <!-- Arrow markers -->
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#555"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#28a745"/>
+    </marker>
+    <marker id="arrowPurple" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#6f42c1"/>
+    </marker>
+  </defs>
+</svg>

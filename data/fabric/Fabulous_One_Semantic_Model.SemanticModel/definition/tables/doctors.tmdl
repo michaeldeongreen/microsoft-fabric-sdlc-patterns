@@ -1,0 +1,66 @@
+table doctors
+	lineageTag: cb15001c-1858-43e1-872a-4b42267ae4cb
+	sourceLineageTag: [dbo].[doctors]
+
+	column doctor_id
+		dataType: int64
+		formatString: 0
+		lineageTag: 346d5910-6db7-4958-bbb0-ae95f168dbb0
+		sourceLineageTag: doctor_id
+		summarizeBy: sum
+		sourceColumn: doctor_id
+
+		annotation SummarizationSetBy = Automatic
+
+	column first_name
+		dataType: string
+		lineageTag: 324b4ca6-bc90-4cf2-9b2d-0013f5719948
+		sourceLineageTag: first_name
+		summarizeBy: none
+		sourceColumn: first_name
+
+		annotation SummarizationSetBy = Automatic
+
+	column last_name
+		dataType: string
+		lineageTag: 6e818dbb-c3b7-48eb-afb7-5fc7c3bb15b0
+		sourceLineageTag: last_name
+		summarizeBy: none
+		sourceColumn: last_name
+
+		annotation SummarizationSetBy = Automatic
+
+	column specialty
+		dataType: string
+		lineageTag: be47f85b-134b-4ee2-acae-6124939436ad
+		sourceLineageTag: specialty
+		summarizeBy: none
+		sourceColumn: specialty
+
+		annotation SummarizationSetBy = Automatic
+
+	column phone_number
+		dataType: string
+		lineageTag: d0acf1a4-61bc-48ce-83cd-a1e1e497d874
+		sourceLineageTag: phone_number
+		summarizeBy: none
+		sourceColumn: phone_number
+
+		annotation SummarizationSetBy = Automatic
+
+	column email
+		dataType: string
+		lineageTag: e1b02c3e-d8c4-4af7-852a-3321f85706af
+		sourceLineageTag: email
+		summarizeBy: none
+		sourceColumn: email
+
+		annotation SummarizationSetBy = Automatic
+
+	partition doctors = entity
+		mode: directLake
+		source
+			entityName: doctors
+			schemaName: dbo
+			expressionSource: 'DirectLake - FabulousLakehouse'
+

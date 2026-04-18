@@ -1,0 +1,29 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/variableLibrary/definition/variables/1.0.0/schema.json",
+  "variables": [
+    {
+      "name": "target_workspace_id",
+      "note": "",
+      "type": "Guid",
+      "value": "ca5566de-3273-4656-a4ad-8d300301f6b2"
+    },
+    {
+      "name": "target_lakehouse_name",
+      "note": "",
+      "type": "String",
+      "value": "FabulousLakehouse"
+    },
+    {
+      "name": "target_workspace_name",
+      "note": "",
+      "type": "String",
+      "value": "fabulous-one-dev"
+    },
+    {
+      "name": "target_lakehouse_id",
+      "note": "",
+      "type": "Guid",
+      "value": "7694ebac-deb9-4a40-a846-0782b36b3bda"
+    }
+  ]
+}

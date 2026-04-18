@@ -1,0 +1,49 @@
+# fabric-cicd parameter.yml
+#
+# Environment-specific configuration for deploy-time parameterization.
+# Variable Libraries handle most runtime config (workspace IDs, lakehouse names).
+#
+# Add find_replace or key_value_replace rules here for values that must be
+# rewritten before items are uploaded to the workspace.
+#
+# Environment keys must match the 'environment' input passed to fabric-cicd: Test, Prod
+# The _ALL_ key applies the same replacement to any target environment.
+#
+# Dynamic replacement variables (resolved at deploy time):
+#   $items.<ItemType>.<ItemName>.$id  — item ID in the target workspace
+#   $workspace.$id                    — target workspace ID
+#
+# Reference: https://microsoft.github.io/fabric-cicd/latest/how_to/parameterization/
+
+find_replace:
+    # Replace Dev lakehouse ID with the actual lakehouse ID in the target workspace.
+    # fabric-cicd deploys the Lakehouse before the Variable Library, so the ID
+    # is guaranteed to be available when this replacement runs.
+    - find_value: "7694ebac-deb9-4a40-a846-0782b36b3bda"
+      replace_value:
+          _ALL_: "$items.Lakehouse.FabulousLakehouse.$id"
+      item_type: "VariableLibrary"
+
+    # Replace Dev workspace ID in Semantic Model Direct Lake connection.
+    - find_value: "ca5566de-3273-4656-a4ad-8d300301f6b2"
+      replace_value:
+          _ALL_: "$workspace.$id"
+      item_type: "SemanticModel"
+
+    # Replace Dev lakehouse ID in Semantic Model Direct Lake connection.
+    - find_value: "7694ebac-deb9-4a40-a846-0782b36b3bda"
+      replace_value:
+          _ALL_: "$items.Lakehouse.FabulousLakehouse.$id"
+      item_type: "SemanticModel"
+
+    # Replace Dev lakehouse ID in Notebook default_lakehouse dependency.
+    - find_value: "7694ebac-deb9-4a40-a846-0782b36b3bda"
+      replace_value:
+          _ALL_: "$items.Lakehouse.FabulousLakehouse.$id"
+      item_type: "Notebook"
+
+    # Replace Dev workspace ID in Notebook default_lakehouse_workspace_id.
+    - find_value: "ca5566de-3273-4656-a4ad-8d300301f6b2"
+      replace_value:
+          _ALL_: "$workspace.$id"
+      item_type: "Notebook"

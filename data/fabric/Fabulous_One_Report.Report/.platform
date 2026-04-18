@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Report",
+    "displayName": "Fabulous_One_Report"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "8e0645c3-8fa1-900c-4925-eaa1b38fb6fe"
+  }
+}

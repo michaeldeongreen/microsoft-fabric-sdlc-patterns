@@ -1,0 +1,27 @@
+# Triggers ETL jobs in the Prod workspace after a successful deployment.
+#
+# Same pattern as etl-test.yml but targeting the prod environment.
+# The `Prod` GitHub Environment protection rules also apply to this workflow's
+# reusable template job, providing an additional approval gate if configured.
+#
+# The notebook is resolved by name at runtime — no item ID needed.
+
+name: ETL - Prod
+
+on:
+  workflow_run:
+    workflows: ["Deploy to Prod"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  run-etl:
+    name: Run ETL
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    uses: ./.github/workflows/reusable-fabric-etl.yml
+    with:
+      environment: Prod
+      item_name: Import_Fabulous_One_Data
+    secrets: inherit

@@ -1,0 +1,43 @@
+# Orchestrator workflow for deploying Fabric items to the Prod workspace.
+#
+# Same sandwich pattern as deploy-test.yml but targeting the prod environment.
+# The `prod` GitHub Environment should have protection rules configured
+# (e.g., required reviewers, branch policy restricting to main only).
+#
+# Jobs run sequentially via `needs:`. The ETL workflow (etl-prod.yml) triggers
+# automatically via workflow_run once all 3 jobs complete successfully.
+
+name: Deploy to Prod
+
+on:
+  push:
+    branches: [main]
+    paths: ["data/fabric/**", ".github/workflows/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-supported:
+    name: Deploy supported items
+    uses: ./.github/workflows/reusable-deploy-supported.yml
+    with:
+      environment: Prod
+      item_type_in_scope: '["Lakehouse", "VariableLibrary", "Notebook", "SemanticModel", "Report"]'
+    secrets: inherit
+
+  promote-unsupported:
+    name: Promote unsupported items
+    needs: deploy-supported
+    uses: ./.github/workflows/reusable-deploy-unsupported.yml
+    with:
+      environment: Prod
+    secrets: inherit
+
+  deploy-supported-dependent:
+    name: Deploy dependent supported items
+    needs: promote-unsupported
+    uses: ./.github/workflows/reusable-deploy-supported-dependent-on-unsupported.yml
+    with:
+      environment: Prod
+    secrets: inherit

@@ -1,0 +1,159 @@
+# Reusable workflow: Run a Fabric Notebook or Data Pipeline via the Fabric REST API.
+#
+# After items are deployed to a workspace, this workflow triggers an ETL job
+# (e.g., the Import_Fabulous_One_Data notebook) to ingest and transform data.
+# The item is resolved by name at runtime via the Fabric List Items API, avoiding
+# the need to know item IDs ahead of time (which differ per workspace).
+# The Fabric Jobs API is asynchronous — this workflow starts the job, then polls
+# the Location header URL until the job completes, fails, or times out.
+#
+# Called by: etl-test.yml, etl-prod.yml (triggered via workflow_run after deploy)
+#
+# Prerequisites:
+#   - GitHub Environment secrets: AZURE_TENANT_ID, AZURE_CLIENT_ID,
+#     AZURE_CLIENT_SECRET, FABRIC_WORKSPACE_ID
+#
+# API references:
+#   - List items: https://learn.microsoft.com/en-us/rest/api/fabric/core/items/list-items
+#   - Run job: https://learn.microsoft.com/en-us/rest/api/fabric/core/job-scheduler/run-on-demand-item-job
+
+name: "Reusable: Run Fabric ETL"
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "Target environment (Test, Prod)"
+        required: true
+        type: string
+      item_name:
+        description: "The display name of the Fabric item to run (e.g., Import_Fabulous_One_Data)"
+        required: true
+        type: string
+      item_type:
+        description: "The Fabric item type (e.g., Notebook, DataPipeline)"
+        required: false
+        type: string
+        default: "Notebook"
+      job_type:
+        description: "The job type to invoke (RunNotebook or Pipeline)"
+        required: false
+        type: string
+        default: "RunNotebook"
+
+permissions:
+  contents: read
+
+jobs:
+  run-etl:
+    name: Run ETL (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install azure-identity requests
+
+      - name: Run Fabric item job
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          FABRIC_WORKSPACE_ID: ${{ secrets.FABRIC_WORKSPACE_ID }}
+          ITEM_NAME: ${{ inputs.item_name }}
+          ITEM_TYPE: ${{ inputs.item_type }}
+          JOB_TYPE: ${{ inputs.job_type }}
+        run: |
+          python -c "
+          import os
+          import sys
+          import time
+          import requests
+          from azure.identity import ClientSecretCredential
+
+          credential = ClientSecretCredential(
+              tenant_id=os.environ['AZURE_TENANT_ID'],
+              client_id=os.environ['AZURE_CLIENT_ID'],
+              client_secret=os.environ['AZURE_CLIENT_SECRET'],
+          )
+
+          token = credential.get_token('https://api.fabric.microsoft.com/.default').token
+          headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
+
+          workspace_id = os.environ['FABRIC_WORKSPACE_ID']
+          item_name = os.environ['ITEM_NAME']
+          item_type = os.environ['ITEM_TYPE']
+          job_type = os.environ['JOB_TYPE']
+
+          # Resolve item ID by name using the List Items API
+          list_url = f'https://api.fabric.microsoft.com/v1/workspaces/{workspace_id}/items?type={item_type}'
+          list_response = requests.get(list_url, headers=headers)
+
+          if list_response.status_code != 200:
+              print(f'Failed to list items: {list_response.status_code} {list_response.text}')
+              sys.exit(1)
+
+          items = list_response.json().get('value', [])
+          matched = [i for i in items if i['displayName'] == item_name]
+
+          if not matched:
+              print(f'Item not found: {item_name} (type={item_type}) in workspace {workspace_id}')
+              print(f'Available items: {[i[\"displayName\"] for i in items]}')
+              sys.exit(1)
+
+          item_id = matched[0]['id']
+          print(f'Resolved {item_name} -> {item_id}')
+
+          # Start the job — returns 202 Accepted with a Location header for polling
+          url = f'https://api.fabric.microsoft.com/v1/workspaces/{workspace_id}/items/{item_id}/jobs/instances?jobType={job_type}'
+          response = requests.post(url, headers=headers)
+
+          if response.status_code not in (200, 202):
+              print(f'Failed to start job: {response.status_code} {response.text}')
+              sys.exit(1)
+
+          location = response.headers.get('Location')
+          retry_after = int(response.headers.get('Retry-After', '30'))
+          print(f'Job started. Polling for completion...')
+
+          # Poll for completion — respects Retry-After header from the API.
+          # max_polls * retry_after = maximum wait time (default: 120 * 30s = 60 min)
+          max_polls = 120
+          for i in range(max_polls):
+              time.sleep(retry_after)
+
+              # Re-acquire token in case of long-running jobs
+              if i > 0 and i % 20 == 0:
+                  token = credential.get_token('https://api.fabric.microsoft.com/.default').token
+                  headers['Authorization'] = f'Bearer {token}'
+
+              poll_response = requests.get(location, headers=headers)
+
+              if poll_response.status_code == 200:
+                  result = poll_response.json()
+                  status = result.get('status', 'Unknown')
+                  print(f'Poll {i+1}: status={status}')
+
+                  if status == 'Completed':
+                      print('Job completed successfully.')
+                      sys.exit(0)
+                  elif status in ('Failed', 'Cancelled', 'Deduped'):
+                      print(f'Job ended with status: {status}')
+                      failure_reason = result.get('failureReason', 'No failure reason provided')
+                      print(f'Failure reason: {failure_reason}')
+                      sys.exit(1)
+              elif poll_response.status_code == 202:
+                  retry_after = int(poll_response.headers.get('Retry-After', '30'))
+                  print(f'Poll {i+1}: still running...')
+              else:
+                  print(f'Unexpected poll response: {poll_response.status_code} {poll_response.text}')
+                  sys.exit(1)
+
+          print('Timed out waiting for job to complete.')
+          sys.exit(1)
+          "

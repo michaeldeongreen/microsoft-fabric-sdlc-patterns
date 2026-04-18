@@ -1,0 +1,123 @@
+# Reusable workflow: Deploy supported Fabric items via fabric-cicd.
+#
+# This is the primary deployment template. It uses the fabric-cicd Python library
+# to publish all supported item definitions from the Git repo to the target
+# Fabric workspace, then removes any orphaned items no longer in the repo.
+#
+# Called by: deploy-test.yml, deploy-prod.yml (Job 1 of the sandwich pattern)
+#
+# Prerequisites:
+#   - GitHub Environment secrets: AZURE_TENANT_ID, AZURE_CLIENT_ID,
+#     AZURE_CLIENT_SECRET, FABRIC_WORKSPACE_ID
+#   - Service principal must have Contributor (or higher) role on the target workspace
+#   - Fabric Admin must enable "Service principals can use Fabric APIs"
+#   - parameter.yml in repository_directory for environment-specific replacements
+
+name: "Reusable: Deploy Supported Items"
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "Target environment (test, prod)"
+        required: true
+        type: string
+      repository_directory:
+        description: "Path to the Fabric item definitions"
+        required: false
+        type: string
+        default: "data/fabric"
+      item_type_in_scope:
+        description: "JSON array of item types to deploy (e.g., '[\"Notebook\", \"Lakehouse\"]'). Deploys all if omitted."
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy supported items (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install fabric-cicd azure-identity
+
+      # fabric-cicd reads parameter.yml from the repository_directory root
+      # and applies environment-specific find_replace / key_value_replace rules
+      # before uploading item definitions to the target workspace.
+      - name: Deploy with fabric-cicd
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          FABRIC_WORKSPACE_ID: ${{ secrets.FABRIC_WORKSPACE_ID }}
+          REPOSITORY_DIRECTORY: ${{ inputs.repository_directory }}
+          ENVIRONMENT: ${{ inputs.environment }}
+          ITEM_TYPE_IN_SCOPE: ${{ inputs.item_type_in_scope }}
+        run: |
+          python -c "
+          import json
+          import os
+          from azure.identity import ClientSecretCredential
+          from fabric_cicd import FabricWorkspace, publish_all_items, unpublish_all_orphan_items
+
+          credential = ClientSecretCredential(
+              tenant_id=os.environ['AZURE_TENANT_ID'],
+              client_id=os.environ['AZURE_CLIENT_ID'],
+              client_secret=os.environ['AZURE_CLIENT_SECRET'],
+          )
+
+          # If item_type_in_scope is provided as a JSON array (e.g., '["Notebook"]'),
+          # only those item types will be deployed. Otherwise, all types are in scope.
+          item_type_in_scope = None
+          raw = os.environ.get('ITEM_TYPE_IN_SCOPE', '').strip()
+          if raw:
+              item_type_in_scope = json.loads(raw)
+
+          repo_dir = os.environ['REPOSITORY_DIRECTORY']
+          workspace_id = os.environ['FABRIC_WORKSPACE_ID']
+          environment = os.environ['ENVIRONMENT']
+
+          # Phase 1: Deploy Lakehouse first so it exists in the target workspace.
+          # fabric-cicd's \$items dynamic variables resolve by querying the live
+          # workspace during parameterization. On first deployment to an empty
+          # workspace, the Lakehouse must exist before Variable Library and
+          # Semantic Model can resolve \$items.Lakehouse.FabulousLakehouse.\$id.
+          # On subsequent deployments, the Lakehouse already exists and this
+          # phase simply updates it (idempotent).
+          print('Phase 1: Deploying Lakehouse...')
+          lakehouse_ws = FabricWorkspace(
+              repository_directory=repo_dir,
+              workspace_id=workspace_id,
+              environment=environment,
+              token_credential=credential,
+              item_type_in_scope=['Lakehouse'],
+          )
+          publish_all_items(lakehouse_ws)
+
+          # Phase 2: Deploy all remaining item types.
+          # The Lakehouse now exists, so \$items references resolve correctly.
+          remaining = [t for t in (item_type_in_scope or []) if t != 'Lakehouse'] or None
+          print('Phase 2: Deploying ' + str(remaining or 'all remaining') + '...')
+          workspace = FabricWorkspace(
+              repository_directory=repo_dir,
+              workspace_id=workspace_id,
+              environment=environment,
+              token_credential=credential,
+              item_type_in_scope=remaining,
+          )
+          publish_all_items(workspace)
+          unpublish_all_orphan_items(workspace)
+          "

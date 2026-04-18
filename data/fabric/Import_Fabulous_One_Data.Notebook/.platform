@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "Import_Fabulous_One_Data"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "3f21b546-f49f-9fef-4881-99b654a6701e"
+  }
+}

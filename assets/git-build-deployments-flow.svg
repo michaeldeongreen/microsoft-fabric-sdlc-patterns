@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 420" font-family="Segoe UI, Arial, sans-serif">
+  <!-- Background -->
+  <rect width="960" height="420" fill="#f9f9f9" rx="8"/>
+
+  <!-- Title -->
+  <text x="480" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#333">Option 3 – Git-based with Build Environments</text>
+
+  <!-- Git Repo -->
+  <rect x="30" y="80" width="120" height="55" rx="8" fill="#0078d4" stroke="#005a9e" stroke-width="1.5"/>
+  <text x="90" y="104" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Git Repository</text>
+  <text x="90" y="120" text-anchor="middle" font-size="10" fill="#cce4f7">(single main branch)</text>
+
+  <!-- Arrow: Git → Build Dev -->
+  <line x1="150" y1="107" x2="210" y2="107" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="180" y="99" text-anchor="middle" font-size="8" fill="#555">trigger</text>
+
+  <!-- Dev Build Environment -->
+  <rect x="215" y="70" width="140" height="75" rx="8" fill="#6f42c1" stroke="#59359a" stroke-width="1.5"/>
+  <text x="285" y="92" text-anchor="middle" font-size="11" fill="#fff" font-weight="bold">Build Env (Dev)</text>
+  <text x="285" y="108" text-anchor="middle" font-size="9" fill="#d4c5f9">Run unit tests</text>
+  <text x="285" y="122" text-anchor="middle" font-size="9" fill="#d4c5f9">Alter config for Dev</text>
+  <text x="285" y="136" text-anchor="middle" font-size="9" fill="#d4c5f9">fabric-cicd / Bulk API</text>
+
+  <!-- Arrow: Build Dev → Dev Workspace -->
+  <line x1="355" y1="107" x2="410" y2="107" stroke="#28a745" stroke-width="2" marker-end="url(#arrowGreen)"/>
+  <text x="383" y="99" text-anchor="middle" font-size="8" fill="#28a745">deploy</text>
+
+  <!-- Dev Workspace -->
+  <rect x="415" y="80" width="130" height="55" rx="8" fill="#28a745" stroke="#1e7e34" stroke-width="1.5"/>
+  <text x="480" y="104" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Dev Workspace</text>
+  <text x="480" y="120" text-anchor="middle" font-size="10" fill="#c3e6cb">(Development)</text>
+
+  <!-- Vertical connector Dev → Test -->
+  <line x1="285" y1="145" x2="285" y2="185" stroke="#555" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <text x="300" y="170" font-size="8" fill="#555">approval</text>
+
+  <!-- Test Build Environment -->
+  <rect x="215" y="190" width="140" height="75" rx="8" fill="#6f42c1" stroke="#59359a" stroke-width="1.5"/>
+  <text x="285" y="212" text-anchor="middle" font-size="11" fill="#fff" font-weight="bold">Build Env (Test)</text>
+  <text x="285" y="228" text-anchor="middle" font-size="9" fill="#d4c5f9">Run tests</text>
+  <text x="285" y="242" text-anchor="middle" font-size="9" fill="#d4c5f9">Alter config for Test</text>
+  <text x="285" y="256" text-anchor="middle" font-size="9" fill="#d4c5f9">fabric-cicd / Bulk API</text>
+
+  <!-- Arrow: Build Test → Test Workspace -->
+  <line x1="355" y1="227" x2="410" y2="227" stroke="#fd7e14" stroke-width="2" marker-end="url(#arrowOrange)"/>
+  <text x="383" y="219" text-anchor="middle" font-size="8" fill="#e8590c">deploy</text>
+
+  <!-- Test Workspace -->
+  <rect x="415" y="200" width="130" height="55" rx="8" fill="#fd7e14" stroke="#e8590c" stroke-width="1.5"/>
+  <text x="480" y="224" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Test Workspace</text>
+  <text x="480" y="240" text-anchor="middle" font-size="10" fill="#ffe0b2">(Testing)</text>
+
+  <!-- Vertical connector Test → Prod -->
+  <line x1="285" y1="265" x2="285" y2="305" stroke="#555" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <text x="300" y="290" font-size="8" fill="#555">approval</text>
+
+  <!-- Prod Build Environment -->
+  <rect x="215" y="310" width="140" height="75" rx="8" fill="#6f42c1" stroke="#59359a" stroke-width="1.5"/>
+  <text x="285" y="332" text-anchor="middle" font-size="11" fill="#fff" font-weight="bold">Build Env (Prod)</text>
+  <text x="285" y="348" text-anchor="middle" font-size="9" fill="#d4c5f9">Run tests</text>
+  <text x="285" y="362" text-anchor="middle" font-size="9" fill="#d4c5f9">Alter config for Prod</text>
+  <text x="285" y="376" text-anchor="middle" font-size="9" fill="#d4c5f9">fabric-cicd / Bulk API</text>
+
+  <!-- Arrow: Build Prod → Prod Workspace -->
+  <line x1="355" y1="347" x2="410" y2="347" stroke="#dc3545" stroke-width="2" marker-end="url(#arrowRed)"/>
+  <text x="383" y="339" text-anchor="middle" font-size="8" fill="#dc3545">deploy</text>
+
+  <!-- Prod Workspace -->
+  <rect x="415" y="320" width="130" height="55" rx="8" fill="#dc3545" stroke="#bd2130" stroke-width="1.5"/>
+  <text x="480" y="344" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Prod Workspace</text>
+  <text x="480" y="360" text-anchor="middle" font-size="10" fill="#f5c6cb">(Production)</text>
+
+  <!-- Git feeds all three - vertical line from Git down -->
+  <line x1="90" y1="135" x2="90" y2="347" stroke="#0078d4" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <line x1="90" y1="227" x2="215" y2="227" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="90" y1="347" x2="215" y2="347" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Key difference callout -->
+  <rect x="580" y="80" width="350" height="130" rx="8" fill="#fff3cd" stroke="#f9a825" stroke-width="1.5"/>
+  <text x="755" y="105" text-anchor="middle" font-size="13" font-weight="bold" fill="#856404">Key Concept</text>
+  <text x="755" y="125" text-anchor="middle" font-size="10" fill="#856404">Single branch (main) feeds ALL stages.</text>
+  <text x="755" y="143" text-anchor="middle" font-size="10" fill="#856404">Build environments alter workspace-specific</text>
+  <text x="755" y="158" text-anchor="middle" font-size="10" fill="#856404">config (connectionId, lakehouseId, etc.)</text>
+  <text x="755" y="176" text-anchor="middle" font-size="10" fill="#856404">BEFORE deploying to each workspace.</text>
+  <text x="755" y="196" text-anchor="middle" font-size="10" fill="#856404">Uses fabric-cicd SDK or Bulk Import API.</text>
+
+  <!-- Tooling callout -->
+  <rect x="580" y="230" width="350" height="90" rx="8" fill="#e8f0fe" stroke="#0078d4" stroke-width="1"/>
+  <text x="755" y="255" text-anchor="middle" font-size="13" font-weight="bold" fill="#0078d4">Tooling</text>
+  <text x="755" y="278" text-anchor="middle" font-size="10" fill="#333">• fabric-cicd Python library</text>
+  <text x="755" y="296" text-anchor="middle" font-size="10" fill="#333">• Bulk Import Item Definitions API</text>
+  <text x="755" y="314" text-anchor="middle" font-size="10" fill="#333">• Update Item Definition API</text>
+
+  <!-- Arrow markers -->
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#555"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#28a745"/>
+    </marker>
+    <marker id="arrowOrange" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#fd7e14"/>
+    </marker>
+    <marker id="arrowRed" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#dc3545"/>
+    </marker>
+  </defs>
+</svg>

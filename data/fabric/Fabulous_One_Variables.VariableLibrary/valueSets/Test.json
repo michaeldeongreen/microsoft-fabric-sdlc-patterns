@@ -1,0 +1,18 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/variableLibrary/definition/valueSet/1.0.0/schema.json",
+  "name": "Test",
+  "variableOverrides": [
+    {
+      "name": "target_workspace_id",
+      "value": "a62ad9e8-c7c0-4dc0-98c1-3d5311095a5b"
+    },
+    {
+      "name": "target_workspace_name",
+      "value": "fabulous-one-test"
+    },
+    {
+      "name": "target_lakehouse_id",
+      "value": "7694ebac-deb9-4a40-a846-0782b36b3bda"
+    }
+  ]
+}

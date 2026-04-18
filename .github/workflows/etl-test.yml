@@ -1,0 +1,28 @@
+# Triggers ETL jobs in the Test workspace after a successful deployment.
+#
+# Uses workflow_run to decouple deploy and ETL as separate workflow concerns.
+# The `if` condition ensures ETL only runs when the deploy workflow succeeded —
+# if any sandwich job fails, the deploy workflow is marked as failed and this
+# workflow skips execution.
+#
+# ETL_ITEM_ID is no longer needed — the notebook is resolved by name at runtime.
+
+name: ETL - Test
+
+on:
+  workflow_run:
+    workflows: ["Deploy to Test"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  run-etl:
+    name: Run ETL
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    uses: ./.github/workflows/reusable-fabric-etl.yml
+    with:
+      environment: Test
+      item_name: Import_Fabulous_One_Data
+    secrets: inherit

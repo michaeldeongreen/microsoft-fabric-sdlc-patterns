@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 340" font-family="Segoe UI, Arial, sans-serif">
+  <!-- Background -->
+  <rect width="900" height="340" fill="#f9f9f9" rx="8"/>
+
+  <!-- Title -->
+  <text x="450" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#333">Option 1 – Fabric Deployment Pipelines</text>
+
+  <!-- Git Repo -->
+  <rect x="30" y="70" width="120" height="60" rx="8" fill="#0078d4" stroke="#005a9e" stroke-width="1.5"/>
+  <text x="90" y="97" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Git Repo</text>
+  <text x="90" y="113" text-anchor="middle" font-size="10" fill="#cce4f7">(main branch)</text>
+
+  <!-- Arrow: Git → Dev -->
+  <line x1="150" y1="100" x2="205" y2="100" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="178" y="90" text-anchor="middle" font-size="9" fill="#555">sync</text>
+
+  <!-- Dev Workspace -->
+  <rect x="210" y="70" width="140" height="60" rx="8" fill="#28a745" stroke="#1e7e34" stroke-width="1.5"/>
+  <text x="280" y="97" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Dev Workspace</text>
+  <text x="280" y="113" text-anchor="middle" font-size="10" fill="#c3e6cb">(Development)</text>
+
+  <!-- Arrow: Dev → Test -->
+  <line x1="350" y1="100" x2="425" y2="100" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="388" y="90" text-anchor="middle" font-size="9" fill="#555">deploy</text>
+
+  <!-- Test Workspace -->
+  <rect x="430" y="70" width="140" height="60" rx="8" fill="#fd7e14" stroke="#e8590c" stroke-width="1.5"/>
+  <text x="500" y="97" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Test Workspace</text>
+  <text x="500" y="113" text-anchor="middle" font-size="10" fill="#ffe0b2">(Testing)</text>
+
+  <!-- Arrow: Test → Prod -->
+  <line x1="570" y1="100" x2="645" y2="100" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="608" y="90" text-anchor="middle" font-size="9" fill="#555">deploy</text>
+
+  <!-- Prod Workspace -->
+  <rect x="650" y="70" width="140" height="60" rx="8" fill="#dc3545" stroke="#bd2130" stroke-width="1.5"/>
+  <text x="720" y="97" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Prod Workspace</text>
+  <text x="720" y="113" text-anchor="middle" font-size="10" fill="#f5c6cb">(Production)</text>
+
+  <!-- Deployment Pipeline bracket -->
+  <rect x="210" y="145" width="580" height="30" rx="4" fill="none" stroke="#6f42c1" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="500" y="165" text-anchor="middle" font-size="11" fill="#6f42c1" font-weight="bold">Fabric Deployment Pipeline</text>
+
+  <!-- Manual (UI) path -->
+  <rect x="120" y="200" width="300" height="110" rx="8" fill="#e8f0fe" stroke="#0078d4" stroke-width="1"/>
+  <text x="270" y="222" text-anchor="middle" font-size="13" font-weight="bold" fill="#0078d4">Manual (UI)</text>
+  <text x="270" y="244" text-anchor="middle" font-size="10" fill="#333">1. Open Deployment Pipelines in Fabric portal</text>
+  <text x="270" y="260" text-anchor="middle" font-size="10" fill="#333">2. Compare changes between stages</text>
+  <text x="270" y="276" text-anchor="middle" font-size="10" fill="#333">3. Select items and click Deploy</text>
+  <text x="270" y="292" text-anchor="middle" font-size="10" fill="#333">4. Configure deployment rules per stage</text>
+
+  <!-- Automated (API) path -->
+  <rect x="480" y="200" width="360" height="110" rx="8" fill="#fdf2e9" stroke="#fd7e14" stroke-width="1"/>
+  <text x="660" y="222" text-anchor="middle" font-size="13" font-weight="bold" fill="#e8590c">Automated (API)</text>
+  <text x="660" y="244" text-anchor="middle" font-size="10" fill="#333">1. PR merged triggers ADO / GitHub Actions pipeline</text>
+  <text x="660" y="260" text-anchor="middle" font-size="10" fill="#333">2. Pipeline calls Deployment Pipelines REST API</text>
+  <text x="660" y="276" text-anchor="middle" font-size="10" fill="#333">3. API deploys content between stages</text>
+  <text x="660" y="292" text-anchor="middle" font-size="10" fill="#333">4. Post-deployment tests and approvals</text>
+
+  <!-- Arrow marker definition -->
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#555"/>
+    </marker>
+  </defs>
+</svg>

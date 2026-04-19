@@ -1,0 +1,23 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/ontology/contextualization/1.0.0/schema.json",
+  "id": "46e30f16-ff16-4810-bc55-19dfc7c7e904",
+  "dataBindingTable": {
+    "workspaceId": "00000000-0000-0000-0000-000000000000",
+    "itemId": "b36b3bda-0782-a846-4a40-deb97694ebac",
+    "sourceTableName": "appointments",
+    "sourceSchema": "dbo",
+    "sourceType": "LakehouseTable"
+  },
+  "sourceKeyRefBindings": [
+    {
+      "sourceColumnName": "doctor_id",
+      "targetPropertyId": "8331117390541733405"
+    }
+  ],
+  "targetKeyRefBindings": [
+    {
+      "sourceColumnName": "doctor_id",
+      "targetPropertyId": "8331117575612589373"
+    }
+  ]
+}

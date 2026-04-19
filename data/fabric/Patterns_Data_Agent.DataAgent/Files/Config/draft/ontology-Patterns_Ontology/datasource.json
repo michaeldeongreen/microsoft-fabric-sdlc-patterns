@@ -1,0 +1,36 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/dataAgent/definition/dataSource/1.0.0/schema.json",
+  "artifactId": "58a6c8ed-d439-a7ba-4e80-99fc40aa27c4",
+  "workspaceId": "00000000-0000-0000-0000-000000000000",
+  "dataSourceInstructions": null,
+  "displayName": "Patterns_Ontology",
+  "type": "ontology",
+  "userDescription": null,
+  "metadata": {},
+  "elements": [
+    {
+      "id": "doctors",
+      "is_selected": true,
+      "display_name": "doctors",
+      "type": "ontology.entity",
+      "description": "doctor_id,first_name,last_name,specialty,phone_number,email",
+      "children": []
+    },
+    {
+      "id": "appointments",
+      "is_selected": true,
+      "display_name": "appointments",
+      "type": "ontology.entity",
+      "description": "appointment_id,patient_id,doctor_id,appointment_date,reason,status",
+      "children": []
+    },
+    {
+      "id": "patients",
+      "is_selected": true,
+      "display_name": "patients",
+      "type": "ontology.entity",
+      "description": "patient_id,first_name,last_name,date_of_birth,gender,phone_number,email",
+      "children": []
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/ontology/dataBinding/1.0.0/schema.json",
+  "id": "d8117d7e-7765-45cf-84df-5ab832fff293",
+  "dataBindingConfiguration": {
+    "dataBindingType": "NonTimeSeries",
+    "propertyBindings": [
+      {
+        "sourceColumnName": "appointment_id",
+        "targetPropertyId": "8331117390541733405"
+      },
+      {
+        "sourceColumnName": "patient_id",
+        "targetPropertyId": "8331117364494950874"
+      },
+      {
+        "sourceColumnName": "doctor_id",
+        "targetPropertyId": "8331117339241040931"
+      },
+      {
+        "sourceColumnName": "appointment_date",
+        "targetPropertyId": "8331117312726533605"
+      },
+      {
+        "sourceColumnName": "reason",
+        "targetPropertyId": "8331117288117929476"
+      },
+      {
+        "sourceColumnName": "status",
+        "targetPropertyId": "8331117265896789330"
+      }
+    ],
+    "sourceTableProperties": {
+      "sourceType": "LakehouseTable",
+      "workspaceId": "00000000-0000-0000-0000-000000000000",
+      "itemId": "b36b3bda-0782-a846-4a40-deb97694ebac",
+      "sourceTableName": "appointments",
+      "sourceSchema": "dbo"
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/ontology/relationshipType/1.0.0/schema.json",
+  "namespace": "usertypes",
+  "id": "8319396545203409054",
+  "name": "appointments_has_doctors",
+  "namespaceType": "Custom",
+  "source": {
+    "entityTypeId": "270143356862013"
+  },
+  "target": {
+    "entityTypeId": "2525121373138"
+  }
+}

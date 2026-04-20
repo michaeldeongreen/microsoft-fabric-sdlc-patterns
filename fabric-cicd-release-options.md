@@ -45,7 +45,7 @@ Git integration only works with a specific set of Fabric items. **Any item not o
 
 For the full list of supported items, see the [official documentation](https://learn.microsoft.com/en-us/fabric/cicd/git-integration/intro-to-git-integration#supported-items) linked in the References section.
 
-> **Important:** **Ontologies are not supported** by Git integration at this time.
+> **Important:** **Template Apps are not supported** by Git integration at this time.
 
 
 ---
@@ -340,7 +340,7 @@ Technically, the Terraform provider can *create* items like notebooks in a targe
 
 ### Hybrid Approach — fabric-cicd + Deployment Pipelines
 
-I recommend a **hybrid approach** that uses **fabric-cicd** for all supported items and **Fabric Deployment Pipelines** for unsupported items (e.g., Ontologies). This gives us Git as the single source of truth for the majority of items, with a clean path to drop the Deployment Pipelines component as items gain support.
+I recommend a **hybrid approach** that uses **fabric-cicd** for all supported items and **Fabric Deployment Pipelines** for unsupported items (e.g., Template Apps). This gives us Git as the single source of truth for the majority of items, with a clean path to drop the Deployment Pipelines component as items gain support.
 
 ![Hybrid Recommendation Flow](assets/hybrid-recommendation-flow.svg)
 
@@ -370,7 +370,7 @@ I recommend a **hybrid approach** that uses **fabric-cicd** for all supported it
 #### Dev Stage (Trigger: PR merged → `dev` branch)
 1. **Update from Git API** syncs the Dev workspace with the latest commit on the `dev` branch.
 2. Run **Data Pipelines / Notebooks** for ETL jobs as needed.
-3. **Unsupported items** (e.g., Ontologies) are **manually created and updated** in the Dev workspace only. These items are not in Git and have no version history — they exist only in the workspace and move between stages via Deployment Pipelines.
+3. **Unsupported items** (e.g., Template Apps) are **manually created and updated** in the Dev workspace only. These items are not in Git and have no version history — they exist only in the workspace and move between stages via Deployment Pipelines.
 4. Validate and test in the Dev workspace.
 
 #### Test Stage (Trigger: PR merged → `test` branch)
@@ -409,16 +409,16 @@ Two complementary mechanisms handle environment-specific configuration:
 
 - **Git as source of truth** for all supported items across all stages.
 - **fabric-cicd's `parameter.yml`** handles environment-specific configuration declaratively — no custom scripts.
-- **Deployment Pipelines** fill the gap for unsupported items (Ontologies) with minimal overhead.
+- **Deployment Pipelines** fill the gap for unsupported items with minimal overhead.
 - **Variable Libraries** provide clean runtime auto-binding, reducing the surface area of deployment-time parameterization.
-- **Forward-looking** — when Ontologies gain Git integration and fabric-cicd support, the Deployment Pipeline steps drop away entirely, simplifying the flow to fabric-cicd end-to-end.
+- **Forward-looking** — when/if Template Apps gain Git integration and fabric-cicd support, the Deployment Pipeline steps drop away entirely, simplifying the flow to fabric-cicd end-to-end.
 - **Git, branching strategies, and CI/CD pipelines** align with the Customer's DevSecOps Strategy document.
 
 ---
 
 ### Future State
 
-When Ontologies (and any other currently unsupported items) gain Git integration and fabric-cicd support:
+When/If Template Apps (and any other currently unsupported items) gain Git integration and fabric-cicd support:
 - **Drop the Deployment Pipeline entirely.**
 - **fabric-cicd handles all items end-to-end** — the sandwich pattern is no longer needed.
 - The flow simplifies to: PR merged → fabric-cicd deploys → run ETL → validate.
@@ -440,7 +440,7 @@ When Ontologies (and any other currently unsupported items) gain Git integration
 
 #### Hotfix Flow (Unsupported Items via Deployment Pipelines)
 
-- If the hotfix touches **Ontology or other unsupported items**, promote via Deployment Pipelines from the previous stage (e.g., Test → Prod).
+- If the hotfix touches **Template Apps or other unsupported items**, promote via Deployment Pipelines from the previous stage (e.g., Test → Prod).
 - Automate with the [Deploy Stage Content](https://learn.microsoft.com/en-us/rest/api/fabric/core/deployment-pipelines/deploy-stage-content) API; selective deploy requires explicitly listing items (no "select related" in API).
 
 > **Note:** Deployment Pipelines provide the governance path but don't give you Git-based version history. Keep a known-good version in the earlier stage so you can re-deploy forward if needed.

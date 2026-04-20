@@ -126,14 +126,14 @@ microsoft-fabric-sdlc-patterns/
 Each deploy workflow orchestrates three sequential jobs via `needs:`:
 
 1. **deploy-supported** — fabric-cicd publishes all supported items (Lakehouse, Variable Library, Notebooks, Semantic Model, Report) from Git to the target workspace. Item types are explicitly scoped via `item_type_in_scope` to ensure correct deployment ordering (Lakehouse before Variable Library and Semantic Model).
-2. **promote-unsupported** *(skeleton)* — Will promote unsupported items (e.g., Ontologies) from the previous stage via the Fabric Deployment Pipelines REST API. Currently prints a TODO message.
+2. **promote-unsupported** *(skeleton)* — Will promote unsupported items (e.g., Template Apps) from the previous stage via the Fabric Deployment Pipelines REST API. Currently prints a TODO message.
 3. **deploy-supported-dependent** *(skeleton)* — Will deploy supported items that depend on unsupported items via fabric-cicd. Currently prints a TODO message.
 
 The ETL workflow only triggers after **all 3 jobs** complete successfully. If any job fails, the entire deploy workflow is marked as failed and ETL does not run.
 
 ### Future Simplification
 
-When Ontologies (and other unsupported items) gain Git integration and fabric-cicd support, the skeleton jobs can be removed — simplifying the flow to a single fabric-cicd deploy followed by ETL.
+When Template Apps (and other unsupported items) gain Git integration and fabric-cicd support, the skeleton jobs can be removed — simplifying the flow to a single fabric-cicd deploy followed by ETL.
 
 ---
 

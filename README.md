@@ -61,7 +61,7 @@ Not all Fabric items can be managed the same way. From a lifecycle management pe
 | Category | Description | Examples |
 |---|---|---|
 | **Git-tracked** | Items supported by [Fabric Git integration](https://learn.microsoft.com/en-us/fabric/cicd/git-integration/intro-to-git-integration#supported-items). Their definitions are serialized to files in the repo, enabling version control, branching, and code-review workflows. | Notebooks, Semantic Models, Lakehouses, Reports, Variable Libraries, Data Pipelines, Environments |
-| **Deployment Pipeline–only** | Items not supported by Git integration but supported by [Fabric Deployment Pipelines](https://learn.microsoft.com/en-us/fabric/cicd/deployment-pipelines/intro-to-deployment-pipelines#supported-items). They can be promoted workspace-to-workspace but cannot be version-controlled in Git. | Ontologies (at the time of writing) |
+| **Deployment Pipeline–only** | Items not supported by Git integration but supported by [Fabric Deployment Pipelines](https://learn.microsoft.com/en-us/fabric/cicd/deployment-pipelines/intro-to-deployment-pipelines#supported-items). They can be promoted workspace-to-workspace but cannot be version-controlled in Git. | Template Apps (at the time of writing) |
 | **Manual** | Items supported by neither Git integration nor Deployment Pipelines. These must be created and configured manually in each workspace. | Varies as Microsoft continues adding support — always check the official supported items lists |
 
 > **Important:** Both supported items lists evolve as Microsoft adds capabilities. Always verify against the official documentation before assuming an item falls into a particular category.

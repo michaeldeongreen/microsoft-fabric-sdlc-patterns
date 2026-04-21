@@ -48,3 +48,10 @@ find_replace:
       replace_value:
           _ALL_: "$workspace.$id"
       item_type: "Notebook"
+
+    # Replace Lakehouse logicalId in Ontology DataBindings and Contextualizations.
+    # Ontology uses the .platform logicalId (not the actual dev lakehouse ID).
+    - find_value: "b36b3bda-0782-a846-4a40-deb97694ebac"
+      replace_value:
+          _ALL_: "$items.Lakehouse.PatternsLakehouse.$id"
+      item_type: "Ontology"

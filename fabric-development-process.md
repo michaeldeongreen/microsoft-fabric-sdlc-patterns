@@ -173,19 +173,39 @@ These are **read-only** calls — the script never creates, modifies, or deletes
 
 ### Scope of Metadata Rewriting
 
-The script currently rewrites hardcoded IDs only in **Semantic Models** (`expressions.tmdl`) and **Notebooks** (`notebook-content.py` META blocks). Other Fabric item types (Data Pipelines, Dataflows, Spark Job Definitions, etc.) are intentionally excluded. Each item type stores metadata differently — some resolve IDs at runtime through the Variable Library, some embed them in item definitions, and some use a combination of both. Adding a new item type to the script requires careful inspection of how that item stores workspace and lakehouse references before it can be safely included in the rewrite process.
+The script uses an **item type registry** to manage which Fabric item types participate in branch environment management. Each registered type declares its file patterns, whether it needs ID rewriting, and which IDs to validate. Adding a new item type requires only a single registry entry — no other code changes are needed.
+
+Not all item types need rewriting. Fabric items fall into two categories based on how they reference environment-specific resources:
+
+- **Actual IDs** (e.g., Semantic Models, Notebooks): These embed real workspace and lakehouse GUIDs that differ per workspace. They must be rewritten when bootstrapping a feature branch and reverted before PR.
+- **Logical IDs** (e.g., Ontology, Data Agent): These reference other items via the `.platform` `logicalId`, which Fabric resolves at runtime within the current workspace. These are portable across Branch Out workspaces and need no rewriting.
+
+### Item Type Reference
+
+| Item Type | Files | ID Type | `branch_env.py` Rewrites? | `parameter.yml` Handles? | Notes |
+|-----------|-------|---------|--------------------------|-------------------------|-------|
+| **SemanticModel** | `*.SemanticModel/definition/expressions.tmdl` | Actual workspace + lakehouse IDs | Yes | Yes | Direct Lake connection URL contains real GUIDs |
+| **Notebook** | `*.Notebook/notebook-content.py` | Actual workspace + lakehouse IDs | Yes (only if `default_lakehouse` present) | Yes | META dependency blocks reference real GUIDs |
+| **Ontology** | `*.Ontology/**/DataBindings/*.json`, `*.Ontology/**/Contextualizations/*.json` | Lakehouse logicalId (`b36b3bda-...`) + zeroed workspaceId | No — logicalIds are portable | Yes — logicalId replaced with `$items.Lakehouse...` for CI/CD | Uses `.platform` logicalId, resolved by Fabric at runtime |
+| **DataAgent** | `*.DataAgent/**/datasource.json` | Ontology logicalId (`58a6c8ed-...`) + zeroed workspaceId | No — logicalIds are portable | No — references Ontology by logicalId | Cross-item logicalId reference, no environment-specific IDs |
+| **VariableLibrary** | `valueSets/*.json`, `settings.json` | Dev lakehouse ID in default value set | Managed (creates/deletes value sets) | Yes — default value set lakehouse ID replaced | Value set files are created/deleted, not rewritten |
 
 ### Files Involved
 
 | File | Role |
 |------|------|
-| `scripts/branch_env.py` | Bootstrap and reset feature branch environment bindings |
+| `scripts/branch_env.py` | Bootstrap, reset, and validate feature branch environment bindings |
+| `tests/test_branch_env.py` | Unit tests for the branch environment script |
 | `data/fabric/Patterns_Variables.VariableLibrary/variables.json` | Default (dev) value set — read-only reference for dev IDs |
 | `data/fabric/Patterns_Variables.VariableLibrary/valueSets/` | Per-environment value sets (Test, Prod, feature branches) |
 | `data/fabric/Patterns_Variables.VariableLibrary/settings.json` | Value set ordering |
 | `data/fabric/Patterns_Semantic_Model.SemanticModel/definition/expressions.tmdl` | Direct Lake connection — rewritten by the script |
 | `data/fabric/Import_Patterns_Data.Notebook/notebook-content.py` | Notebook with hardcoded lakehouse dependency — rewritten by the script |
+| `data/fabric/Patterns_Ontology.Ontology/EntityTypes/*/DataBindings/*.json` | Ontology data bindings — validated (not rewritten) by the script |
+| `data/fabric/Patterns_Ontology.Ontology/RelationshipTypes/*/Contextualizations/*.json` | Ontology contextualizations — validated (not rewritten) by the script |
+| `data/fabric/Patterns_Data_Agent.DataAgent/Files/Config/draft/ontology-*/datasource.json` | Data Agent datasource — registered but not scanned (no dev IDs) |
 | `.github/workflows/validate-branch-env.yml` | PR check to block feature IDs from merging to dev |
+| `.github/workflows/run-tests.yml` | Runs unit tests on PRs when scripts or tests change |
 | `data/fabric/parameter.yml` | Deploy-time parameterization for fabric-cicd (used in CI/CD, not by the bootstrap script) |
 
 ## References

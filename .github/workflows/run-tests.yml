@@ -1,16 +1,17 @@
-name: Validate Branch Environment
+name: Run Tests
 
 on:
   pull_request:
-    branches: [dev]
-    paths: ["data/fabric/**"]
+    paths:
+      - "scripts/**"
+      - "tests/**"
 
 permissions:
   contents: read
 
 jobs:
-  validate-branch-env:
-    name: Check for non-dev IDs in Fabric items
+  test:
+    name: Run unit tests
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -23,5 +24,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Validate branch environment
-        run: python scripts/branch_env.py --validate
+      - name: Install test dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: pytest tests/ -v

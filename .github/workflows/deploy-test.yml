@@ -1,8 +1,8 @@
 # Orchestrator workflow for deploying Fabric items to the Test workspace.
 #
 # Deploys all supported items via fabric-cicd. The reusable workflow handles
-# phased deployment internally (Lakehouse first, then everything else)
-# to satisfy parameter.yml dependency resolution.
+# phased deployment internally (Lakehouse + Ontology first, then everything
+# else) to satisfy fabric-cicd dependency resolution.
 #
 # The ETL workflow (etl-test.yml) triggers automatically via workflow_run
 # once deployment completes successfully.

@@ -1,6 +1,6 @@
 # Microsoft Fabric SDLC Patterns — CI/CD Implementation
 
-This repository implements the **Hybrid CI/CD recommendation** for Microsoft Fabric using **fabric-cicd** and **Fabric Deployment Pipelines**. It demonstrates how to deploy Fabric workspace items (Notebooks, Lakehouses, Variable Libraries, Semantic Models, Reports) across environments using GitHub Actions, with the sandwich pattern for unsupported items.
+This repository implements the **Hybrid CI/CD recommendation** for Microsoft Fabric using **fabric-cicd** and **Fabric Deployment Pipelines**. It demonstrates how to deploy Fabric workspace items (Notebooks, Lakehouses, Variable Libraries, Semantic Models, Reports, Ontologies, Data Agents) across environments using GitHub Actions, with the sandwich pattern for items that may lack fabric-cicd support in the future.
 
 For the full CI/CD strategy, release option comparison, and recommendation rationale, see [fabric-cicd-release-options.md](fabric-cicd-release-options.md).
 
@@ -32,15 +32,17 @@ Git repo (dev branch)
 │  Job 1: deploy-supported                            │
 │    └─ reusable-deploy-supported.yml                 │
 │       └─ fabric-cicd: publish_all_items()           │
+│          (Phase 1: Lakehouse + Ontology)            │
+│          (Phase 2: all remaining items)             │
 │                    ↓ needs                           │
 │  Job 2: promote-unsupported (skeleton)              │
 │    └─ reusable-deploy-unsupported.yml               │
-│       └─ TODO: Deployment Pipeline API              │
+│       └─ Reserved for future unsupported items      │
 │                    ↓ needs                           │
 │  Job 3: deploy-supported-dependent (skeleton)       │
 │    └─ reusable-deploy-supported-dependent-on-       │
 │       unsupported.yml                               │
-│       └─ TODO: fabric-cicd for dependent items      │
+│       └─ Reserved for future dependent items        │
 └─────────────────────────────────────────────────────┘
                      │ workflow_run (on success)
                      ▼
@@ -75,8 +77,8 @@ microsoft-fabric-sdlc-patterns/
 │   │   ├── actions.instructions.md          # Copilot instructions for workflow authoring
 │   │   └── python.instructions.md           # Copilot instructions for Python scripts
 │   └── workflows/
-│       ├── deploy-test.yml                  # Orchestrator: push to test → 3-job sandwich
-│       ├── deploy-prod.yml                  # Orchestrator: push to main → 3-job sandwich
+│       ├── deploy-test.yml                  # Orchestrator: push to test → deploy + ETL
+│       ├── deploy-prod.yml                  # Orchestrator: push to main → 3-job sandwich (Jobs 2-3 are skeletons)
 │       ├── etl-test.yml                     # Triggers after deploy-test succeeds
 │       ├── etl-prod.yml                     # Triggers after deploy-prod succeeds
 │       ├── reusable-deploy-supported.yml    # Template: fabric-cicd deployment
@@ -125,15 +127,13 @@ microsoft-fabric-sdlc-patterns/
 
 Each deploy workflow orchestrates three sequential jobs via `needs:`:
 
-1. **deploy-supported** — fabric-cicd publishes all supported items (Lakehouse, Variable Library, Notebooks, Semantic Model, Report) from Git to the target workspace. Item types are explicitly scoped via `item_type_in_scope` to ensure correct deployment ordering (Lakehouse before Variable Library and Semantic Model).
-2. **promote-unsupported** *(skeleton)* — Will promote unsupported items (e.g., Ontologies) from the previous stage via the Fabric Deployment Pipelines REST API. Currently prints a TODO message.
-3. **deploy-supported-dependent** *(skeleton)* — Will deploy supported items that depend on unsupported items via fabric-cicd. Currently prints a TODO message.
+1. **deploy-supported** — fabric-cicd publishes all supported items (Lakehouse, Ontology, Variable Library, Notebooks, Semantic Model, Report, Data Agent) from Git to the target workspace. Uses a two-phase approach: Phase 1 deploys Lakehouse + Ontology, Phase 2 deploys all remaining items. Item types are explicitly scoped via `item_type_in_scope`.
+2. **promote-unsupported** *(skeleton)* — Reserved for future item types that lack fabric-cicd support and require promotion via the Fabric Deployment Pipelines REST API. Currently a pass-through.
+3. **deploy-supported-dependent** *(skeleton)* — Reserved for future supported items that depend on items promoted in Job 2. Currently a pass-through.
 
 The ETL workflow only triggers after **all 3 jobs** complete successfully. If any job fails, the entire deploy workflow is marked as failed and ETL does not run.
 
-### Future Simplification
-
-When Ontologies (and other unsupported items) gain Git integration and fabric-cicd support, the skeleton jobs can be removed — simplifying the flow to a single fabric-cicd deploy followed by ETL.
+> **Note:** The skeleton jobs (2 and 3) are preserved for future item types that may lack fabric-cicd support. They can be removed if all items in the workspace are fabric-cicd–deployable.
 
 ---
 
@@ -143,9 +143,9 @@ When Ontologies (and other unsupported items) gain Git integration and fabric-ci
 
 | Template | Purpose |
 |---|---|
-| `reusable-deploy-supported.yml` | Ensures Lakehouses exist in the target workspace via the Fabric REST API (first-deploy workaround), then uses fabric-cicd to `publish_all_items()` and `unpublish_all_orphan_items()`. Accepts `environment`, `repository_directory`, and optional `item_type_in_scope` inputs. |
-| `reusable-deploy-unsupported.yml` | **SKELETON** — Placeholder for Deployment Pipeline promotion. Prints a TODO message. |
-| `reusable-deploy-supported-dependent-on-unsupported.yml` | **SKELETON** — Placeholder for deploying dependent supported items. Prints a TODO message. |
+| `reusable-deploy-supported.yml` | Two-phase fabric-cicd deployment: Phase 1 deploys Lakehouse + Ontology, Phase 2 deploys all remaining items via `publish_all_items()` and `unpublish_all_orphan_items()`. Accepts `environment`, `repository_directory`, and optional `item_type_in_scope` inputs. |
+| `reusable-deploy-unsupported.yml` | **SKELETON** — Reserved for future item types requiring Deployment Pipeline promotion. Currently a pass-through. |
+| `reusable-deploy-supported-dependent-on-unsupported.yml` | **SKELETON** — Reserved for future supported items that depend on items from Job 2. Currently a pass-through. |
 | `reusable-fabric-etl.yml` | Resolves a Fabric item by **name** (not ID) via the List Items API, then starts a job (RunNotebook) and polls until completion. No item IDs need to be known ahead of time. |
 
 ### Why Reusable Workflows (Not Composite Actions)
@@ -259,13 +259,13 @@ The `.github/instructions/actions.instructions.md` file provides path-specific C
 
 The Variable Library and Semantic Model need the lakehouse ID for each environment, but the lakehouse doesn't exist in Test/Prod until the first deployment creates it. fabric-cicd's `$items` dynamic variables (e.g., `$items.Lakehouse.PatternsLakehouse.$id`) resolve by querying the **live target workspace** during parameterization — before items are published. On the first deployment to an empty workspace, this query returns nothing and parameterization fails.
 
-**Solution:** The `reusable-deploy-supported.yml` workflow uses a **two-phase deployment** approach. Phase 1 calls `publish_all_items()` with `item_type_in_scope=["Lakehouse"]` to create the Lakehouse first via fabric-cicd (using the full definition files from the repo). Phase 2 calls `publish_all_items()` with the remaining item types. By the time Phase 2 runs, the Lakehouse exists in the target workspace and `$items.Lakehouse.PatternsLakehouse.$id` resolves correctly. On subsequent deployments, Phase 1 simply updates the existing Lakehouse (idempotent).
+**Solution:** The `reusable-deploy-supported.yml` workflow uses a **two-phase deployment** approach. Phase 1 calls `publish_all_items()` with `item_type_in_scope=["Lakehouse", "Ontology"]` to create the Lakehouse and Ontology first. The Lakehouse must exist so that `$items.Lakehouse.PatternsLakehouse.$id` resolves for parameter.yml rules. The Ontology must exist so that the Data Agent's logicalId reference resolves (fabric-cicd caches workspace state once per `publish_all_items()` call, so items deployed within the same call aren't visible to later items' logicalId resolution). Phase 2 calls `publish_all_items()` with the remaining item types. On subsequent deployments, both phases are idempotent.
 
 ### Item Type Scoping
 
 When `item_type_in_scope` is omitted, fabric-cicd attempts to deploy all item types and may count non-item files (e.g., Report theme resources) as separate items, leading to incorrect item counts.
 
-**Solution:** Explicitly set `item_type_in_scope` in the deploy workflows: `["Lakehouse", "VariableLibrary", "Notebook", "SemanticModel", "Report"]`. This ensures only valid item types are deployed.
+**Solution:** Explicitly set `item_type_in_scope` in the deploy workflows: `["Lakehouse", "Ontology", "VariableLibrary", "Notebook", "SemanticModel", "Report", "DataAgent"]`. This ensures only valid item types are deployed.
 
 ### Chicken-and-Egg: ETL Notebook ID
 

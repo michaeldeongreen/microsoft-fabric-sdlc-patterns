@@ -45,7 +45,7 @@ Git integration only works with a specific set of Fabric items. **Any item not o
 
 For the full list of supported items, see the [official documentation](https://learn.microsoft.com/en-us/fabric/cicd/git-integration/intro-to-git-integration#supported-items) linked in the References section.
 
-> **Important:** **Template Apps are not supported** by Git integration at this time.
+> **Important:** Not all Fabric item types are supported by Git integration. Always check the [official supported items list](https://learn.microsoft.com/en-us/fabric/cicd/git-integration/intro-to-git-integration#supported-items) before assuming an item is tracked.
 
 
 ---
@@ -340,7 +340,7 @@ Technically, the Terraform provider can *create* items like notebooks in a targe
 
 ### Hybrid Approach — fabric-cicd + Deployment Pipelines
 
-I recommend a **hybrid approach** that uses **fabric-cicd** for all supported items and **Fabric Deployment Pipelines** for unsupported items (e.g., Template Apps). This gives us Git as the single source of truth for the majority of items, with a clean path to drop the Deployment Pipelines component as items gain support.
+I recommend a **hybrid approach** that uses **fabric-cicd** for all supported items and **Fabric Deployment Pipelines** for any items that lack fabric-cicd support. This gives us Git as the single source of truth for the majority of items, with a clean path to drop the Deployment Pipelines component as items gain support.
 
 ![Hybrid Recommendation Flow](assets/hybrid-recommendation-flow.svg)
 
@@ -352,7 +352,7 @@ I recommend a **hybrid approach** that uses **fabric-cicd** for all supported it
 - **Three workspaces:** Dev, Test, Prod
 - **Dev workspace** is connected to the `dev` branch via Fabric Git integration — this is the shared development workspace
 - **Test and Prod workspaces** are NOT Git-connected — they receive deployments via fabric-cicd and Deployment Pipelines
-- A **Fabric Deployment Pipeline** is created with stages pointing to Dev → Test → Prod (used only for unsupported items)
+- A **Fabric Deployment Pipeline** is created with stages pointing to Dev → Test → Prod (used only for items that lack fabric-cicd support, if any)
 
 ---
 
@@ -370,21 +370,23 @@ I recommend a **hybrid approach** that uses **fabric-cicd** for all supported it
 #### Dev Stage (Trigger: PR merged → `dev` branch)
 1. **Update from Git API** syncs the Dev workspace with the latest commit on the `dev` branch.
 2. Run **Data Pipelines / Notebooks** for ETL jobs as needed.
-3. **Unsupported items** (e.g., Template Apps) are **manually created and updated** in the Dev workspace only. These items are not in Git and have no version history — they exist only in the workspace and move between stages via Deployment Pipelines.
+3. **Items not supported by fabric-cicd** (if any) are **manually created and updated** in the Dev workspace only. These items are not in Git and have no version history — they exist only in the workspace and move between stages via Deployment Pipelines.
 4. Validate and test in the Dev workspace.
 
 #### Test Stage (Trigger: PR merged → `test` branch)
-Use the **fabric-cicd sandwich** pattern when dependencies on unsupported items exist:
+Use the **fabric-cicd sandwich** pattern when dependencies on items not yet supported by fabric-cicd exist:
 1. **fabric-cicd** deploys supported items that do **not** depend on unsupported items (using `item_type_in_scope` to limit scope).
 2. **Deployment Pipeline** promotes unsupported items from Dev → Test.
 3. **fabric-cicd** deploys supported items that **depend on** unsupported items (they will now be present in the workspace after step 2).
+
+> **Note:** Currently all items in this repository are deployed via fabric-cicd. The sandwich pattern is preserved for future item types that may lack fabric-cicd support.
 4. Run **Data Pipelines / Notebooks** for ETL jobs.
 5. Perform automated and manual testing.
 
 #### Prod Stage (Trigger: PR merged → `main` branch)
 Same sandwich pattern as Test:
 1. **fabric-cicd** deploys independent supported items.
-2. **Deployment Pipeline** promotes unsupported items from Test → Prod.
+2. **Deployment Pipeline** promotes unsupported items from Test → Prod (if any).
 3. **fabric-cicd** deploys dependent supported items.
 4. Run **Data Pipelines / Notebooks** for ETL jobs.
 5. Production validation.
@@ -409,19 +411,21 @@ Two complementary mechanisms handle environment-specific configuration:
 
 - **Git as source of truth** for all supported items across all stages.
 - **fabric-cicd's `parameter.yml`** handles environment-specific configuration declaratively — no custom scripts.
-- **Deployment Pipelines** fill the gap for unsupported items with minimal overhead.
+- **Deployment Pipelines** fill the gap for any items that lack fabric-cicd support, with minimal overhead.
 - **Variable Libraries** provide clean runtime auto-binding, reducing the surface area of deployment-time parameterization.
-- **Forward-looking** — when/if Template Apps gain Git integration and fabric-cicd support, the Deployment Pipeline steps drop away entirely, simplifying the flow to fabric-cicd end-to-end.
+- **Forward-looking** — as all items gain fabric-cicd support, the Deployment Pipeline steps drop away entirely, simplifying the flow to fabric-cicd end-to-end.
 - **Git, branching strategies, and CI/CD pipelines** align with the Customer's DevSecOps Strategy document.
 
 ---
 
 ### Future State
 
-When/If Template Apps (and any other currently unsupported items) gain Git integration and fabric-cicd support:
+When all item types gain fabric-cicd support:
 - **Drop the Deployment Pipeline entirely.**
 - **fabric-cicd handles all items end-to-end** — the sandwich pattern is no longer needed.
 - The flow simplifies to: PR merged → fabric-cicd deploys → run ETL → validate.
+
+> **Note:** This repository has already reached this state — all items are currently deployed via fabric-cicd. The sandwich structure is preserved for future item types that may lack support.
 
 ---
 
@@ -440,7 +444,7 @@ When/If Template Apps (and any other currently unsupported items) gain Git integ
 
 #### Hotfix Flow (Unsupported Items via Deployment Pipelines)
 
-- If the hotfix touches **Template Apps or other unsupported items**, promote via Deployment Pipelines from the previous stage (e.g., Test → Prod).
+- If the hotfix touches **items not supported by fabric-cicd**, promote via Deployment Pipelines from the previous stage (e.g., Test → Prod).
 - Automate with the [Deploy Stage Content](https://learn.microsoft.com/en-us/rest/api/fabric/core/deployment-pipelines/deploy-stage-content) API; selective deploy requires explicitly listing items (no "select related" in API).
 
 > **Note:** Deployment Pipelines provide the governance path but don't give you Git-based version history. Keep a known-good version in the earlier stage so you can re-deploy forward if needed.
@@ -463,7 +467,7 @@ When/If Template Apps (and any other currently unsupported items) gain Git integ
 
 - **Smoke tests:** Key reports open and refresh; pipelines/notebooks run successfully.
 - **Connections/configs** match Prod targets (Variable Libraries and deploy-time parameters applied correctly).
-- **Deployment history and pairing** look correct in the pipeline (for unsupported items).
+- **Deployment history and pairing** look correct in the pipeline (for any items promoted via Deployment Pipelines).
 
 
 ---

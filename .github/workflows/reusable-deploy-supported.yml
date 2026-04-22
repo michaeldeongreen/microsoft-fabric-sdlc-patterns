@@ -52,7 +52,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install fabric-cicd azure-identity
+        run: pip install "fabric-cicd>=1.0.0,<2.0.0" azure-identity
 
       # fabric-cicd reads parameter.yml from the repository_directory root
       # and applies environment-specific find_replace / key_value_replace rules
@@ -90,27 +90,35 @@ jobs:
           workspace_id = os.environ['FABRIC_WORKSPACE_ID']
           environment = os.environ['ENVIRONMENT']
 
-          # Phase 1: Deploy Lakehouse first so it exists in the target workspace.
-          # fabric-cicd's \$items dynamic variables resolve by querying the live
-          # workspace during parameterization. On first deployment to an empty
-          # workspace, the Lakehouse must exist before Variable Library and
-          # Semantic Model can resolve \$items.Lakehouse.PatternsLakehouse.\$id.
-          # On subsequent deployments, the Lakehouse already exists and this
-          # phase simply updates it (idempotent).
-          print('Phase 1: Deploying Lakehouse...')
-          lakehouse_ws = FabricWorkspace(
+          # Deployment uses a 2-phase approach to satisfy item dependencies.
+          # fabric-cicd caches workspace state once at the start of each
+          # publish_all_items() call, so items deployed within the same call
+          # are not visible to later items' logicalId or \$items resolution.
+          #
+          # Phase 1: Lakehouse + Ontology
+          #   - Lakehouse must exist so parameter.yml \$items.Lakehouse rules resolve.
+          #   - Ontology must exist so DataAgent's logicalId reference resolves.
+          # Phase 2: All remaining items (DataAgent, Notebook, SemanticModel, etc.).
+          #
+          # On subsequent deployments all items already exist and phases are
+          # idempotent — they simply update in place.
+
+          phase1_types = ['Lakehouse', 'Ontology']
+
+          print('Phase 1: Deploying Lakehouse + Ontology...')
+          phase1_ws = FabricWorkspace(
               repository_directory=repo_dir,
               workspace_id=workspace_id,
               environment=environment,
               token_credential=credential,
-              item_type_in_scope=['Lakehouse'],
+              item_type_in_scope=phase1_types,
           )
-          publish_all_items(lakehouse_ws)
+          publish_all_items(phase1_ws)
 
           # Phase 2: Deploy all remaining item types.
-          # The Lakehouse now exists, so \$items references resolve correctly.
-          remaining = [t for t in (item_type_in_scope or []) if t != 'Lakehouse'] or None
-          print('Phase 2: Deploying ' + str(remaining or 'all remaining') + '...')
+          phase1_set = set(phase1_types)
+          remaining = [t for t in (item_type_in_scope or []) if t not in phase1_set] or None
+          print('Phase 2: Deploying remaining items: ' + str(remaining or 'all') + '...')
           workspace = FabricWorkspace(
               repository_directory=repo_dir,
               workspace_id=workspace_id,

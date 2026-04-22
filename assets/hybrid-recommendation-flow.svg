@@ -75,7 +75,7 @@
   <text x="575" y="169" font-size="9" fill="#0078d4"><tspan font-weight="bold">1.</tspan> fabric-cicd (independent items)</text>
 
   <rect x="565" y="184" width="190" height="28" rx="4" fill="#fff3cd" stroke="#f9a825" stroke-width="1"/>
-  <text x="575" y="203" font-size="9" fill="#856404"><tspan font-weight="bold">2.</tspan> Deployment Pipeline (unsupported)</text>
+  <text x="575" y="203" font-size="9" fill="#856404"><tspan font-weight="bold">2.</tspan> Deployment Pipeline (skeleton)</text>
 
   <rect x="565" y="218" width="190" height="28" rx="4" fill="#e8f0fe" stroke="#0078d4" stroke-width="1"/>
   <text x="575" y="237" font-size="9" fill="#0078d4"><tspan font-weight="bold">3.</tspan> fabric-cicd (dependent items)</text>
@@ -106,7 +106,7 @@
   <text x="845" y="169" font-size="9" fill="#0078d4"><tspan font-weight="bold">1.</tspan> fabric-cicd (independent items)</text>
 
   <rect x="835" y="184" width="210" height="28" rx="4" fill="#fff3cd" stroke="#f9a825" stroke-width="1"/>
-  <text x="845" y="203" font-size="9" fill="#856404"><tspan font-weight="bold">2.</tspan> Deployment Pipeline (unsupported)</text>
+  <text x="845" y="203" font-size="9" fill="#856404"><tspan font-weight="bold">2.</tspan> Deployment Pipeline (skeleton)</text>
 
   <rect x="835" y="218" width="210" height="28" rx="4" fill="#e8f0fe" stroke="#0078d4" stroke-width="1"/>
   <text x="845" y="237" font-size="9" fill="#0078d4"><tspan font-weight="bold">3.</tspan> fabric-cicd (dependent items)</text>
@@ -125,8 +125,8 @@
 
   <!-- ==================== DEPLOYMENT PIPELINE ==================== -->
   <rect x="545" y="385" width="525" height="50" rx="6" fill="none" stroke="#6f42c1" stroke-width="2" stroke-dasharray="6,3"/>
-  <text x="807" y="415" text-anchor="middle" font-size="11" fill="#6f42c1" font-weight="bold">Fabric Deployment Pipeline (unsupported items only: Ontologies, etc.)</text>
-  <text x="807" y="430" text-anchor="middle" font-size="9" fill="#6f42c1">Dev → Test → Prod (drops away when items gain Git/fabric-cicd support)</text>
+  <text x="807" y="415" text-anchor="middle" font-size="11" fill="#6f42c1" font-weight="bold">Fabric Deployment Pipeline (reserved for future unsupported items)</text>
+  <text x="807" y="430" text-anchor="middle" font-size="9" fill="#6f42c1">Dev → Test → Prod (currently unused — all items deploy via fabric-cicd)</text>
 
   <!-- ==================== CONFIGURATION ==================== -->
   <rect x="30" y="460" width="520" height="120" rx="8" fill="#e8f0fe" stroke="#0078d4" stroke-width="1"/>
@@ -146,10 +146,10 @@
 
   <!-- ==================== FUTURE STATE ==================== -->
   <rect x="580" y="460" width="490" height="120" rx="8" fill="#e8f5e9" stroke="#28a745" stroke-width="1"/>
-  <text x="825" y="485" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e7e34">Future State</text>
-  <text x="825" y="510" text-anchor="middle" font-size="10" fill="#333">When Ontologies (and other unsupported items) gain</text>
-  <text x="825" y="528" text-anchor="middle" font-size="10" fill="#333">Git integration and fabric-cicd support:</text>
-  <text x="825" y="552" text-anchor="middle" font-size="10" fill="#28a745" font-weight="bold">→ Drop the Deployment Pipeline entirely</text>
+  <text x="825" y="485" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e7e34">Current State</text>
+  <text x="825" y="510" text-anchor="middle" font-size="10" fill="#333">All items in this repository are deployed</text>
+  <text x="825" y="528" text-anchor="middle" font-size="10" fill="#333">via fabric-cicd (including Ontology and Data Agent).</text>
+  <text x="825" y="552" text-anchor="middle" font-size="10" fill="#28a745" font-weight="bold">→ Skeleton jobs preserved for future unsupported types</text>
   <text x="825" y="570" text-anchor="middle" font-size="10" fill="#28a745" font-weight="bold">→ fabric-cicd handles all items end-to-end</text>
 
   <!-- ==================== LEGEND ==================== -->
@@ -160,15 +160,15 @@
   <text x="72" y="657" font-size="10" fill="#333">fabric-cicd deployment step</text>
 
   <rect x="250" y="645" width="14" height="14" rx="2" fill="#fff3cd" stroke="#f9a825" stroke-width="1"/>
-  <text x="272" y="657" font-size="10" fill="#333">Unsupported item / manual step</text>
+  <text x="272" y="657" font-size="10" fill="#333">Skeleton step (future unsupported items)</text>
 
   <rect x="500" y="645" width="14" height="14" rx="2" fill="#fff" stroke="#ccc" stroke-width="1"/>
   <text x="522" y="657" font-size="10" fill="#333">Standard pipeline step</text>
 
   <rect x="700" y="645" width="14" height="14" rx="2" fill="none" stroke="#6f42c1" stroke-width="1.5" stroke-dasharray="3,2"/>
-  <text x="722" y="657" font-size="10" fill="#333">Deployment Pipeline (unsupported items)</text>
+  <text x="722" y="657" font-size="10" fill="#333">Deployment Pipeline (future unsupported items)</text>
 
-  <text x="50" y="685" font-size="10" fill="#555">Dev = Git-connected (Update from Git API) | Test &amp; Prod = fabric-cicd + Deployment Pipelines (sandwich pattern when dependencies exist)</text>
+  <text x="50" y="685" font-size="10" fill="#555">Dev = Git-connected (Update from Git API) | Test &amp; Prod = fabric-cicd (sandwich skeleton preserved for future unsupported items)</text>
 
   <!-- Arrow markers -->
   <defs>

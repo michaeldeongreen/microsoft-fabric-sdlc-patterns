@@ -22,6 +22,10 @@ target_workspace_id = variable_library.target_workspace_id
 target_lakehouse_id = variable_library.target_lakehouse_id
 target_table_name = "patients"
 
+print(f"Variable Library: {VARIABLE_LIBRARY_NAME}")
+print(f"Workspace ID:     {target_workspace_id}")
+print(f"Lakehouse ID:     {target_lakehouse_id}")
+
 # Build ABFS path
 full_path = f"abfss://{target_workspace_id}@onelake.dfs.fabric.microsoft.com/{target_lakehouse_id}/Tables/dbo/{target_table_name}"
 

@@ -9,8 +9,13 @@ Reset (revert feature → dev, before PR):
     python scripts/branch_env.py --reset
     python scripts/branch_env.py --reset --dry-run
 
+Validate (CI check — confirms dev IDs are present, no stray value sets):
+    python scripts/branch_env.py --validate
+
 No arguments required — reads the current git branch automatically.
 """
+
+from __future__ import annotations
 
 import argparse
 import json
@@ -18,6 +23,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Callable
 
 # ── Paths (relative to repo root) ──────────────────────────────────────────
 REPO_ROOT = Path(subprocess.run(
@@ -29,7 +35,51 @@ FABRIC_DIR = REPO_ROOT / "data" / "fabric"
 VARIABLES_FILE = FABRIC_DIR / "Patterns_Variables.VariableLibrary" / "variables.json"
 SETTINGS_FILE = FABRIC_DIR / "Patterns_Variables.VariableLibrary" / "settings.json"
 VALUE_SETS_DIR = FABRIC_DIR / "Patterns_Variables.VariableLibrary" / "valueSets"
-EXPRESSIONS_FILE = FABRIC_DIR / "Patterns_Semantic_Model.SemanticModel" / "definition" / "expressions.tmdl"
+ALLOWED_VALUE_SETS = {"Test", "Prod"}
+
+# ── Item type registry ─────────────────────────────────────────────────────
+# Each entry declares how a Fabric item type participates in branch-env
+# management.  Generic functions iterate this list instead of hard-coding
+# per-type logic, so adding a new item type is a single dict addition.
+#
+#   name           – display name for logging
+#   file_patterns  – globs resolved against FABRIC_DIR
+#   needs_rewrite  – True → dev↔feature ID replacement during bootstrap/reset
+#   id_keys        – which dev IDs to validate ("workspace", "lakehouse", or both)
+#   content_filter – optional predicate on file text; None means process all
+ITEM_TYPES: list[dict[str, str | list[str] | bool | list[str] | Callable[[str], bool] | None]] = [
+    {
+        "name": "SemanticModel",
+        "file_patterns": ["*.SemanticModel/definition/expressions.tmdl"],
+        "needs_rewrite": True,
+        "id_keys": ["workspace", "lakehouse"],
+        "content_filter": None,
+    },
+    {
+        "name": "Notebook",
+        "file_patterns": ["*.Notebook/notebook-content.py"],
+        "needs_rewrite": True,
+        "id_keys": ["workspace", "lakehouse"],
+        "content_filter": lambda text: "default_lakehouse" in text,
+    },
+    {
+        "name": "Ontology",
+        "file_patterns": [
+            "*.Ontology/**/DataBindings/*.json",
+            "*.Ontology/**/Contextualizations/*.json",
+        ],
+        "needs_rewrite": False,
+        "id_keys": ["lakehouse"],
+        "content_filter": None,
+    },
+    {
+        "name": "DataAgent",
+        "file_patterns": ["*.DataAgent/**/datasource.json"],
+        "needs_rewrite": False,
+        "id_keys": [],
+        "content_filter": None,
+    },
+]
 
 
 def get_current_branch() -> str:
@@ -184,78 +234,84 @@ def update_settings(branch_label: str, *, dry_run: bool) -> bool:
     return False
 
 
-def repoint_semantic_model(dev_ws_id: str, dev_lh_id: str,
-                           new_ws_id: str, new_lh_id: str, *, dry_run: bool) -> bool:
-    content = EXPRESSIONS_FILE.read_text(encoding="utf-8")
-    original = content
-    content = content.replace(dev_ws_id, new_ws_id)
-    content = content.replace(dev_lh_id, new_lh_id)
-    if content != original:
-        rel = EXPRESSIONS_FILE.relative_to(REPO_ROOT)
-        if dry_run:
-            print(f"  [dry-run] Would repoint: {rel}")
-            return True
-        EXPRESSIONS_FILE.write_text(content, encoding="utf-8")
-        print(f"  Repointed: {rel}")
-        return True
-    print("  Semantic model already repointed (no dev IDs found).")
-    return False
-
-
-def repoint_notebooks(dev_ws_id: str, dev_lh_id: str,
-                      new_ws_id: str, new_lh_id: str, *, dry_run: bool) -> list[str]:
-    """Replace dev IDs in all notebook META dependency blocks."""
-    changed = []
-    for nb_file in FABRIC_DIR.glob("*.Notebook/notebook-content.py"):
-        content = nb_file.read_text(encoding="utf-8")
-        original = content
-        content = content.replace(dev_ws_id, new_ws_id)
-        content = content.replace(dev_lh_id, new_lh_id)
-        if content != original:
-            rel = nb_file.relative_to(REPO_ROOT)
-            if dry_run:
-                print(f"  [dry-run] Would repoint: {rel}")
-            else:
-                nb_file.write_text(content, encoding="utf-8")
-                print(f"  Repointed: {rel}")
-            changed.append(str(rel))
+def repoint_items(dev_ws_id: str, dev_lh_id: str,
+                  new_ws_id: str, new_lh_id: str, *, dry_run: bool) -> list[str]:
+    """Replace dev IDs with new IDs in all registered item types that need rewriting."""
+    changed: list[str] = []
+    for item_type in ITEM_TYPES:
+        if not item_type["needs_rewrite"]:
+            continue
+        for pattern in item_type["file_patterns"]:
+            for path in sorted(FABRIC_DIR.glob(pattern)):
+                text = path.read_text(encoding="utf-8")
+                if item_type["content_filter"] and not item_type["content_filter"](text):
+                    continue
+                updated = text.replace(dev_ws_id, new_ws_id).replace(dev_lh_id, new_lh_id)
+                if updated != text:
+                    rel = path.relative_to(REPO_ROOT)
+                    if dry_run:
+                        print(f"  [dry-run] Would repoint ({item_type['name']}): {rel}")
+                    else:
+                        path.write_text(updated, encoding="utf-8")
+                        print(f"  Repointed ({item_type['name']}): {rel}")
+                    changed.append(str(rel))
     if not changed:
-        print("  No notebooks with dev IDs found.")
+        print("  No files with target IDs found.")
     return changed
 
 
-def validate_no_dev_ids(dev_ws_id: str, dev_lh_id: str) -> list[str]:
-    """Scan rewritten files for leftover dev IDs."""
-    critical_files = [
-        EXPRESSIONS_FILE,
-        *FABRIC_DIR.glob("*.Notebook/notebook-content.py"),
-    ]
-    warnings = []
-    for f in critical_files:
-        if not f.exists():
-            continue
-        text = f.read_text(encoding="utf-8")
-        for label, dev_id in [("workspace", dev_ws_id), ("lakehouse", dev_lh_id)]:
-            if dev_id in text:
-                warnings.append(f"  {f.relative_to(REPO_ROOT)}: still contains dev {label} ID")
+def validate_no_ids(ws_id: str, lh_id: str, *, label: str = "target") -> list[str]:
+    """Scan all registered item types for leftover IDs that should not be present."""
+    id_map = {"workspace": ws_id, "lakehouse": lh_id}
+    warnings: list[str] = []
+    for item_type in ITEM_TYPES:
+        for pattern in item_type["file_patterns"]:
+            for path in sorted(FABRIC_DIR.glob(pattern)):
+                if not path.exists():
+                    continue
+                text = path.read_text(encoding="utf-8")
+                if item_type["content_filter"] and not item_type["content_filter"](text):
+                    continue
+                for key in item_type["id_keys"]:
+                    if id_map[key] in text:
+                        warnings.append(
+                            f"  {path.relative_to(REPO_ROOT)}: still contains {label} {key} ID"
+                        )
     return warnings
 
 
-def validate_no_feature_ids(feature_ws_id: str, feature_lh_id: str) -> list[str]:
-    """Scan rewritten files for leftover feature IDs after reset."""
-    critical_files = [
-        EXPRESSIONS_FILE,
-        *FABRIC_DIR.glob("*.Notebook/notebook-content.py"),
-    ]
-    warnings = []
-    for f in critical_files:
-        if not f.exists():
+def validate_dev_ids_present(dev_ws_id: str, dev_lh_id: str) -> list[str]:
+    """Confirm that files which need rewriting DO contain dev IDs (for --validate mode)."""
+    id_map = {"workspace": dev_ws_id, "lakehouse": dev_lh_id}
+    errors: list[str] = []
+    for item_type in ITEM_TYPES:
+        if not item_type["needs_rewrite"]:
             continue
-        text = f.read_text(encoding="utf-8")
-        for label, fid in [("workspace", feature_ws_id), ("lakehouse", feature_lh_id)]:
-            if fid in text:
-                warnings.append(f"  {f.relative_to(REPO_ROOT)}: still contains feature {label} ID")
-    return warnings
+        for pattern in item_type["file_patterns"]:
+            for path in sorted(FABRIC_DIR.glob(pattern)):
+                if not path.exists():
+                    continue
+                text = path.read_text(encoding="utf-8")
+                if item_type["content_filter"] and not item_type["content_filter"](text):
+                    continue
+                for key in item_type["id_keys"]:
+                    if id_map[key] not in text:
+                        errors.append(
+                            f"  {path.relative_to(REPO_ROOT)}: missing dev {key} ID ({item_type['name']})"
+                        )
+    return errors
+
+
+def validate_no_stray_value_sets() -> list[str]:
+    """Check for value set files that are not in the allowed set."""
+    errors: list[str] = []
+    for vs_file in sorted(VALUE_SETS_DIR.glob("*.json")):
+        basename = vs_file.stem
+        if basename not in ALLOWED_VALUE_SETS:
+            errors.append(
+                f"  {vs_file.relative_to(REPO_ROOT)}: feature branch value set '{basename}' must be removed"
+            )
+    return errors
 
 
 def remove_value_set(value_set_path: Path, *, dry_run: bool) -> bool:
@@ -288,9 +344,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Manage feature-branch Fabric workspace bindings.")
     parser.add_argument("--dry-run", action="store_true", help="Show what would change without writing files.")
     parser.add_argument("--reset", action="store_true", help="Revert feature IDs back to dev and remove value set.")
+    parser.add_argument("--validate", action="store_true", help="CI check: confirm dev IDs present and no stray value sets.")
     args = parser.parse_args()
     dry_run: bool = args.dry_run
     reset: bool = args.reset
+    validate: bool = args.validate
+
+    if validate:
+        _run_validate()
+        return
 
     if dry_run:
         print("=== DRY RUN — no files will be modified ===\n")
@@ -333,20 +395,16 @@ def _run_bootstrap(branch: str, branch_label: str, value_set_path: Path,
     if update_settings(branch_label, dry_run=dry_run):
         changes.append(f"Settings:  {SETTINGS_FILE.relative_to(REPO_ROOT)}")
 
-    print("\n4. Repointing semantic model...")
-    if repoint_semantic_model(dev_ws_id, dev_lh_id, new_ws_id, new_lh_id, dry_run=dry_run):
-        changes.append(f"Repointed: {EXPRESSIONS_FILE.relative_to(REPO_ROOT)}")
+    print("\n4. Repointing items...")
+    repointed = repoint_items(dev_ws_id, dev_lh_id, new_ws_id, new_lh_id, dry_run=dry_run)
+    for r in repointed:
+        changes.append(f"Repointed: {r}")
 
-    print("\n5. Repointing notebooks...")
-    repointed_nbs = repoint_notebooks(dev_ws_id, dev_lh_id, new_ws_id, new_lh_id, dry_run=dry_run)
-    for nb in repointed_nbs:
-        changes.append(f"Repointed: {nb}")
-
-    print("\n6. Validating...")
+    print("\n5. Validating...")
     if dry_run:
         print("  [dry-run] Skipping validation (files unchanged).")
     else:
-        warnings = validate_no_dev_ids(dev_ws_id, dev_lh_id)
+        warnings = validate_no_ids(dev_ws_id, dev_lh_id, label="dev")
         if warnings:
             print("  WARNINGS — dev IDs still found:")
             for w in warnings:
@@ -372,26 +430,22 @@ def _run_reset(branch: str, branch_label: str, value_set_path: Path,
 
     changes: list[str] = []
 
-    print("\n3. Reverting semantic model to dev...")
-    if repoint_semantic_model(feature_ws_id, feature_lh_id, dev_ws_id, dev_lh_id, dry_run=dry_run):
-        changes.append(f"Reverted:  {EXPRESSIONS_FILE.relative_to(REPO_ROOT)}")
+    print("\n3. Reverting items to dev...")
+    reverted = repoint_items(feature_ws_id, feature_lh_id, dev_ws_id, dev_lh_id, dry_run=dry_run)
+    for r in reverted:
+        changes.append(f"Reverted:  {r}")
 
-    print("\n4. Reverting notebooks to dev...")
-    reverted_nbs = repoint_notebooks(feature_ws_id, feature_lh_id, dev_ws_id, dev_lh_id, dry_run=dry_run)
-    for nb in reverted_nbs:
-        changes.append(f"Reverted:  {nb}")
-
-    print("\n5. Removing feature value set...")
+    print("\n4. Removing feature value set...")
     if remove_value_set(value_set_path, dry_run=dry_run):
         changes.append(f"Deleted:   {value_set_path.relative_to(REPO_ROOT)}")
     if remove_from_settings(branch_label, dry_run=dry_run):
         changes.append(f"Settings:  {SETTINGS_FILE.relative_to(REPO_ROOT)}")
 
-    print("\n6. Validating...")
+    print("\n5. Validating...")
     if dry_run:
         print("  [dry-run] Skipping validation (files unchanged).")
     else:
-        warnings = validate_no_feature_ids(feature_ws_id, feature_lh_id)
+        warnings = validate_no_ids(feature_ws_id, feature_lh_id, label="feature")
         if warnings:
             print("  WARNINGS — feature IDs still found:")
             for w in warnings:
@@ -400,6 +454,40 @@ def _run_reset(branch: str, branch_label: str, value_set_path: Path,
             print("  Clean — no feature IDs in critical files.")
 
     _print_summary(branch, feature_ws_id, feature_lh_id, dev_ws_id, dev_lh_id, changes, dry_run=dry_run, reset=True)
+
+
+def _run_validate() -> None:
+    """CI check: confirm dev IDs are present in rewritable files and no stray value sets exist."""
+    print("Validate: checking repo state for merge readiness...\n")
+
+    dev_ws_id, dev_lh_id = get_dev_ids()
+    print(f"  Dev workspace : {dev_ws_id}")
+    print(f"  Dev lakehouse : {dev_lh_id}")
+
+    errors: list[str] = []
+
+    print("\n1. Checking rewritable files contain dev IDs...")
+    missing = validate_dev_ids_present(dev_ws_id, dev_lh_id)
+    errors.extend(missing)
+    for m in missing:
+        print(m)
+    if not missing:
+        print("  OK — all rewritable files contain dev IDs.")
+
+    print("\n2. Checking for stray feature branch value sets...")
+    stray = validate_no_stray_value_sets()
+    errors.extend(stray)
+    for s in stray:
+        print(s)
+    if not stray:
+        print("  OK — no stray value sets.")
+
+    if errors:
+        print(f"\nVALIDATION FAILED — {len(errors)} error(s) found.")
+        print("Run 'python scripts/branch_env.py --reset' to fix.")
+        sys.exit(1)
+    else:
+        print("\nVALIDATION PASSED — repo is ready for merge.")
 
 
 def _print_summary(branch: str, old_ws_id: str, old_lh_id: str,

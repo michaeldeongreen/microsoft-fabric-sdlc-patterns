@@ -1,6 +1,8 @@
 # Orchestrator workflow for deploying Fabric items to the Prod workspace.
 #
-# Same sandwich pattern as deploy-test.yml but targeting the prod environment.
+# Job 1 deploys all supported items (including Ontology and DataAgent) via
+# fabric-cicd. Jobs 2-3 are skeletons reserved for future item types that
+# lack fabric-cicd support and require Deployment Pipeline promotion.
 # The `prod` GitHub Environment should have protection rules configured
 # (e.g., required reviewers, branch policy restricting to main only).
 #
@@ -23,7 +25,7 @@ jobs:
     uses: ./.github/workflows/reusable-deploy-supported.yml
     with:
       environment: Prod
-      item_type_in_scope: '["Lakehouse", "VariableLibrary", "Notebook", "SemanticModel", "Report"]'
+      item_type_in_scope: '["Lakehouse", "Ontology", "VariableLibrary", "Notebook", "SemanticModel", "Report", "DataAgent"]'
     secrets: inherit
 
   promote-unsupported:

@@ -1,12 +1,11 @@
 # Orchestrator workflow for deploying Fabric items to the Test workspace.
 #
-# Implements the "sandwich" pattern from the hybrid CI/CD recommendation:
-#   Job 1: Deploy supported items via fabric-cicd
-#   Job 2: Promote unsupported items (e.g., Ontologies) via Deployment Pipelines (skeleton)
-#   Job 3: Deploy supported items that depend on unsupported items (skeleton)
+# Deploys all supported items via fabric-cicd. The reusable workflow handles
+# phased deployment internally (Lakehouse + Ontology first, then everything
+# else) to satisfy fabric-cicd dependency resolution.
 #
-# Jobs run sequentially via `needs:`. The ETL workflow (etl-test.yml) triggers
-# automatically via workflow_run once all 3 jobs complete successfully.
+# The ETL workflow (etl-test.yml) triggers automatically via workflow_run
+# once deployment completes successfully.
 
 name: Deploy to Test
 
@@ -24,21 +23,5 @@ jobs:
     uses: ./.github/workflows/reusable-deploy-supported.yml
     with:
       environment: Test
-      item_type_in_scope: '["Lakehouse", "VariableLibrary", "Notebook", "SemanticModel", "Report"]'
-    secrets: inherit
-
-  promote-unsupported:
-    name: Promote unsupported items
-    needs: deploy-supported
-    uses: ./.github/workflows/reusable-deploy-unsupported.yml
-    with:
-      environment: Test
-    secrets: inherit
-
-  deploy-supported-dependent:
-    name: Deploy dependent supported items
-    needs: promote-unsupported
-    uses: ./.github/workflows/reusable-deploy-supported-dependent-on-unsupported.yml
-    with:
-      environment: Test
+      item_type_in_scope: '["Lakehouse", "Ontology", "VariableLibrary", "Notebook", "SemanticModel", "Report", "DataAgent"]'
     secrets: inherit

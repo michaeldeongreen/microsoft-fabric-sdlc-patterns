@@ -1,0 +1,44 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/ontology/dataBinding/1.0.0/schema.json",
+  "id": "144e9ecb-c883-4773-9cf6-a0401169b47c",
+  "dataBindingConfiguration": {
+    "dataBindingType": "NonTimeSeries",
+    "propertyBindings": [
+      {
+        "sourceColumnName": "patient_id",
+        "targetPropertyId": "8331117210837564330"
+      },
+      {
+        "sourceColumnName": "first_name",
+        "targetPropertyId": "8331117185360096189"
+      },
+      {
+        "sourceColumnName": "last_name",
+        "targetPropertyId": "8331117159247189338"
+      },
+      {
+        "sourceColumnName": "date_of_birth",
+        "targetPropertyId": "8331117138969039931"
+      },
+      {
+        "sourceColumnName": "gender",
+        "targetPropertyId": "8331117110490872908"
+      },
+      {
+        "sourceColumnName": "phone_number",
+        "targetPropertyId": "8331117085713874807"
+      },
+      {
+        "sourceColumnName": "email",
+        "targetPropertyId": "8331117060030101909"
+      }
+    ],
+    "sourceTableProperties": {
+      "sourceType": "LakehouseTable",
+      "workspaceId": "00000000-0000-0000-0000-000000000000",
+      "itemId": "b36b3bda-0782-a846-4a40-deb97694ebac",
+      "sourceTableName": "patients",
+      "sourceSchema": "dbo"
+    }
+  }
+}

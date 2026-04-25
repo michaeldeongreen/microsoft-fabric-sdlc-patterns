@@ -1,0 +1,40 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/ontology/dataBinding/1.0.0/schema.json",
+  "id": "6e4524f9-ea6d-4535-ab49-a72f73fc08a0",
+  "dataBindingConfiguration": {
+    "dataBindingType": "NonTimeSeries",
+    "propertyBindings": [
+      {
+        "sourceColumnName": "doctor_id",
+        "targetPropertyId": "8331117575612589373"
+      },
+      {
+        "sourceColumnName": "first_name",
+        "targetPropertyId": "8331117545135092748"
+      },
+      {
+        "sourceColumnName": "last_name",
+        "targetPropertyId": "8331117521092504893"
+      },
+      {
+        "sourceColumnName": "specialty",
+        "targetPropertyId": "8331117491122589947"
+      },
+      {
+        "sourceColumnName": "phone_number",
+        "targetPropertyId": "8331117468414969227"
+      },
+      {
+        "sourceColumnName": "email",
+        "targetPropertyId": "8331117440637419017"
+      }
+    ],
+    "sourceTableProperties": {
+      "sourceType": "LakehouseTable",
+      "workspaceId": "00000000-0000-0000-0000-000000000000",
+      "itemId": "b36b3bda-0782-a846-4a40-deb97694ebac",
+      "sourceTableName": "doctors",
+      "sourceSchema": "dbo"
+    }
+  }
+}

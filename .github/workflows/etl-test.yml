@@ -2,8 +2,7 @@
 #
 # Uses workflow_run to decouple deploy and ETL as separate workflow concerns.
 # The `if` condition ensures ETL only runs when the deploy workflow succeeded —
-# if any sandwich job fails, the deploy workflow is marked as failed and this
-# workflow skips execution.
+# if the deploy workflow fails, this workflow skips execution.
 #
 # ETL_ITEM_ID is no longer needed — the notebook is resolved by name at runtime.
 

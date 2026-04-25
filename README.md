@@ -45,7 +45,7 @@ Git repo (dev branch)
 | Document | Description |
 |---|---|
 | [CI/CD Release Options](fabric-cicd-release-options.md) | Evaluates all CI/CD release options for Fabric (Deployment Pipelines, Git-based, Build-based, Hybrid) and recommends the Hybrid approach. **Start here** if you're deciding on a strategy. |
-| [Hybrid CI/CD Implementation Guide](fabric-hybrid-cicd-guide.md) | Deep dive into the implementation: workflow structure, sandwich pattern, configuration strategy, prerequisites, setup steps, and gotchas. |
+| [Hybrid CI/CD Implementation Guide](fabric-hybrid-cicd-guide.md) | Deep dive into the implementation: workflow structure, configuration strategy, prerequisites, setup steps, and gotchas. |
 | [Development Process](fabric-development-process.md) | How developers work day-to-day: branch-out workflow, environment bootstrap/reset script, and PR validation. |
 
 ---
@@ -66,7 +66,7 @@ Not all Fabric items can be managed the same way. From a lifecycle management pe
 
 > **Important:** Both supported items lists evolve as Microsoft adds capabilities. Always verify against the official documentation before assuming an item falls into a particular category.
 
-This categorization directly impacts your CI/CD strategy. The [Hybrid CI/CD Implementation Guide](fabric-hybrid-cicd-guide.md) uses the "sandwich pattern" to handle the gap between git-tracked and deployment-pipeline-only items, though currently all items in this repository are deployed via fabric-cicd.
+This categorization directly impacts your CI/CD strategy. The [Hybrid CI/CD Implementation Guide](fabric-hybrid-cicd-guide.md) describes how to handle the gap between git-tracked and deployment-pipeline-only items if your workspace includes unsupported types. Currently, all items in this repository are deployed via fabric-cicd.
 
 ### Variable Libraries: Dynamic vs Static Metadata
 

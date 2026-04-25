@@ -374,22 +374,17 @@ I recommend a **hybrid approach** that uses **fabric-cicd** for all supported it
 4. Validate and test in the Dev workspace.
 
 #### Test Stage (Trigger: PR merged → `test` branch)
-Use the **fabric-cicd sandwich** pattern when dependencies on items not yet supported by fabric-cicd exist:
-1. **fabric-cicd** deploys supported items that do **not** depend on unsupported items (using `item_type_in_scope` to limit scope).
-2. **Deployment Pipeline** promotes unsupported items from Dev → Test.
-3. **fabric-cicd** deploys supported items that **depend on** unsupported items (they will now be present in the workspace after step 2).
+1. **fabric-cicd** deploys all supported items to the Test workspace via `publish_all_items()`. Uses a two-phase approach (Lakehouse + Ontology first, then remaining items) to satisfy dependency resolution.
+2. Run **Data Pipelines / Notebooks** for ETL jobs.
+3. Perform automated and manual testing.
 
-> **Note:** Currently all items in this repository are deployed via fabric-cicd. The sandwich pattern is preserved for future item types that may lack fabric-cicd support.
-4. Run **Data Pipelines / Notebooks** for ETL jobs.
-5. Perform automated and manual testing.
+> **Note:** If your workspace includes item types not yet supported by fabric-cicd, you can extend this to a multi-job "sandwich" pattern: (1) deploy supported items that do not depend on unsupported items, (2) promote unsupported items via the [Deployment Pipelines REST API](https://learn.microsoft.com/en-us/rest/api/fabric/core/deployment-pipelines/deploy-stage-content), (3) deploy supported items that depend on unsupported items.
 
 #### Prod Stage (Trigger: PR merged → `main` branch)
-Same sandwich pattern as Test:
-1. **fabric-cicd** deploys independent supported items.
-2. **Deployment Pipeline** promotes unsupported items from Test → Prod (if any).
-3. **fabric-cicd** deploys dependent supported items.
-4. Run **Data Pipelines / Notebooks** for ETL jobs.
-5. Production validation.
+Same pattern as Test:
+1. **fabric-cicd** deploys all supported items to the Prod workspace.
+2. Run **Data Pipelines / Notebooks** for ETL jobs.
+3. Production validation.
 
 ---
 
@@ -413,8 +408,7 @@ Two complementary mechanisms handle environment-specific configuration:
 - **fabric-cicd's `parameter.yml`** handles environment-specific configuration declaratively — no custom scripts.
 - **Deployment Pipelines** fill the gap for any items that lack fabric-cicd support, with minimal overhead.
 - **Variable Libraries** provide clean runtime auto-binding, reducing the surface area of deployment-time parameterization.
-- **Forward-looking** — as all items gain fabric-cicd support, the Deployment Pipeline steps drop away entirely, simplifying the flow to fabric-cicd end-to-end.
-- **Git, branching strategies, and CI/CD pipelines** align with the Customer's DevSecOps Strategy document.
+- **Forward-looking** — as fabric-cicd adds support for new item types, the flow remains a simple single-job deployment.
 
 ---
 
@@ -422,10 +416,10 @@ Two complementary mechanisms handle environment-specific configuration:
 
 When all item types gain fabric-cicd support:
 - **Drop the Deployment Pipeline entirely.**
-- **fabric-cicd handles all items end-to-end** — the sandwich pattern is no longer needed.
+- **fabric-cicd handles all items end-to-end** — no sandwich pattern needed.
 - The flow simplifies to: PR merged → fabric-cicd deploys → run ETL → validate.
 
-> **Note:** This repository has already reached this state — all items are currently deployed via fabric-cicd. The sandwich structure is preserved for future item types that may lack support.
+> **Note:** This repository has already reached this state — all items are deployed via fabric-cicd in a single deploy job.
 
 ---
 
@@ -444,7 +438,7 @@ When all item types gain fabric-cicd support:
 
 #### Hotfix Flow (Unsupported Items via Deployment Pipelines)
 
-- If the hotfix touches **items not supported by fabric-cicd**, promote via Deployment Pipelines from the previous stage (e.g., Test → Prod).
+- If your workspace includes **items not supported by fabric-cicd**, promote via Deployment Pipelines from the previous stage (e.g., Test → Prod).
 - Automate with the [Deploy Stage Content](https://learn.microsoft.com/en-us/rest/api/fabric/core/deployment-pipelines/deploy-stage-content) API; selective deploy requires explicitly listing items (no "select related" in API).
 
 > **Note:** Deployment Pipelines provide the governance path but don't give you Git-based version history. Keep a known-good version in the earlier stage so you can re-deploy forward if needed.

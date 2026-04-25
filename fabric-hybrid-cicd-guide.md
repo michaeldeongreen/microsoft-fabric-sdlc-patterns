@@ -1,6 +1,6 @@
 # Microsoft Fabric SDLC Patterns — CI/CD Implementation
 
-This repository implements the **Hybrid CI/CD recommendation** for Microsoft Fabric using **fabric-cicd** and **Fabric Deployment Pipelines**. It demonstrates how to deploy Fabric workspace items (Notebooks, Lakehouses, Variable Libraries, Semantic Models, Reports, Ontologies, Data Agents) across environments using GitHub Actions, with the sandwich pattern for items that may lack fabric-cicd support in the future.
+This repository implements the **Hybrid CI/CD recommendation** for Microsoft Fabric using **fabric-cicd**. It demonstrates how to deploy Fabric workspace items (Notebooks, Lakehouses, Variable Libraries, Semantic Models, Reports, Ontologies, Data Agents) across environments using GitHub Actions.
 
 For the full CI/CD strategy, release option comparison, and recommendation rationale, see [fabric-cicd-release-options.md](fabric-cicd-release-options.md).
 
@@ -14,6 +14,7 @@ For the full CI/CD strategy, release option comparison, and recommendation ratio
 - [GitHub Actions Workflows](#github-actions-workflows)
 - [Configuration Strategy](#configuration-strategy)
 - [Prerequisites & Setup](#prerequisites--setup)
+- [Initial Deployment to a Clean Workspace](#initial-deployment-to-a-clean-workspace)
 - [Gotchas & Key Decisions](#gotchas--key-decisions)
 - [References](#references)
 
@@ -29,20 +30,11 @@ Git repo (dev branch)
 ┌─────────────────────────────────────────────────────┐
 │  deploy-test.yml (orchestrator)                     │
 │                                                     │
-│  Job 1: deploy-supported                            │
+│  deploy-supported                                   │
 │    └─ reusable-deploy-supported.yml                 │
 │       └─ fabric-cicd: publish_all_items()           │
 │          (Phase 1: Lakehouse + Ontology)            │
 │          (Phase 2: all remaining items)             │
-│                    ↓ needs                           │
-│  Job 2: promote-unsupported (skeleton)              │
-│    └─ reusable-deploy-unsupported.yml               │
-│       └─ Reserved for future unsupported items      │
-│                    ↓ needs                           │
-│  Job 3: deploy-supported-dependent (skeleton)       │
-│    └─ reusable-deploy-supported-dependent-on-       │
-│       unsupported.yml                               │
-│       └─ Reserved for future dependent items        │
 └─────────────────────────────────────────────────────┘
                      │ workflow_run (on success)
                      ▼
@@ -64,7 +56,7 @@ The same pattern applies to Prod (`deploy-prod.yml` → `etl-prod.yml`), trigger
 | `main` | Prod (microsoft-fabric-sdlc-patterns-prod) | fabric-cicd via GitHub Actions |
 
 - **Dev** workspace is the only Git-connected workspace. Developers branch out from Dev for isolated feature work.
-- **Test** and **Prod** workspaces are NOT Git-connected. They receive deployments exclusively through fabric-cicd and Deployment Pipelines.
+- **Test** and **Prod** workspaces are NOT Git-connected. They receive deployments exclusively through fabric-cicd.
 
 ---
 
@@ -78,13 +70,10 @@ microsoft-fabric-sdlc-patterns/
 │   │   └── python.instructions.md           # Copilot instructions for Python scripts
 │   └── workflows/
 │       ├── deploy-test.yml                  # Orchestrator: push to test → deploy + ETL
-│       ├── deploy-prod.yml                  # Orchestrator: push to main → 3-job sandwich (Jobs 2-3 are skeletons)
+│       ├── deploy-prod.yml                  # Orchestrator: push to main → deploy + ETL
 │       ├── etl-test.yml                     # Triggers after deploy-test succeeds
 │       ├── etl-prod.yml                     # Triggers after deploy-prod succeeds
 │       ├── reusable-deploy-supported.yml    # Template: fabric-cicd deployment
-│       ├── reusable-deploy-unsupported.yml  # Template: SKELETON (Deployment Pipeline)
-│       ├── reusable-deploy-supported-       # Template: SKELETON (dependent items)
-│       │   dependent-on-unsupported.yml
 │       ├── reusable-fabric-etl.yml          # Template: run Notebook via Fabric REST API
 │       └── validate-branch-env.yml          # PR check: blocks feature IDs from merging to dev
 ├── data/
@@ -118,22 +107,18 @@ microsoft-fabric-sdlc-patterns/
 
 | Event | Workflow Triggered | What It Does |
 |---|---|---|
-| Push to `test` branch (changes in `data/fabric/**`) | `deploy-test.yml` | Runs the 3-job sandwich deploying to the Test workspace |
+| Push to `test` branch (changes in `data/fabric/**`) | `deploy-test.yml` | Deploys all supported items to the Test workspace |
 | `deploy-test.yml` completes successfully | `etl-test.yml` | Runs the `Import_Patterns_Data` notebook in the Test workspace |
-| Push to `main` branch (changes in `data/fabric/**`) | `deploy-prod.yml` | Runs the 3-job sandwich deploying to the Prod workspace |
+| Push to `main` branch (changes in `data/fabric/**`) | `deploy-prod.yml` | Deploys all supported items to the Prod workspace |
 | `deploy-prod.yml` completes successfully | `etl-prod.yml` | Runs the `Import_Patterns_Data` notebook in the Prod workspace |
 
-### The Sandwich Pattern (3 Jobs)
+### Deploy Job
 
-Each deploy workflow orchestrates three sequential jobs via `needs:`:
+Each deploy workflow calls `reusable-deploy-supported.yml`, which publishes all supported items from Git to the target workspace using fabric-cicd. It uses a two-phase approach: Phase 1 deploys Lakehouse + Ontology, Phase 2 deploys all remaining items (Variable Library, Notebooks, Semantic Model, Report, Data Agent). Item types are explicitly scoped via `item_type_in_scope`.
 
-1. **deploy-supported** — fabric-cicd publishes all supported items (Lakehouse, Ontology, Variable Library, Notebooks, Semantic Model, Report, Data Agent) from Git to the target workspace. Uses a two-phase approach: Phase 1 deploys Lakehouse + Ontology, Phase 2 deploys all remaining items. Item types are explicitly scoped via `item_type_in_scope`.
-2. **promote-unsupported** *(skeleton)* — Reserved for future item types that lack fabric-cicd support and require promotion via the Fabric Deployment Pipelines REST API. Currently a pass-through.
-3. **deploy-supported-dependent** *(skeleton)* — Reserved for future supported items that depend on items promoted in Job 2. Currently a pass-through.
+The ETL workflow triggers automatically after the deploy workflow completes successfully. If the deploy fails, ETL does not run.
 
-The ETL workflow only triggers after **all 3 jobs** complete successfully. If any job fails, the entire deploy workflow is marked as failed and ETL does not run.
-
-> **Note:** The skeleton jobs (2 and 3) are preserved for future item types that may lack fabric-cicd support. They can be removed if all items in the workspace are fabric-cicd–deployable.
+> **Note:** If your workspace includes item types not yet supported by fabric-cicd, you can extend this to a multi-job "sandwich" pattern: (1) deploy supported items, (2) promote unsupported items via the [Fabric Deployment Pipelines REST API](https://learn.microsoft.com/en-us/rest/api/fabric/core/deployment-pipelines/deploy-stage-content), (3) deploy supported items that depend on the unsupported items. See [fabric-cicd-release-options.md](fabric-cicd-release-options.md) for details.
 
 ---
 
@@ -144,8 +129,6 @@ The ETL workflow only triggers after **all 3 jobs** complete successfully. If an
 | Template | Purpose |
 |---|---|
 | `reusable-deploy-supported.yml` | Two-phase fabric-cicd deployment: Phase 1 deploys Lakehouse + Ontology, Phase 2 deploys all remaining items via `publish_all_items()` and `unpublish_all_orphan_items()`. Accepts `environment`, `repository_directory`, and optional `item_type_in_scope` inputs. |
-| `reusable-deploy-unsupported.yml` | **SKELETON** — Reserved for future item types requiring Deployment Pipeline promotion. Currently a pass-through. |
-| `reusable-deploy-supported-dependent-on-unsupported.yml` | **SKELETON** — Reserved for future supported items that depend on items from Job 2. Currently a pass-through. |
 | `reusable-fabric-etl.yml` | Resolves a Fabric item by **name** (not ID) via the List Items API, then starts a job (RunNotebook) and polls until completion. No item IDs need to be known ahead of time. |
 
 ### Why Reusable Workflows (Not Composite Actions)
@@ -250,6 +233,48 @@ The first three secrets are identical across environments (single SPN). `FABRIC_
 ### 6. Copilot Instructions
 
 The `.github/instructions/actions.instructions.md` file provides path-specific Copilot instructions for authoring GitHub Actions workflows. It applies automatically when editing any `.yml` file under `.github/workflows/` and covers security (pin actions to SHA, minimal permissions), performance (`timeout-minutes`), and fabric-cicd best practices.
+
+---
+
+## Initial Deployment to a Clean Workspace
+
+When deploying to a workspace for the first time (e.g., a newly created Test or Prod workspace), follow these steps in order. Subsequent deployments are fully automated — only the first deployment requires manual intervention.
+
+### Step 1: Trigger the Deployment
+
+Push to the target branch (`test` or `main`). The deploy workflow triggers automatically and executes two phases:
+
+- **Phase 1:** Deploys Lakehouse (empty shell) and Ontology definition
+- **Phase 2:** Deploys all remaining items (Variable Library, Notebooks, Semantic Model, Report, Data Agent) with parameterized lakehouse/workspace IDs
+
+### Step 2: ETL Populates the Lakehouse
+
+The ETL workflow (`etl-test.yml` or `etl-prod.yml`) triggers automatically after a successful deployment. It runs the `Import_Patterns_Data` notebook, which creates and populates the Delta tables (`doctors`, `patients`, `appointments`) in the Lakehouse.
+
+### Step 3: Configure Graph Model Data Source (Manual)
+
+The Ontology is deployed as a definition only — its Graph Model does not have a data source binding until you configure it manually.
+
+1. Open the **Ontology** item in the Fabric UI and navigate to the **Graph Model**
+2. Select **Get data** to bind the Graph Model to the lakehouse tables
+
+### Step 4: Activate the Ontology (Manual Workaround)
+
+After configuring the data source, the Ontology may remain stuck on *"Setting up your ontology — We are preparing the ontology overview for the first time."* This is a known Fabric platform behavior on initial deployment.
+
+**Workaround:** Select any Entity Type in the Ontology, rename it to something temporary, then rename it back to its original name. This triggers Fabric to finish initializing the Ontology overview.
+
+### Step 5: Verify End-to-End
+
+Confirm all items are functional in the target workspace:
+
+- **Lakehouse** — tables populated with data
+- **Ontology** — overview loads, entity types and relationships visible
+- **Semantic Model** — connected to the lakehouse (may require manual connection config on first deploy; see [Gotchas](#semantic-model-initial-connection))
+- **Report** — renders with data from the Semantic Model
+- **Data Agent** — references the Ontology and responds to queries
+
+> **Note:** On subsequent deployments, all steps are automated. The manual Ontology steps (3–4) are only required on the first deployment to a clean workspace.
 
 ---
 

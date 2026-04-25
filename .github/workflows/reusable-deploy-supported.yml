@@ -4,7 +4,7 @@
 # to publish all supported item definitions from the Git repo to the target
 # Fabric workspace, then removes any orphaned items no longer in the repo.
 #
-# Called by: deploy-test.yml, deploy-prod.yml (Job 1 of the sandwich pattern)
+# Called by: deploy-test.yml, deploy-prod.yml
 #
 # Prerequisites:
 #   - GitHub Environment secrets: AZURE_TENANT_ID, AZURE_CLIENT_ID,

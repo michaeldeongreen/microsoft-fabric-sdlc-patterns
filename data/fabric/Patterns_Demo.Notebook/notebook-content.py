@@ -11,7 +11,7 @@
 
 # CELL ********************
 
-# Fabric notebook source
+# Fabric notebook source some trivial change
 
 # CELL ********************
 VARIABLE_LIBRARY_NAME = "Patterns_Variables"

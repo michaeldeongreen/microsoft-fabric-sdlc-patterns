@@ -4,3 +4,6 @@ __pycache__/
 # Python virtual environments
 .venv/
 venv/
+
+# Local developer config (copied from .env.sample)
+.env

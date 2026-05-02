@@ -1,4 +1,4 @@
-name: Validate Branch Environment
+name: Check PR Ready
 
 on:
   pull_request:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  validate-branch-env:
+  check-pr-ready:
     name: Check for non-dev IDs in Fabric items
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -23,5 +23,5 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Validate branch environment
-        run: python scripts/branch_env.py --validate
+      - name: Check PR ready
+        run: python scripts/workspace_swap.py --check-ready

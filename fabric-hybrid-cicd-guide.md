@@ -1,4 +1,4 @@
-# Microsoft Fabric SDLC Patterns — CI/CD Implementation
+# Hybrid CI/CD Implementation Guide
 
 This repository implements the **Hybrid CI/CD recommendation** for Microsoft Fabric using **fabric-cicd**. It demonstrates how to deploy Fabric workspace items (Notebooks, Lakehouses, Variable Libraries, Semantic Models, Reports, Ontologies, Data Agents) across environments using GitHub Actions.
 
@@ -75,7 +75,9 @@ microsoft-fabric-sdlc-patterns/
 │       ├── etl-prod.yml                     # Triggers after deploy-prod succeeds
 │       ├── reusable-deploy-supported.yml    # Template: fabric-cicd deployment
 │       ├── reusable-fabric-etl.yml          # Template: run Notebook via Fabric REST API
-│       └── check-pr-ready.yml          # PR check: blocks feature IDs from merging to dev
+│       ├── check-pr-ready.yml               # PR check: blocks feature IDs from merging to dev
+│       ├── run-tests.yml                    # PR check: runs pytest when scripts/tests change
+│       └── enforce-promotion-path.yml       # PR check: enforces dev→test→main source-branch promotion
 ├── data/
 │   └── fabric/                              # Fabric item definitions (repository_directory)
 │       ├── parameter.yml                    # fabric-cicd deploy-time parameterization
@@ -202,7 +204,7 @@ az ad sp create-for-rbac --name "SPN-Microsoft-Fabric-SDLC-Patterns" \
 - Add the SPN as **Contributor** on both Test and Prod workspaces (Workspace → Manage access → Add people or groups)
 - Contributor is the minimum required role per the [Fabric Create Item API](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/create-item) documentation
 
-> **Important:** A Fabric Admin must enable **"Service principals can use Fabric APIs"** in the Fabric Admin portal → Tenant settings → Developer settings.
+> **Important:** A Fabric Admin must enable service principal access to Fabric APIs in the Fabric Admin portal under Developer settings, scoped to a security group containing only your CI/CD SPs. See [developer tenant settings](https://learn.microsoft.com/en-us/fabric/admin/service-admin-portal-developer) and the [Governance Guide](fabric-cicd-governance-guide.md) for details.
 
 ### 4. GitHub Environments
 

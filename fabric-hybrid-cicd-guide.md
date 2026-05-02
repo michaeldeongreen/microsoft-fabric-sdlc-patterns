@@ -75,7 +75,7 @@ microsoft-fabric-sdlc-patterns/
 │       ├── etl-prod.yml                     # Triggers after deploy-prod succeeds
 │       ├── reusable-deploy-supported.yml    # Template: fabric-cicd deployment
 │       ├── reusable-fabric-etl.yml          # Template: run Notebook via Fabric REST API
-│       └── validate-branch-env.yml          # PR check: blocks feature IDs from merging to dev
+│       └── check-pr-ready.yml          # PR check: blocks feature IDs from merging to dev
 ├── data/
 │   └── fabric/                              # Fabric item definitions (repository_directory)
 │       ├── parameter.yml                    # fabric-cicd deploy-time parameterization
@@ -91,7 +91,7 @@ microsoft-fabric-sdlc-patterns/
 │       │   Notebook/
 │       └── Patterns_Patients_Data.Notebook/ # Query notebook (reads patients table)
 ├── scripts/
-│   └── branch_env.py                       # Bootstrap/reset feature branch workspace bindings
+│   └── workspace_swap.py                       # Bootstrap/reset feature branch workspace bindings
 ├── assets/                                  # Architecture diagrams (SVG)
 ├── fabric-cicd-release-options.md           # CI/CD strategy and release option comparison
 ├── fabric-hybrid-cicd-guide.md               # This file

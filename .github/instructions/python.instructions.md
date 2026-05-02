@@ -25,7 +25,8 @@ When generating or improving Python code in this repository:
 
 ## Dependencies
 - Keep scripts stdlib-only when possible; gate optional imports with try/except
-- When external packages are needed, prefer: `requests`, `azure-identity`
+- For environment-specific config in CLI scripts, prefer `.env` files (parsed with stdlib) over external libraries like `python-dotenv`
+- When external packages are unavoidable, justify in the script docstring; add a `>=` minimum bound to the relevant requirements file
 - Never pin to exact versions in scripts; use `>=` minimum bounds in requirements files
 
 ## Security

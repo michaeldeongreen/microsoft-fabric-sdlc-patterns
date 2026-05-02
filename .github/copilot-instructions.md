@@ -25,14 +25,14 @@ No build step — scripts are standalone CLI tools, not an installable package. 
 
 ## Key Scripts
 
-- `scripts/branch_env.py` — Manages feature branch workspace bindings (bootstrap, reset, validate). Uses an **item type registry** pattern — new Fabric item types are added as config entries, not new functions.
-- `scripts/branch_env.py --validate` — CI check for PR readiness (dev IDs present, no stray value sets).
+- `scripts/workspace_swap.py` — Swaps Fabric workspace IDs in tracked files between dev and a feature workspace, and provides a CI readiness check (`--check-ready`). Uses an **item type registry** pattern — new Fabric item types are added as config entries, not new functions.
+- `scripts/workspace_swap.py --check-ready` — CI check for PR readiness (dev IDs present, no stray value sets).
 
 ## Fabric Item Types
 
 Items fall into two categories based on how they reference environment resources:
 
-- **Actual IDs** (SemanticModel, Notebook): Embed real workspace/lakehouse GUIDs. Must be rewritten by `branch_env.py` for feature branches and reverted before PR.
+- **Actual IDs** (SemanticModel, Notebook): Embed real workspace/lakehouse GUIDs. Must be rewritten by `workspace_swap.py` for feature branches and reverted before PR.
 - **Logical IDs** (Ontology, DataAgent): Reference items via `.platform` `logicalId`, resolved by Fabric at runtime. Portable across Branch Out workspaces — no rewriting needed.
 
 ## CI/CD Configuration
@@ -47,14 +47,15 @@ Items fall into two categories based on how they reference environment resources
 - Validate GUIDs from external sources before using them.
 - Pin GitHub Actions to commit SHAs, not version tags.
 - All file I/O must specify `encoding="utf-8"`.
+- Local developer config goes in `.env` (gitignored). A committed `.env.sample` documents the expected keys. `scripts/workspace_swap.py` reads feature workspace IDs from `.env` when swapping to a feature workspace.
 
 ## Workflows
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| `validate-branch-env.yml` | PR to `dev` | Blocks merge if dev IDs not restored |
+| `check-pr-ready.yml` | PR to `dev` | Blocks merge if dev IDs not restored |
 | `run-tests.yml` | PR (any branch) | Runs pytest when scripts/tests change |
 
 ## Documentation
 
-See `fabric-development-process.md` for the Branch Out workflow, item type reference table, and step-by-step bootstrap/reset guides. See `fabric-hybrid-cicd-guide.md` for the deployment architecture.
+See `fabric-development-process.md` for the Branch Out workflow, item type reference table, and step-by-step swap-to-feature / swap-to-dev guides. See `fabric-hybrid-cicd-guide.md` for the deployment architecture.

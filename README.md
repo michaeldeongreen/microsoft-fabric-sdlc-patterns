@@ -47,6 +47,7 @@ Git repo (dev branch)
 | [CI/CD Release Options](fabric-cicd-release-options.md) | Evaluates all CI/CD release options for Fabric (Deployment Pipelines, Git-based, Build-based, Hybrid) and recommends the Hybrid approach. **Start here** if you're deciding on a strategy. |
 | [Hybrid CI/CD Implementation Guide](fabric-hybrid-cicd-guide.md) | Deep dive into the implementation: workflow structure, configuration strategy, prerequisites, setup steps, and gotchas. |
 | [Development Process](fabric-development-process.md) | How developers work day-to-day: branch-out workflow, the workspace swap script, and PR readiness check. |
+| [CI/CD Governance Guide](fabric-cicd-governance-guide.md) | Prescriptive guidance on identities, RBAC, branch protection, and approval gates for the CI/CD pipeline. Includes "things to consider" pointers for security/compliance topics outside the pipeline scope. |
 
 ---
 

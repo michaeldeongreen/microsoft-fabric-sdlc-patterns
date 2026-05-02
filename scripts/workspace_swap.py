@@ -52,8 +52,8 @@ ENV_FILE = REPO_ROOT / ".env"
 ALLOWED_VALUE_SETS = {"Test", "Prod"}
 
 # ── Item type registry ─────────────────────────────────────────────────────
-# Each entry declares how a Fabric item type participates in branch-env
-# management.  Generic functions iterate this list instead of hard-coding
+# Each entry declares how a Fabric item type participates in workspace
+# swapping.  Generic functions iterate this list instead of hard-coding
 # per-type logic, so adding a new item type is a single dict addition.
 #
 #   name           – display name for logging
@@ -61,7 +61,7 @@ ALLOWED_VALUE_SETS = {"Test", "Prod"}
 #   needs_rewrite  – True → dev↔feature ID replacement during bootstrap/reset
 #   id_keys        – which dev IDs to validate ("workspace", "lakehouse", or both)
 #   content_filter – optional predicate on file text; None means process all
-ITEM_TYPES: list[dict[str, str | list[str] | bool | list[str] | Callable[[str], bool] | None]] = [
+ITEM_TYPES: list[dict[str, str | list[str] | bool | Callable[[str], bool] | None]] = [
     {
         "name": "SemanticModel",
         "file_patterns": ["*.SemanticModel/definition/expressions.tmdl"],

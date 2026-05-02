@@ -70,13 +70,13 @@ When you branch out from `dev`, all Fabric items are copied to the feature works
 
 Without intervention, the feature workspace semantic model points to the dev lakehouse, and notebooks with hardcoded dependencies attach to dev.
 
-### The Solution: `branch_env.py`
+### The Solution: `workspace_swap.py`
 
-A Python script at `scripts/branch_env.py` handles the full lifecycle of feature branch environment management.
+A Python script at `scripts/workspace_swap.py` handles the full lifecycle of feature branch environment management.
 
-#### Step-by-Step: Setting Up a Feature Branch
+#### Step-by-Step: Swap to Feature Workspace
 
-![Bootstrap Flow](assets/development-bootstrap-flow.svg)
+![Swap to Feature Flow](assets/development-swap-to-feature-flow.svg)
 
 1. **Branch out** from the Fabric UI Source Control panel.
 2. **Clone/pull** the feature branch locally:
@@ -84,40 +84,41 @@ A Python script at `scripts/branch_env.py` handles the full lifecycle of feature
    git fetch origin
    git checkout <feature-branch-name>
    ```
-3. **Run the bootstrap script** (preview first with `--dry-run`):
+3. **Set up `.env`** (one-time per developer): copy `.env.sample` to `.env` at the repo root and paste in your feature workspace and lakehouse GUIDs. The `.env` file is gitignored.
+4. **Run the swap-to-feature script** (preview first with `--dry-run`):
    ```
-   python scripts/branch_env.py --dry-run
-   python scripts/branch_env.py
+   python scripts/workspace_swap.py --dry-run
+   python scripts/workspace_swap.py
    ```
    The script automatically:
    - Detects the current branch name (no arguments needed).
    - Reads dev IDs from `variables.json` (the default value set).
-   - Resolves feature workspace/lakehouse IDs via Fabric API or interactive prompt.
+   - Reads feature workspace/lakehouse IDs from `.env` (or prompts if `.env` is missing).
    - Creates a feature branch value set (e.g., `valueSets/<branch-name>.json`).
    - Adds the value set to `settings.json`.
    - Rewrites the semantic model Direct Lake connection in `expressions.tmdl`.
    - Rewrites notebook META dependency blocks in all `notebook-content.py` files.
    - Validates no dev IDs remain in critical files.
-4. **Commit and push** the changes to the feature branch:
+5. **Commit and push** the changes to the feature branch:
    ```
    git add -A
-   git commit -m "Bootstrap <branch-name> workspace environment"
+   git commit -m "Swap to feature workspace for <branch-name>"
    git push
    ```
-5. **Sync** the feature workspace from the Fabric UI (Update from Git).
-6. **Activate the feature value set** in the Fabric UI: open the Variable Library → select the feature value set → activate it.
-7. **Run the import data notebook** to populate the feature lakehouse.
+6. **Sync** the feature workspace from the Fabric UI (Update from Git).
+7. **Activate the feature value set** in the Fabric UI: open the Variable Library → select the feature value set → activate it.
+8. **Run the import data notebook** to populate the feature lakehouse.
 
-#### Step-by-Step: Reverting Before PR to Dev
+#### Step-by-Step: Swap to Dev Before PR
 
-![Reset Flow](assets/development-reset-flow.svg)
+![Swap to Dev Flow](assets/development-swap-to-dev-flow.svg)
 
 Before merging back to `dev`, all feature-specific changes must be reverted so dev IDs are restored:
 
-1. **Run the reset script** (preview first with `--dry-run`):
+1. **Run the swap-to-dev script** (preview first with `--dry-run`):
    ```
-   python scripts/branch_env.py --reset --dry-run
-   python scripts/branch_env.py --reset
+   python scripts/workspace_swap.py --swap-to-dev --dry-run
+   python scripts/workspace_swap.py --swap-to-dev
    ```
    The script automatically:
    - Reads feature IDs from the branch value set.
@@ -129,47 +130,49 @@ Before merging back to `dev`, all feature-specific changes must be reverted so d
 2. **Commit and push**:
    ```
    git add -A
-   git commit -m "Reset environment to dev for merge"
+   git commit -m "Swap to dev for merge"
    git push
    ```
 3. **Open a PR** to `dev`.
 
 #### PR Validation
 
-A GitHub Actions workflow (`.github/workflows/validate-branch-env.yml`) runs on every PR targeting `dev`. It verifies:
+A GitHub Actions workflow (`.github/workflows/check-pr-ready.yml`) runs on every PR targeting `dev`. It verifies:
 
 - The semantic model contains dev workspace and lakehouse IDs.
 - Notebooks with lakehouse dependencies contain dev IDs.
 - No feature branch value set files exist (only `Test.json` and `Prod.json` are allowed).
 
-If any check fails, the PR is blocked until the developer runs `branch_env.py --reset`.
+If any check fails, the PR is blocked until the developer runs `workspace_swap.py --swap-to-dev`.
 
 #### Running the Script with GitHub Copilot Chat
 
-Instead of running the script manually in the terminal, you can use **GitHub Copilot Chat in VS Code** (Agent mode) to execute it for you. In the chat panel, type a natural language request such as:
+The repo ships slash commands in `.github/prompts/` that wrap the CLI. In Copilot Chat (Agent mode) you can type:
 
-- *"Run the branch environment bootstrap script"*
-- *"Run branch_env.py with dry-run"*
-- *"Reset the branch environment back to dev"*
+- `/swap-to-feature` — swap repo IDs to your feature workspace
+- `/swap-to-feature-dryrun` — preview the swap without writing files
+- `/swap-to-dev` — swap IDs back to dev (run before opening a PR)
+- `/swap-to-dev-dryrun` — preview the revert without writing files
+- `/check-pr-ready` — run the CI-style readiness check locally
 
-Copilot will execute the script in the VS Code integrated terminal, handle the interactive prompts (workspace ID, lakehouse ID), and show you the output. This is particularly useful when you are already working in Copilot Chat and want to stay in the same workflow without switching to the terminal.
+Copilot will execute the script in the VS Code integrated terminal and show you the output. This is useful when you are already working in Copilot Chat and want to stay in the same workflow without switching to the terminal.
 
-Note: Copilot cannot auto-trigger the script on branch checkout. You still need to ask it or run it yourself after pulling a feature branch.
+Note: Copilot cannot auto-trigger the script on branch checkout. You still need to invoke a slash command or run it yourself after pulling a feature branch.
 
-### Permissions for API Lookup
+### Local `.env` Setup
 
-The script's automatic ID discovery calls two Fabric REST APIs against the **feature workspace**. These calls are optional — if they fail or the required packages are not installed, the script falls back to interactive manual input.
+`workspace_swap.py` reads your feature workspace and lakehouse GUIDs from a `.env` file at the repo root. This file is gitignored — each developer maintains their own.
 
-| API Call | Required Workspace Role | Delegated Scope |
-|----------|------------------------|-----------------|
-| [List Workspaces](https://learn.microsoft.com/en-us/rest/api/fabric/core/workspaces/list-workspaces) | Any role (only returns workspaces you have access to) | `Workspace.Read.All` or `Workspace.ReadWrite.All` |
-| [List Lakehouses](https://learn.microsoft.com/en-us/rest/api/fabric/lakehouse/items/list-lakehouses) | **Viewer** or above on the feature workspace | `Workspace.Read.All` or `Workspace.ReadWrite.All` |
+1. Copy `.env.sample` to `.env`.
+2. Open the feature workspace in Fabric. Find:
+   - **Workspace ID:** Workspace settings → About → Workspace ID.
+   - **Lakehouse ID:** open the lakehouse, copy the GUID from the URL (the segment after `/lakehouses/`).
+3. Paste both into `.env`.
+4. Run `python scripts/workspace_swap.py` (or `/swap-to-feature` in Copilot Chat).
 
-These are **read-only** calls — the script never creates, modifies, or deletes anything in Fabric via the API. All changes happen locally in repo files.
+If `.env` is missing or empty, the script falls back to an interactive prompt. After the first run, the value set on disk is the source of truth for that branch — `.env` is no longer consulted for it.
 
-**Authentication:** The script uses `DefaultAzureCredential` from `azure-identity`. For local development, the simplest method is `az login` (Azure CLI). If you created the feature workspace, you already have the Admin role and no additional permissions are needed.
-
-**No tenant-level permissions required.** The Fabric REST API does not use granular OAuth scopes like Microsoft Graph. You request the token scope `https://api.fabric.microsoft.com/.default`, and the API filters results based on your workspace role assignments. You cannot see workspaces or lakehouses you do not have access to.
+The script intentionally does **not** auto-discover IDs via the Fabric REST API. An earlier implementation matched workspaces by display name, which could silently pick the wrong workspace (e.g. matching the dev workspace itself), causing the swap to abort with no value set written. Explicit `.env` config avoids that class of bug.
 
 ### Scope of Metadata Rewriting
 
@@ -177,12 +180,12 @@ The script uses an **item type registry** to manage which Fabric item types part
 
 Not all item types need rewriting. Fabric items fall into two categories based on how they reference environment-specific resources:
 
-- **Actual IDs** (e.g., Semantic Models, Notebooks): These embed real workspace and lakehouse GUIDs that differ per workspace. They must be rewritten when bootstrapping a feature branch and reverted before PR.
+- **Actual IDs** (e.g., Semantic Models, Notebooks): These embed real workspace and lakehouse GUIDs that differ per workspace. They must be rewritten when swapping to a feature workspace and reverted before PR.
 - **Logical IDs** (e.g., Ontology, Data Agent): These reference other items via the `.platform` `logicalId`, which Fabric resolves at runtime within the current workspace. These are portable across Branch Out workspaces and need no rewriting.
 
 ### Item Type Reference
 
-| Item Type | Files | ID Type | `branch_env.py` Rewrites? | `parameter.yml` Handles? | Notes |
+| Item Type | Files | ID Type | `workspace_swap.py` Rewrites? | `parameter.yml` Handles? | Notes |
 |-----------|-------|---------|--------------------------|-------------------------|-------|
 | **SemanticModel** | `*.SemanticModel/definition/expressions.tmdl` | Actual workspace + lakehouse IDs | Yes | Yes | Direct Lake connection URL contains real GUIDs |
 | **Notebook** | `*.Notebook/notebook-content.py` | Actual workspace + lakehouse IDs | Yes (only if `default_lakehouse` present) | Yes | META dependency blocks reference real GUIDs |
@@ -194,8 +197,8 @@ Not all item types need rewriting. Fabric items fall into two categories based o
 
 | File | Role |
 |------|------|
-| `scripts/branch_env.py` | Bootstrap, reset, and validate feature branch environment bindings |
-| `tests/test_branch_env.py` | Unit tests for the branch environment script |
+| `scripts/workspace_swap.py` | Swap workspace IDs in tracked files between dev and feature; CI readiness check |
+| `tests/test_workspace_swap.py` | Unit tests for the branch environment script |
 | `data/fabric/Patterns_Variables.VariableLibrary/variables.json` | Default (dev) value set — read-only reference for dev IDs |
 | `data/fabric/Patterns_Variables.VariableLibrary/valueSets/` | Per-environment value sets (Test, Prod, feature branches) |
 | `data/fabric/Patterns_Variables.VariableLibrary/settings.json` | Value set ordering |
@@ -204,9 +207,9 @@ Not all item types need rewriting. Fabric items fall into two categories based o
 | `data/fabric/Patterns_Ontology.Ontology/EntityTypes/*/DataBindings/*.json` | Ontology data bindings — validated (not rewritten) by the script |
 | `data/fabric/Patterns_Ontology.Ontology/RelationshipTypes/*/Contextualizations/*.json` | Ontology contextualizations — validated (not rewritten) by the script |
 | `data/fabric/Patterns_Data_Agent.DataAgent/Files/Config/draft/ontology-*/datasource.json` | Data Agent datasource — registered but not scanned (no dev IDs) |
-| `.github/workflows/validate-branch-env.yml` | PR check to block feature IDs from merging to dev |
+| `.github/workflows/check-pr-ready.yml` | PR check to block feature IDs from merging to dev |
 | `.github/workflows/run-tests.yml` | Runs unit tests on PRs when scripts or tests change |
-| `data/fabric/parameter.yml` | Deploy-time parameterization for fabric-cicd (used in CI/CD, not by the bootstrap script) |
+| `data/fabric/parameter.yml` | Deploy-time parameterization for fabric-cicd (used in CI/CD, not by `workspace_swap.py`) |
 
 ## References
 

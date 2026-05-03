@@ -1,12 +1,14 @@
 # Microsoft Fabric SDLC Patterns
 
-A reference implementation for CI/CD in Microsoft Fabric, demonstrating how to version-control, deploy, and manage Fabric workspace items across dev, test, and production environments using GitHub Actions and the [fabric-cicd](https://microsoft.github.io/fabric-cicd) Python library.
+A reference implementation and solution accelerator for CI/CD in Microsoft Fabric, demonstrating how to choose a release strategy, implement deployments, work day-to-day on feature branches, and govern the pipeline for dev, test, and production using GitHub Actions and the [fabric-cicd](https://microsoft.github.io/fabric-cicd) Python library. Both the developer workflow and the deployment pipeline are fully implemented end-to-end so the repo runs as a complete reference, not isolated examples.
+
+*Based on field experience with Microsoft Fabric customers and partners. Opinions expressed here are my own and do not represent Microsoft's official guidance.*
 
 ---
 
 ## Who is this for?
 
-Teams and engineers who need to establish a reliable software development lifecycle (SDLC) for Microsoft Fabric — including automated deployments, environment-specific configuration, and Git-based version control for Fabric items.
+Engineers and platform teams responsible for getting Microsoft Fabric workloads from a developer's laptop to production safely and repeatably — covering both the deployment pipeline itself and the governance layered on top.
 
 ---
 

@@ -1,0 +1,38 @@
+name: Enforce Promotion Path
+
+on:
+  pull_request:
+    branches: [test, main]
+
+permissions:
+  contents: read
+
+jobs:
+  enforce-promotion-path:
+    name: Enforce promotion path
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Verify PR source branch
+        run: |
+          BASE="${{ github.base_ref }}"
+          HEAD="${{ github.head_ref }}"
+          echo "PR: $HEAD -> $BASE"
+          case "$BASE" in
+            test)
+              if [[ "$HEAD" != "dev" ]]; then
+                echo "::error::PRs into 'test' must originate from 'dev'. Got '$HEAD'."
+                exit 1
+              fi
+              ;;
+            main)
+              if [[ "$HEAD" != "test" ]]; then
+                echo "::error::PRs into 'main' must originate from 'test'. Got '$HEAD'."
+                exit 1
+              fi
+              ;;
+            *)
+              echo "Branch '$BASE' has no promotion-path restriction."
+              ;;
+          esac
+          echo "Source branch '$HEAD' is valid for target '$BASE'."

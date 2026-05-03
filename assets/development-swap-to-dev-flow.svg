@@ -32,8 +32,7 @@
 
   <rect x="690" y="55" width="140" height="50" rx="6" fill="#D64545" stroke="#c63535"/>
   <text x="760" y="72" text-anchor="middle" fill="white" font-weight="bold">GitHub Actions</text>
-  <text x="760" y="87" text-anchor="middle" fill="white">validate-branch-</text>
-  <text x="760" y="100" text-anchor="middle" fill="white">env.yml</text>
+  <text x="760" y="87" text-anchor="middle" fill="white">check-pr-ready.yml</text>
 
   <line x1="830" y1="80" x2="855" y2="80" stroke="#4A90D9" stroke-width="2" marker-end="url(#arrow2)"/>
 

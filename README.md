@@ -1,21 +1,29 @@
 # Microsoft Fabric SDLC Patterns
 
-A reference implementation for CI/CD in Microsoft Fabric, demonstrating how to version-control, deploy, and manage Fabric workspace items across dev, test, and production environments using GitHub Actions and the [fabric-cicd](https://microsoft.github.io/fabric-cicd) Python library.
+A reference implementation and solution accelerator for the developer workflow and CI/CD pipeline in Microsoft Fabric, demonstrating how to choose a release strategy, implement deployments, work day-to-day on feature branches, and govern the pipeline for dev, test, and production using GitHub Actions and the [fabric-cicd](https://microsoft.github.io/fabric-cicd) Python library. Both the developer workflow and the deployment pipeline are fully implemented end-to-end so the repo runs as a complete reference, not isolated examples.
+
+*Based on field experience with Microsoft Fabric customers and partners. Opinions expressed here are my own and do not represent Microsoft's official guidance.*
 
 ---
 
 ## Who is this for?
 
-Teams and engineers who need to establish a reliable software development lifecycle (SDLC) for Microsoft Fabric — including automated deployments, environment-specific configuration, and Git-based version control for Fabric items.
+Engineers and platform teams responsible for getting Microsoft Fabric workloads from a developer's laptop to production safely and repeatably — covering the developer workflow, the deployment pipeline itself, and the governance layered on top.
+
+Architects and decision-makers evaluating Fabric will also find the [CI/CD Release Options](fabric-cicd-release-options.md) and [Governance Considerations](fabric-cicd-governance-considerations.md) useful for understanding the operating model before committing.
 
 ---
 
 ## Architecture
 
 ```
+Feature branch (feature/*)
+  │
+  │  PR → dev branch
+  ▼
 Git repo (dev branch)
   │
-  │  PR merge → test branch
+  │  PR merge → test branch (source must be dev)
   ▼
 ┌──────────────────────────────────────────────┐
 │  deploy-test.yml                             │
@@ -25,7 +33,7 @@ Git repo (dev branch)
 │    └─ Fabric REST API: run notebook          │
 └──────────────────────────────────────────────┘
   │
-  │  PR merge → main branch
+  │  PR merge → main branch (source must be test)
   ▼
 ┌──────────────────────────────────────────────┐
 │  deploy-prod.yml                             │
@@ -35,6 +43,8 @@ Git repo (dev branch)
 │    └─ Fabric REST API: run notebook          │
 └──────────────────────────────────────────────┘
 ```
+
+Branch protection (PR required, source-branch restrictions, status checks) is enforced by GitHub branch rulesets and the [enforce-promotion-path.yml](.github/workflows/enforce-promotion-path.yml) workflow — see the [Governance Considerations](fabric-cicd-governance-considerations.md).
 
 ![Hybrid Recommendation Flow](assets/hybrid-recommendation-flow.svg)
 
@@ -47,6 +57,7 @@ Git repo (dev branch)
 | [CI/CD Release Options](fabric-cicd-release-options.md) | Evaluates all CI/CD release options for Fabric (Deployment Pipelines, Git-based, Build-based, Hybrid) and recommends the Hybrid approach. **Start here** if you're deciding on a strategy. |
 | [Hybrid CI/CD Implementation Guide](fabric-hybrid-cicd-guide.md) | Deep dive into the implementation: workflow structure, configuration strategy, prerequisites, setup steps, and gotchas. |
 | [Development Process](fabric-development-process.md) | How developers work day-to-day: branch-out workflow, the workspace swap script, and PR readiness check. |
+| [CI/CD Governance Considerations](fabric-cicd-governance-considerations.md) | Considerations on identities, RBAC, branch protection, and approval gates for the CI/CD pipeline. Includes pointers to adjacent controls owned outside the pipeline (security/compliance topics). |
 
 ---
 
@@ -89,17 +100,17 @@ When designing your development and CI/CD processes, identify which items in you
 2. **Three Fabric Workspaces** — Dev (Git-connected), Test, and Prod
 3. **Service Principal** — With Contributor role on Test and Prod workspaces
 4. **GitHub Environments** — `Test` and `Prod` with environment-scoped secrets
-5. **Fabric Admin Setting** — "Service principals can use Fabric APIs" enabled
+5. **Fabric Admin Setting** — Service principal access to Fabric APIs enabled in the Fabric Admin portal under Developer settings (see [developer tenant settings](https://learn.microsoft.com/en-us/fabric/admin/service-admin-portal-developer))
 
 ### Setup
 
 1. Create a Service Principal and add it as Contributor on Test and Prod workspaces
-2. Create GitHub Environments (`Test`, `Prod`) with secrets: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `FABRIC_WORKSPACE_ID`
+2. Create GitHub Environments (`Test`, `Prod`) with secrets: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `FABRIC_WORKSPACE_ID` *(this demo uses a client secret for simplicity; for production, evaluate [GitHub OIDC federation](fabric-cicd-governance-considerations.md#identity-model--pick-the-right-identity-for-the-job) to remove the stored secret)*
 3. Connect the Dev workspace to the `dev` branch via Fabric Git integration (folder: `data/fabric/`)
 4. Create `dev`, `test`, and `main` branches
 5. Develop on `dev`, merge to `test` (triggers Test deploy), merge to `main` (triggers Prod deploy)
 
-For detailed setup instructions, see the [Implementation Guide](fabric-hybrid-cicd-guide.md#prerequisites--setup).
+For detailed setup instructions, see the [Implementation Guide](fabric-hybrid-cicd-guide.md#prerequisites--setup). For branch-protection rulesets, deploy-time approvals, and the source-branch promotion path enforced in this repo, see the [Governance Considerations](fabric-cicd-governance-considerations.md).
 
 ---
 

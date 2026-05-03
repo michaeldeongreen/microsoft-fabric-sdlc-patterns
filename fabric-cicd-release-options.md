@@ -189,6 +189,7 @@ With this option, all deployments originate from the **Git repository**. Each st
 - **No deployment rules** — Configuration changes between stages must be handled via Fabric APIs post-deployment or through parameterization in the item definitions, since there are no Deployment Pipeline rules.
 - **PR discipline required** — The promotion process depends entirely on PR quality. Incomplete or poorly reviewed PRs directly affect the target stage workspace.
 - **Cherry-pick complexity** — Moving a subset of changes between stages often requires release branches with cherry-picked commits rather than a simple full merge.
+- **Reliance on Fabric Git integration in upper environments** — Every stage's workspace (including Test and Prod) syncs via Fabric Git integration. Some customers and partners are uncomfortable putting that mechanism on the production deployment path. Known behaviors include "ghost commits" — semantically-insignificant changes the AS engine, line-break normalization, or service-side serialization re-introduce when committing — and the Source Control panel showing uncommitted-change drift the user didn't make. See [sync and commit limitations](https://learn.microsoft.com/en-us/fabric/cicd/git-integration/git-integration-process#sync-and-commit-limitations).
 
 
 ### Option 3 – Git-based with Build Environments

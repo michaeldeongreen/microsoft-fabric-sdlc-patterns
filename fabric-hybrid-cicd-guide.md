@@ -204,7 +204,7 @@ az ad sp create-for-rbac --name "SPN-Microsoft-Fabric-SDLC-Patterns" \
 - Add the SPN as **Contributor** on both Test and Prod workspaces (Workspace → Manage access → Add people or groups)
 - Contributor is the minimum required role per the [Fabric Create Item API](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/create-item) documentation
 
-> **Important:** A Fabric Admin must enable service principal access to Fabric APIs in the Fabric Admin portal under Developer settings, scoped to a security group containing only your CI/CD SPs. See [developer tenant settings](https://learn.microsoft.com/en-us/fabric/admin/service-admin-portal-developer) and the [Governance Guide](fabric-cicd-governance-guide.md) for details.
+> **Important:** A Fabric Admin must enable service principal access to Fabric APIs in the Fabric Admin portal under Developer settings, scoped to a security group containing only your CI/CD SPs. See [developer tenant settings](https://learn.microsoft.com/en-us/fabric/admin/service-admin-portal-developer) and the [Governance Considerations](fabric-cicd-governance-considerations.md) for details.
 
 ### 4. GitHub Environments
 

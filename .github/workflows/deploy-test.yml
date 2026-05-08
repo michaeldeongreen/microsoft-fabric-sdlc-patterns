@@ -7,7 +7,7 @@
 # The ETL workflow (etl-test.yml) triggers automatically via workflow_run
 # once deployment completes successfully.
 
-name: Deploy to Test
+name: Deploy to Test (fabric-cicd)
 
 on:
   push:

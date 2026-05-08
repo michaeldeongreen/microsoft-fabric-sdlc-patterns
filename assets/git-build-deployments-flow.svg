@@ -5,14 +5,25 @@
   <!-- Title -->
   <text x="480" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#333">Option 3 – Git-based with Build Environments</text>
 
-  <!-- Git Repo -->
-  <rect x="30" y="80" width="120" height="55" rx="8" fill="#0078d4" stroke="#005a9e" stroke-width="1.5"/>
-  <text x="90" y="104" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Git Repository</text>
-  <text x="90" y="120" text-anchor="middle" font-size="10" fill="#cce4f7">(single main branch)</text>
+  <!-- Git Repository box (encompasses all 3 branches) -->
+  <rect x="30" y="55" width="130" height="330" rx="8" fill="#0078d4" stroke="#005a9e" stroke-width="1.5"/>
+  <text x="95" y="78" text-anchor="middle" font-size="13" fill="#fff" font-weight="bold">Git Repository</text>
 
-  <!-- Arrow: Git → Build Dev -->
-  <line x1="150" y1="107" x2="210" y2="107" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
-  <text x="180" y="99" text-anchor="middle" font-size="8" fill="#555">trigger</text>
+  <!-- dev branch -->
+  <rect x="42" y="92" width="106" height="32" rx="5" fill="#28a745" stroke="#1e7e34" stroke-width="1"/>
+  <text x="95" y="113" text-anchor="middle" font-size="11" fill="#fff" font-weight="bold">dev branch</text>
+
+  <!-- test branch -->
+  <rect x="42" y="212" width="106" height="32" rx="5" fill="#fd7e14" stroke="#e8590c" stroke-width="1"/>
+  <text x="95" y="233" text-anchor="middle" font-size="11" fill="#fff" font-weight="bold">test branch</text>
+
+  <!-- main branch -->
+  <rect x="42" y="332" width="106" height="32" rx="5" fill="#dc3545" stroke="#bd2130" stroke-width="1"/>
+  <text x="95" y="353" text-anchor="middle" font-size="11" fill="#fff" font-weight="bold">main branch</text>
+
+  <!-- Arrow: dev branch → Build Env Dev -->
+  <line x1="148" y1="108" x2="215" y2="108" stroke="#28a745" stroke-width="2" marker-end="url(#arrowGreen)"/>
+  <text x="181" y="100" text-anchor="middle" font-size="8" fill="#28a745">PR merged</text>
 
   <!-- Dev Build Environment -->
   <rect x="215" y="70" width="140" height="75" rx="8" fill="#6f42c1" stroke="#59359a" stroke-width="1.5"/>
@@ -30,9 +41,13 @@
   <text x="480" y="104" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Dev Workspace</text>
   <text x="480" y="120" text-anchor="middle" font-size="10" fill="#c3e6cb">(Development)</text>
 
-  <!-- Vertical connector Dev → Test -->
-  <line x1="285" y1="145" x2="285" y2="185" stroke="#555" stroke-width="1.5" stroke-dasharray="4,3"/>
-  <text x="300" y="170" font-size="8" fill="#555">approval</text>
+  <!-- Vertical connector Dev → Test (PR dev → test) -->
+  <line x1="285" y1="145" x2="285" y2="190" stroke="#555" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <text x="300" y="170" font-size="8" fill="#555">PR dev → test</text>
+
+  <!-- Arrow: test branch → Build Env Test -->
+  <line x1="148" y1="228" x2="215" y2="228" stroke="#fd7e14" stroke-width="2" marker-end="url(#arrowOrange)"/>
+  <text x="181" y="220" text-anchor="middle" font-size="8" fill="#e8590c">PR merged</text>
 
   <!-- Test Build Environment -->
   <rect x="215" y="190" width="140" height="75" rx="8" fill="#6f42c1" stroke="#59359a" stroke-width="1.5"/>
@@ -50,9 +65,13 @@
   <text x="480" y="224" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Test Workspace</text>
   <text x="480" y="240" text-anchor="middle" font-size="10" fill="#ffe0b2">(Testing)</text>
 
-  <!-- Vertical connector Test → Prod -->
-  <line x1="285" y1="265" x2="285" y2="305" stroke="#555" stroke-width="1.5" stroke-dasharray="4,3"/>
-  <text x="300" y="290" font-size="8" fill="#555">approval</text>
+  <!-- Vertical connector Test → Prod (PR test → main) -->
+  <line x1="285" y1="265" x2="285" y2="310" stroke="#555" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <text x="300" y="290" font-size="8" fill="#555">PR test → main</text>
+
+  <!-- Arrow: main branch → Build Env Prod -->
+  <line x1="148" y1="348" x2="215" y2="348" stroke="#dc3545" stroke-width="2" marker-end="url(#arrowRed)"/>
+  <text x="181" y="340" text-anchor="middle" font-size="8" fill="#dc3545">PR merged</text>
 
   <!-- Prod Build Environment -->
   <rect x="215" y="310" width="140" height="75" rx="8" fill="#6f42c1" stroke="#59359a" stroke-width="1.5"/>
@@ -70,25 +89,20 @@
   <text x="480" y="344" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Prod Workspace</text>
   <text x="480" y="360" text-anchor="middle" font-size="10" fill="#f5c6cb">(Production)</text>
 
-  <!-- Git feeds all three - vertical line from Git down -->
-  <line x1="90" y1="135" x2="90" y2="347" stroke="#0078d4" stroke-width="1.5" stroke-dasharray="5,3"/>
-  <line x1="90" y1="227" x2="215" y2="227" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
-  <line x1="90" y1="347" x2="215" y2="347" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
-
   <!-- Key difference callout -->
   <rect x="580" y="80" width="350" height="130" rx="8" fill="#fff3cd" stroke="#f9a825" stroke-width="1.5"/>
   <text x="755" y="105" text-anchor="middle" font-size="13" font-weight="bold" fill="#856404">Key Concept</text>
-  <text x="755" y="125" text-anchor="middle" font-size="10" fill="#856404">Single branch (main) feeds ALL stages.</text>
-  <text x="755" y="143" text-anchor="middle" font-size="10" fill="#856404">Build environments alter workspace-specific</text>
-  <text x="755" y="158" text-anchor="middle" font-size="10" fill="#856404">config (connectionId, lakehouseId, etc.)</text>
-  <text x="755" y="176" text-anchor="middle" font-size="10" fill="#856404">BEFORE deploying to each workspace.</text>
-  <text x="755" y="196" text-anchor="middle" font-size="10" fill="#856404">Uses fabric-cicd SDK or Bulk Import API.</text>
+  <text x="755" y="125" text-anchor="middle" font-size="10" fill="#856404">Each stage has its own branch (dev/test/main)</text>
+  <text x="755" y="143" text-anchor="middle" font-size="10" fill="#856404">feeding its own build environment.</text>
+  <text x="755" y="161" text-anchor="middle" font-size="10" fill="#856404">Build envs alter workspace-specific config</text>
+  <text x="755" y="179" text-anchor="middle" font-size="10" fill="#856404">(connectionId, lakehouseId, etc.) BEFORE</text>
+  <text x="755" y="197" text-anchor="middle" font-size="10" fill="#856404">deploying. Uses fabric-cicd or Bulk APIs.</text>
 
   <!-- Tooling callout -->
   <rect x="580" y="230" width="350" height="90" rx="8" fill="#e8f0fe" stroke="#0078d4" stroke-width="1"/>
   <text x="755" y="255" text-anchor="middle" font-size="13" font-weight="bold" fill="#0078d4">Tooling</text>
   <text x="755" y="278" text-anchor="middle" font-size="10" fill="#333">• fabric-cicd Python library</text>
-  <text x="755" y="296" text-anchor="middle" font-size="10" fill="#333">• Bulk Import Item Definitions API</text>
+  <text x="755" y="296" text-anchor="middle" font-size="10" fill="#333">• Bulk Import / Export APIs</text>
   <text x="755" y="314" text-anchor="middle" font-size="10" fill="#333">• Update Item Definition API</text>
 
   <!-- Arrow markers -->

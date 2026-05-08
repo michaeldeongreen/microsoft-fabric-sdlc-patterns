@@ -3,7 +3,7 @@
   <rect width="900" height="380" fill="#f9f9f9" rx="8"/>
 
   <!-- Title -->
-  <text x="450" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#333">Option 2 – Git-based Deployments</text>
+  <text x="450" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#333">Option 2 – Fabric Git Integration Deployments</text>
 
   <!-- Git Repo box -->
   <rect x="30" y="55" width="130" height="170" rx="8" fill="#0078d4" stroke="#005a9e" stroke-width="1.5"/>

@@ -48,13 +48,15 @@ Branch protection (PR required, source-branch restrictions, status checks) is en
 
 ![Hybrid Recommendation Flow](assets/hybrid-recommendation-flow.svg)
 
+> This repository demonstrates both deployment implementations. The default and recommended path is fabric-cicd (GA Python library). A parallel set of workflows uses the Bulk Import / Export APIs (Preview) for evaluation and side-by-side comparison. Selection is controlled by the `DEPLOY_METHOD` repository variable — see [Quick Start](#quick-start) for how to switch and [CI/CD Release Options](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the full comparison.
+
 ---
 
 ## Documentation
 
 | Document | Description |
 |---|---|
-| [CI/CD Release Options](fabric-cicd-release-options.md) | Evaluates all CI/CD release options for Fabric (Deployment Pipelines, Git-based, Build-based, Hybrid) and recommends the Hybrid approach. **Start here** if you're deciding on a strategy. |
+| [CI/CD Release Options](fabric-cicd-release-options.md) | Evaluates all CI/CD release options for Fabric (Deployment Pipelines, Git-based, Build-based, Hybrid) and recommends the Hybrid approach. Includes a [comparison of fabric-cicd vs the new Bulk Import / Export APIs](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) (Preview) within Option 3. **Start here** if you're deciding on a strategy. |
 | [Hybrid CI/CD Implementation Guide](fabric-hybrid-cicd-guide.md) | Deep dive into the implementation: workflow structure, configuration strategy, prerequisites, setup steps, and gotchas. |
 | [Development Process](fabric-development-process.md) | How developers work day-to-day: branch-out workflow, the workspace swap script, and PR readiness check. |
 | [CI/CD Governance Considerations](fabric-cicd-governance-considerations.md) | Considerations on identities, RBAC, branch protection, and approval gates for the CI/CD pipeline. Includes pointers to adjacent controls owned outside the pipeline (security/compliance topics). |
@@ -109,6 +111,18 @@ When designing your development and CI/CD processes, identify which items in you
 3. Connect the Dev workspace to the `dev` branch via Fabric Git integration (folder: `data/fabric/`)
 4. Create `dev`, `test`, and `main` branches
 5. Develop on `dev`, merge to `test` (triggers Test deploy), merge to `main` (triggers Prod deploy)
+
+### Selecting the deployment method
+
+This repo ships two parallel deployment implementations. Set the `DEPLOY_METHOD` repository variable (Settings → Secrets and variables → Actions → Variables) to choose which one runs:
+
+| `DEPLOY_METHOD` value | Behavior |
+|---|---|
+| `fabric-cicd` *(or unset)* | Existing fabric-cicd workflows run — the default and recommended path |
+| `bulk` | Bulk Import API workflows run instead (Preview) |
+| any other value | Both deploy workflows skip (safe default) |
+
+Whichever path runs, the ETL workflow chains afterward via `workflow_run`. See [CI/CD Release Options](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the trade-offs between the two.
 
 For detailed setup instructions, see the [Implementation Guide](fabric-hybrid-cicd-guide.md#prerequisites--setup). For branch-protection rulesets, deploy-time approvals, and the source-branch promotion path enforced in this repo, see the [Governance Considerations](fabric-cicd-governance-considerations.md).
 

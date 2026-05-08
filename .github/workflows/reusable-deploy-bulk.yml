@@ -85,9 +85,13 @@ jobs:
           POLL_TIMEOUT_SECONDS = 20 * 60
           TOKEN_REFRESH_EVERY_N_POLLS = 20
 
-          # Files to skip when building definitionParts[]. parameter.yml is the
-          # fabric-cicd configuration file and is not part of any item definition.
-          EXCLUDED_FILES = {'parameter.yml'}
+          # Files to skip when building definitionParts[]. Two layers of exclusion:
+          # 1. Named files: known files that should never be sent (parameter.yml is
+          #    fabric-cicd config; .gitkeep is a Git placeholder).
+          # 2. Structural rule: item definitions always live inside *.<Type>/ folders,
+          #    so any file directly under repository_directory is excluded by
+          #    construction (handled in build_definition_parts).
+          EXCLUDED_FILES = {'parameter.yml', '.gitkeep'}
 
           tenant_id = os.environ['AZURE_TENANT_ID']
           client_id = os.environ['AZURE_CLIENT_ID']
@@ -124,6 +128,10 @@ jobs:
                   if not f.is_file():
                       continue
                   if f.name in EXCLUDED_FILES:
+                      continue
+                  # Item definitions live inside *.<Type>/ subfolders; anything at
+                  # the root of repository_directory cannot belong to an item.
+                  if f.parent == repo_dir:
                       continue
                   rel = '/' + f.relative_to(repo_dir).as_posix()
                   parts.append({

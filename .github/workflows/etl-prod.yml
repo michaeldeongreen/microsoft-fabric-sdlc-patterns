@@ -10,7 +10,10 @@ name: ETL - Prod
 
 on:
   workflow_run:
-    workflows: ["Deploy to Prod"]
+    # Triggered by either deployment workflow. The DEPLOY_METHOD repository
+    # variable ensures only one of them actually runs per push, so ETL fires once.
+    # The success conclusion gate below skips ETL when a deploy was skipped.
+    workflows: ["Deploy to Prod", "Deploy to Prod (Bulk API)"]
     types: [completed]
 
 permissions:

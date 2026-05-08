@@ -10,7 +10,7 @@
 # The ETL workflow (etl-prod.yml) triggers automatically via workflow_run
 # once deployment completes successfully.
 
-name: Deploy to Prod
+name: Deploy to Prod (fabric-cicd)
 
 on:
   push:

@@ -68,7 +68,7 @@ These controls go beyond the CI/CD pipeline but are part of any mature Fabric pr
 
 - [Fabric security overview](https://learn.microsoft.com/en-us/fabric/security/security-overview)
 - [Fabric permission model](https://learn.microsoft.com/en-us/fabric/security/permission-model)
-- [Fabric CI/CD overview](https://learn.microsoft.com/en-us/fabric/cicd/cicd-overview) and [choose the best CI/CD workflow](https://learn.microsoft.com/en-us/fabric/cicd/manage-deployment) (this repo implements Option 2: Git-based deployments using a build environment)
+- [Fabric CI/CD overview](https://learn.microsoft.com/en-us/fabric/cicd/cicd-overview) and [choose the best CI/CD workflow](https://learn.microsoft.com/en-us/fabric/cicd/manage-deployment) (this repo implements [Git-based deployments with a build environment](fabric-cicd-release-options.md#option-3--git-based-with-build-environments))
 - [Azure Well-Architected: Identity and access management](https://learn.microsoft.com/en-us/azure/well-architected/security/identity-access)
 - [Managed identity best practices (UAMI vs SAMI)](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/managed-identity-best-practice-recommendations)
 - [GitHub OIDC in Azure](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-azure)

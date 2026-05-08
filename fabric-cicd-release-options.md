@@ -7,7 +7,7 @@
 - [Development Process](#development-process)
 - [Release Options](#release-options)
   - [Option 1 – Fabric Deployment Pipelines](#option-1--fabric-deployment-pipelines)
-  - [Option 2 – Git-based Deployments](#option-2--git-based-deployments)
+  - [Option 2 – Fabric Git Integration Deployments](#option-2--fabric-git-integration-deployments)
   - [Option 3 – Git-based with Build Environments](#option-3--git-based-with-build-environments)
 - [Infrastructure & Resource Provisioning](#infrastructure--resource-provisioning)
 - [Comparison Summary](#comparison-summary)
@@ -133,11 +133,11 @@ With this option, Git is connected only to the **Dev** workspace. From there, de
 - **Permissions overhead** — Creating and managing Deployment Pipelines requires workspace admin permissions on all assigned stages, plus a Fabric capacity for each workspace.
 
 
-### Option 2 – Git-based Deployments
+### Option 2 – Fabric Git Integration Deployments
 
-With this option, all deployments originate from the **Git repository**. Each stage in the release pipeline has its own **dedicated branch** (e.g., `dev`, `test`, `prod`), and each branch is connected to its corresponding Fabric workspace. Content moves between stages via **Pull Requests between branches**, not workspace-to-workspace.
+With this option, all deployments originate from the Git repository and use Fabric's built-in Git integration to sync content into each workspace. Each stage in the release pipeline has its own dedicated branch (e.g., `dev`, `test`, `prod`), and each branch is connected to its corresponding Fabric workspace via Fabric Git integration. Content moves between stages via Pull Requests between branches, not workspace-to-workspace.
 
-![Git-based Deployments Flow](assets/git-based-deployments-flow.svg)
+![Fabric Git Integration Deployments Flow](assets/git-based-deployments-flow.svg)
 
 **How it works:**
 - The Git repo is the **single source of truth** for all stages.
@@ -194,27 +194,25 @@ With this option, all deployments originate from the **Git repository**. Each st
 
 ### Option 3 – Git-based with Build Environments
 
-With this option, all deployments originate from a **single branch** (e.g., `main`) in the Git repository. Each stage has its own **build and release pipeline** that spins up a build environment to run tests and **alter workspace-specific configurations** before deploying to the target workspace.
+With this option, all deployments originate from the **Git repository**, with each stage having its own dedicated branch (e.g., `dev`, `test`, `main`). Each stage has its own **build and release pipeline** that spins up a build environment to run tests and **alter workspace-specific configurations** before deploying to the target workspace.
 
 ![Git-based with Build Environments Flow](assets/git-build-deployments-flow.svg)
 
 **How it works:**
-- A single branch (`main`) is the **source of truth** for all stages.
-- When a PR is merged to `main`, a build pipeline is triggered for the first stage (Dev).
+- The Git repo is the **single source of truth** for all stages. Each stage (Dev, Test, Prod) has its own dedicated primary branch (e.g., `dev`, `test`, `main`).
+- When a PR is merged into a stage's branch, that stage's build pipeline is triggered.
 - The build environment runs **unit tests** and applies **environment-specific configuration changes** before deploying to the target workspace. With **fabric-cicd**, this is handled declaratively via a `parameter.yml` file — not custom scripts. The file defines find-and-replace rules, JSONPath key replacements, spark pool mappings, and semantic model bindings per environment.
-- The modified content is then uploaded to the workspace using the **fabric-cicd** Python library, the **Bulk Import Item Definitions API**, or the **Update Item Definition API**.
+- The modified content is then uploaded to the workspace using one of two main implementations — the fabric-cicd Python library (GA, recommended) or the Bulk Import / Export APIs (Preview). See [Tooling within Option 3](#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the comparison.
 - **fabric-cicd performs a full deployment every time** — it does not calculate diffs or deltas between commits. Every item in scope is published on each run.
-- After the Dev deployment completes (including any data ingestion and approval), the same process repeats for Test, then Prod — each with its own stage-specific configuration.
+- After Dev deployment validation, content is promoted by creating a PR `dev` → `test`, which triggers the Test pipeline. The same pattern promotes to Prod via a PR `test` → `main`.
 
 ---
 
 **Promotion flow:**
-1. A PR is merged into `main` → a **build pipeline** is triggered for the Dev stage.
-2. The build environment runs unit tests, then a **release pipeline** applies environment-specific configuration (via `parameter.yml` in fabric-cicd) and uploads content to the Dev workspace.
-3. After deployment, data ingestion and testing occur. A **release manager approves** promotion to Test.
-4. A new build and release pipeline for Test is triggered — same process, with Test-specific configuration applied.
-5. After automated and manual tests pass, the release manager approves promotion to Prod.
-6. The Prod build and release pipeline runs, applying Prod-specific configuration and deploying to the Prod workspace.
+1. A PR is merged into the `dev` branch → a **build pipeline** is triggered for the Dev stage.
+2. The build environment runs unit tests, then a **release pipeline** applies Dev-specific configuration (via `parameter.yml` in fabric-cicd) and uploads content to the Dev workspace.
+3. After deployment, data ingestion and testing occur. A PR is created from `dev` → `test`. After review and merge, the Test build and release pipeline runs the same process with Test-specific configuration.
+4. After automated and manual tests pass, a PR is created from `test` → `main`. After review and merge, the Prod build and release pipeline runs with Prod-specific configuration and deploys to the Prod workspace.
 
 ---
 
@@ -222,40 +220,74 @@ With this option, all deployments originate from a **single branch** (e.g., `mai
 
 | Step | Trigger | Source | Target | Fabric REST API |
 |---|---|---|---|---|
-| Deploy to Dev | PR merged → `main` branch | Git: `main` branch → Build Env | Fabric: Dev workspace | [fabric-cicd](https://microsoft.github.io/fabric-cicd) wraps [Create Item](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/create-item) + [Update Item Definition](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/update-item-definition) |
-| Deploy to Test | Approval after Dev | Git: `main` branch → Build Env | Fabric: Test workspace | Same |
-| Deploy to Prod | Approval after Test | Git: `main` branch → Build Env | Fabric: Prod workspace | Same |
+| Deploy to Dev | PR merged → `dev` branch | Git: `dev` branch → Build Env | Fabric: Dev workspace | [fabric-cicd](https://microsoft.github.io/fabric-cicd) wraps [Create Item](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/create-item) + [Update Item Definition](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/update-item-definition) |
+| Deploy to Test | PR merged `dev` → `test` branch | Git: `test` branch → Build Env | Fabric: Test workspace | Same |
+| Deploy to Prod | PR merged `test` → `main` branch | Git: `main` branch → Build Env | Fabric: Prod workspace | Same |
 
-> Alternative: [Bulk Import Item Definitions API](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions) can be used directly instead of fabric-cicd.
+> Alternative: the [Bulk Import Item Definitions API](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions) (Preview) can be used directly instead of fabric-cicd. See [Tooling within Option 3](#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the trade-offs.
 
 ---
 
 **What makes this different from Option 2:**
-- **Single branch vs. multiple branches** — Option 2 uses a dedicated branch per stage (Gitflow). Option 3 uses a single `main` branch and relies on build environments to differentiate stages.
-- **Build-time configuration changes** — Option 2 deploys files as-is from the branch. Option 3 transforms item definitions before deploying (e.g., rewriting connection strings, lakehouse IDs). With fabric-cicd, this is done declaratively via `parameter.yml` rather than custom scripts.
-- **Trunk-based workflow** — Aligns with trunk-based development rather than Gitflow.
-- **Different APIs** — Option 2 uses the Update from Git API. Option 3 uses the Update Item Definition API, fabric-cicd library, or Bulk Import API.
+- **Build environment with parameterization** — Option 2 deploys files as-is from each branch via Fabric Git integration. Option 3 transforms item definitions in a build environment before deploying (e.g., rewriting connection strings, lakehouse IDs). With fabric-cicd, this is done declaratively via `parameter.yml`.
+- **No Fabric Git integration required on Test/Prod** — Option 2 requires every workspace to be connected to its branch via Fabric Git integration. Option 3 deploys via REST APIs from the build environment and doesn't require Test or Prod workspaces to be Git-connected — useful for teams uncomfortable putting Fabric Git integration on the production deployment path.
+- **Different APIs** — Option 2 uses the Update from Git API (Fabric Git integration). Option 3 uses fabric-cicd or the Bulk Import / Export APIs (Preview); see [Tooling within Option 3](#tooling-within-option-3-fabric-cicd-vs-bulk-apis).
 
 ---
 
 **Tooling:**
-- **[fabric-cicd](https://microsoft.github.io/fabric-cicd)** — A Python library designed for Fabric workspaces that supports code-first CI/CD automations. Uses a declarative `parameter.yml` file for environment-specific configuration. Supports:
+
+Option 3 has two viable tooling implementations today. Both deploy from a build environment, with each stage triggered by a PR merge to its corresponding branch — the choice between them affects what you have to build yourself.
+
+- **[fabric-cicd](https://microsoft.github.io/fabric-cicd)** *(GA, recommended today)* — A Python library designed for Fabric workspaces that supports code-first CI/CD automations. Uses a declarative `parameter.yml` file for environment-specific configuration. Supports:
   - `find_replace` — Generic string find-and-replace (supports regex, file filters by item type/name/path)
   - `key_value_replace` — JSONPath-based key replacement in JSON/YAML files (e.g., connection IDs in pipelines)
   - `spark_pool` — Swaps spark pool configuration per environment
   - `semantic_model_binding` — Auto-binds semantic models to data source connections per environment
-  - **Dynamic replacement** — `$items.<type>.<name>.$id` resolves the deployed item's ID at runtime; `$workspace.$id` for workspace ID
-  - **`$ENV:` variables** — Pulls values from CI/CD pipeline environment variables
-  - **Template files** — Split large parameter files into smaller templates via `extend`
+  - Dynamic replacement — `$items.<type>.<name>.$id` resolves the deployed item's ID at runtime; `$workspace.$id` for workspace ID
+  - `$ENV:` variables — Pulls values from CI/CD pipeline environment variables
+  - Template files — Split large parameter files into smaller templates via `extend`
   - See the [fabric-cicd and Azure DevOps tutorial](https://learn.microsoft.com/en-us/fabric/cicd/tutorial-fabric-cicd-azure-devops) for an end-to-end example.
-- **[Bulk Import Item Definitions API](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions)** — Supports creating and updating items in place, with built-in dependency handling for correct deployment order. See the [Bulk Import tutorial](https://learn.microsoft.com/en-us/fabric/cicd/tutorial-bulkapi-cicd).
-- **[Update Item Definition API](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/update-item-definition)** — Updates individual item definitions in the workspace.
+- **[Bulk Import / Export APIs](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions)** *(Preview)* — Native Fabric REST APIs that move whole-workspace payloads in a single call, with built-in dependency resolution. See the [Bulk Import tutorial](https://learn.microsoft.com/en-us/fabric/cicd/tutorial-bulkapi-cicd) and the [comparison subsection below](#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for trade-offs vs fabric-cicd.
+- **[Update Item Definition API](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/update-item-definition)** — A lower-level building block for updating a single item's definition. Both fabric-cicd and the Bulk APIs ultimately wrap this and related item APIs; you would use it directly only when neither higher-level option fits.
+
+---
+
+#### Tooling within Option 3: fabric-cicd vs Bulk APIs
+
+Both implementations sit inside Option 3 — branch per stage, build environment per stage, deploy from Git. The decision between them comes down to whether you want a library that solves the common CI/CD problems for you, or a lower-level API surface that you wrap yourself.
+
+| Dimension | fabric-cicd | Bulk Import / Export APIs |
+|---|---|---|
+| **Maturity** | GA | Preview (`?beta=true` query parameter required) |
+| **Environment-specific config** | `parameter.yml` (declarative `find_replace`, `key_value_replace`, `$items` resolution) | None — caller must preprocess files or rely entirely on Variable Libraries + logical IDs |
+| **Orphan cleanup** | `unpublish_all_orphan_items()` built in | None — API only supports Create / Update; deletes are caller's responsibility |
+| **Dependency ordering** | Caller phases manually (e.g., Lakehouse + Ontology first, then everything else) | Service resolves automatically in a single call |
+| **Long-running operations** | Hidden by the library | When the call returns `202 Accepted`, the caller polls `/operations/{id}` and then `/operations/{id}/result` explicitly. Sync `200 OK` returns the result body directly with no polling needed. |
+| **API call shape** | Many per-item REST calls | One POST for the entire workspace payload |
+| **Service principal coverage** | Per item — an unsupported item type fails only that item | Per request — service principals are supported only when *every* item in the payload supports service principals |
+
+**When to choose fabric-cicd:**
+- You want environment-specific configuration handled declaratively
+- You need orphan cleanup as part of the deployment
+- You want a GA, semver-stable dependency on your production deployment path
+- Your workspace mixes item types where service principal support is uneven
+
+**When to consider the Bulk APIs:**
+- Your repo is fully on logical IDs + Variable Library value sets, so you don't need `parameter.yml`-style substitution
+- You want a single atomic deployment instead of phased calls
+- You're moving large numbers of items and want fewer round trips
+- You need a workspace-level export (e.g., for disaster-recovery snapshots) that the Bulk Export API provides
+
+Recommendation today: fabric-cicd. The Bulk APIs are an exciting direction and worth tracking, but in their current Preview state the missing parameterization layer and lack of orphan cleanup mean the caller has to rebuild capabilities the library already provides. Re-evaluate when (a) the APIs exit Preview and (b) Microsoft adds a parameterization story, or when your repo has already been refactored so that those capabilities aren't needed.
+
+> This repository demonstrates both. The fabric-cicd workflows are the recommended path; the Bulk API workflows are included alongside them for evaluation. A `DEPLOY_METHOD` repository variable selects which implementation runs. See the [README quick start](README.md#quick-start) for how to switch.
 
 ---
 
 **When to consider this option:**
 - You want Git as the **single source of truth** and the origin of all deployments.
-- Your team follows a **trunk-based workflow** as its branching strategy.
+- Your team uses a Git branch per stage (e.g., `dev`, `test`, `main`) with PR-based promotion between branches.
 - You need a build environment to **alter workspace-specific attributes** (e.g., `connectionId`, `lakehouseId`) before deployment.
 - You need a release pipeline to retrieve item content from Git and call Fabric Item APIs for creating, updating, or deleting items. With **fabric-cicd**, much of this is handled declaratively via `parameter.yml`.
 
@@ -267,7 +299,7 @@ With this option, all deployments originate from a **single branch** (e.g., `mai
 - **Full deployment every time** — fabric-cicd does not calculate diffs. Every item in scope is published on each run, which can increase deployment time for large workspaces.
 - **No Fabric-native UI** — Like Option 2, there is no visual comparison or deployment history in Fabric. All visibility is through your CI/CD tool.
 - **Build environment overhead** — Each deployment spins up a build environment, adding time and compute cost to the pipeline.
-- **Trunk-based discipline** — Requires that `main` is always in a deployable state. Broken commits to `main` can cascade to all stages.
+- **Multiple long-lived branches** — Like Option 2, requires maintaining and synchronizing dedicated branches per stage (e.g., `dev`, `test`, `main`). Broken commits to a stage's branch can cascade to that stage on the next deploy.
 
 
 ---
@@ -319,15 +351,15 @@ Technically, the Terraform provider can *create* items like notebooks in a targe
 
 ## Comparison Summary
 
-| | **Option 1 – Deployment Pipelines** | **Option 2 – Git-based** | **Option 3 – Git-based + Build Env** |
+| | **Option 1 – Deployment Pipelines** | **Option 2 – Fabric Git Integration** | **Option 3 – Git-based + Build Env** |
 |---|---|---|---|
-| **Source of truth** | Git (Dev only) + workspaces | Git (all stages) | Git (single branch) |
-| **Branching strategy** | Any (Git only for Dev) | Gitflow (branch per stage) | Trunk-based (single main) |
-| **Deployment mechanism** | Fabric Deployment Pipelines (UI or API) | Update from Git API | fabric-cicd / Bulk Import / Update Item Definition API |
+| **Source of truth** | Git (Dev only) + workspaces | Git (all stages) | Git (all stages) |
+| **Branching strategy** | Any (Git only for Dev) | Gitflow (branch per stage) | Branch per stage with build envs |
+| **Deployment mechanism** | Fabric Deployment Pipelines (UI or API) | Update from Git API | fabric-cicd (recommended) or Bulk Import / Export APIs (Preview) — see [Tooling within Option 3](#tooling-within-option-3-fabric-cicd-vs-bulk-apis) |
 | **Config management** | Deployment rules + autobinding | Post-deployment API calls or parameterization | Declarative `parameter.yml` (fabric-cicd) or custom scripts before deploy |
 | **Visual comparison** | Yes (Fabric-native UI) | No (Git diffs only) | No (Git diffs only) |
 | **Deployment history** | Yes (built into Fabric) | No | No |
-| **Stage recoverability** | Dev from Git; Test/Prod from last deployment only | All stages recoverable from Git branches | All stages recoverable from main + `parameter.yml` |
+| **Stage recoverability** | Dev from Git; Test/Prod from last deployment only | All stages recoverable from Git branches | All stages recoverable from corresponding branch + `parameter.yml` |
 | **Setup complexity** | Low | Medium | High |
 | **CI/CD pipeline needed** | Optional (can use UI manually) | Yes | Yes |
 | **Related items awareness** | UI: Yes / API: No | N/A | Yes — fabric-cicd `$items` dynamic replacement resolves item IDs at deploy time |
@@ -342,6 +374,8 @@ Technically, the Terraform provider can *create* items like notebooks in a targe
 ### Hybrid Approach — fabric-cicd + Deployment Pipelines
 
 I recommend a **hybrid approach** that uses **fabric-cicd** for all supported items and **Fabric Deployment Pipelines** for any items that lack fabric-cicd support. This gives us Git as the single source of truth for the majority of items, with a clean path to drop the Deployment Pipelines component as items gain support.
+
+> Note on tooling within this recommendation. “fabric-cicd” here refers specifically to the GA Python library. Microsoft has also released the [Bulk Import / Export APIs](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions) (Preview) as an alternative implementation of Option 3. They are worth tracking but not yet recommended for production CI/CD — see [Tooling within Option 3](#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the comparison and reasoning.
 
 ![Hybrid Recommendation Flow](assets/hybrid-recommendation-flow.svg)
 

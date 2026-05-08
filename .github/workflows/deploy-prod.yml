@@ -10,7 +10,7 @@
 # The ETL workflow (etl-prod.yml) triggers automatically via workflow_run
 # once deployment completes successfully.
 
-name: Deploy to Prod
+name: Deploy to Prod (fabric-cicd)
 
 on:
   push:
@@ -23,6 +23,10 @@ permissions:
 jobs:
   deploy-supported:
     name: Deploy supported items
+    # Gated by the DEPLOY_METHOD repository variable. Runs when unset or set to
+    # 'fabric-cicd'. Set DEPLOY_METHOD='bulk' to route deployments through
+    # deploy-prod-bulk.yml instead. Any other value disables both workflows.
+    if: vars.DEPLOY_METHOD == '' || vars.DEPLOY_METHOD == 'fabric-cicd'
     uses: ./.github/workflows/reusable-deploy-supported.yml
     with:
       environment: Prod

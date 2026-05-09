@@ -20,6 +20,7 @@ from deploy_bulk import (
     SUBSTITUTABLE_EXTENSIONS,
     BulkConfig,
     SubstitutionRule,
+    VariableLibraryConfig,
     acquire_token,
     apply_substitutions,
     build_definition_parts,
@@ -140,7 +141,8 @@ def test_load_bulk_config_missing_file_returns_empty(tmp_path: pathlib.Path) -> 
     config = load_bulk_config(tmp_path / "does_not_exist.yml")
     assert config == BulkConfig()
     assert config.substitutions == ()
-    assert config.variable_library_active_value_set is None
+    assert config.variable_library == VariableLibraryConfig()
+    assert config.variable_library.active_value_set is None
 
 
 def test_load_bulk_config_empty_file_returns_empty(tmp_path: pathlib.Path) -> None:
@@ -179,7 +181,7 @@ variable_library:
         replace_with="$items.Lakehouse.LH.$id",
         item_types=frozenset({"Notebook"}),
     )
-    assert config.variable_library_active_value_set == "$environment"
+    assert config.variable_library.active_value_set == "$environment"
 
 
 def test_load_bulk_config_substitutions_only(tmp_path: pathlib.Path) -> None:
@@ -195,7 +197,7 @@ substitutions:
     )
     config = load_bulk_config(path)
     assert len(config.substitutions) == 1
-    assert config.variable_library_active_value_set is None
+    assert config.variable_library.active_value_set is None
 
 
 def test_load_bulk_config_variable_library_only(tmp_path: pathlib.Path) -> None:
@@ -209,7 +211,7 @@ variable_library:
     )
     config = load_bulk_config(path)
     assert config.substitutions == ()
-    assert config.variable_library_active_value_set == "Test"
+    assert config.variable_library.active_value_set == "Test"
 
 
 def test_load_bulk_config_variable_library_null_active_value_set(
@@ -224,7 +226,7 @@ variable_library:
 """,
         encoding="utf-8",
     )
-    assert load_bulk_config(path).variable_library_active_value_set is None
+    assert load_bulk_config(path).variable_library.active_value_set is None
 
 
 def test_load_bulk_config_top_level_not_a_mapping_raises(tmp_path: pathlib.Path) -> None:
@@ -309,7 +311,7 @@ def test_load_bulk_config_real_repo_file_parses() -> None:
     config = load_bulk_config(path)
     assert isinstance(config, BulkConfig)
     assert len(config.substitutions) >= 1
-    assert config.variable_library_active_value_set is not None
+    assert config.variable_library.active_value_set is not None
 
 
 # ---------- check_per_item_status ----------
@@ -395,6 +397,51 @@ def test_interpret_post_response_unexpected_status() -> None:
     assert action == ("error", 500)
 
 
+def test_interpret_post_response_clamps_pathological_retry_after() -> None:
+    """A bogus Retry-After value must not bypass the global polling timeout."""
+    action = interpret_post_response(202, {}, {"x-ms-operation-id": "op", "Retry-After": "999999"})
+    assert action[0] == "async"
+    # Clamped to POLL_CEILING_SECONDS (600).
+    assert action[2] == 600
+
+
+def test_interpret_post_response_unparseable_retry_after_falls_back() -> None:
+    """A non-integer Retry-After header falls back to the default, doesn't crash."""
+    action = interpret_post_response(202, {}, {"x-ms-operation-id": "op", "Retry-After": "bananas"})
+    assert action[0] == "async"
+    # Falls back to POLL_FALLBACK_SECONDS (30).
+    assert action[2] == 30
+
+
+# ---------- _parse_retry_after ----------
+
+
+def test_parse_retry_after_normal_value() -> None:
+    from deploy_bulk import _parse_retry_after
+    assert _parse_retry_after("45") == 45
+
+
+def test_parse_retry_after_none_returns_fallback() -> None:
+    from deploy_bulk import POLL_FALLBACK_SECONDS, _parse_retry_after
+    assert _parse_retry_after(None) == POLL_FALLBACK_SECONDS
+
+
+def test_parse_retry_after_invalid_returns_fallback() -> None:
+    from deploy_bulk import POLL_FALLBACK_SECONDS, _parse_retry_after
+    assert _parse_retry_after("not-a-number") == POLL_FALLBACK_SECONDS
+
+
+def test_parse_retry_after_clamps_to_floor() -> None:
+    from deploy_bulk import POLL_FLOOR_SECONDS, _parse_retry_after
+    assert _parse_retry_after("0") == POLL_FLOOR_SECONDS
+    assert _parse_retry_after("-100") == POLL_FLOOR_SECONDS
+
+
+def test_parse_retry_after_clamps_to_ceiling() -> None:
+    from deploy_bulk import POLL_CEILING_SECONDS, _parse_retry_after
+    assert _parse_retry_after("999999") == POLL_CEILING_SECONDS
+
+
 # ---------- acquire_token ----------
 
 
@@ -409,8 +456,10 @@ def test_acquire_token_success(capsys: pytest.CaptureFixture) -> None:
     call_kwargs = post.call_args.kwargs
     assert call_kwargs["data"]["grant_type"] == "client_credentials"
     assert call_kwargs["data"]["scope"] == "https://api.fabric.microsoft.com/.default"
-    # Workflow log mask was emitted
-    assert "::add-mask::fake-token-xyz" in capsys.readouterr().out
+    # The token must NOT appear in stdout. Earlier versions of this script
+    # emitted an `::add-mask::<token>` workflow command; that line itself
+    # leaked the token before GitHub's mask filter could redact it.
+    assert "fake-token-xyz" not in capsys.readouterr().out
 
 
 def test_acquire_token_failure_exits() -> None:

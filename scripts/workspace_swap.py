@@ -36,7 +36,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Callable
+from typing import Callable, TypedDict
 
 # ── Paths (relative to repo root) ──────────────────────────────────────────
 REPO_ROOT = Path(subprocess.run(
@@ -61,7 +61,17 @@ ALLOWED_VALUE_SETS = {"Test", "Prod"}
 #   needs_rewrite  – True → dev↔feature ID replacement during bootstrap/reset
 #   id_keys        – which dev IDs to validate ("workspace", "lakehouse", or both)
 #   content_filter – optional predicate on file text; None means process all
-ITEM_TYPES: list[dict[str, str | list[str] | bool | Callable[[str], bool] | None]] = [
+class ItemTypeRegistryEntry(TypedDict):
+    """One entry in ``ITEM_TYPES``. See module-level comment for field meanings."""
+
+    name: str
+    file_patterns: list[str]
+    needs_rewrite: bool
+    id_keys: list[str]
+    content_filter: Callable[[str], bool] | None
+
+
+ITEM_TYPES: list[ItemTypeRegistryEntry] = [
     {
         "name": "SemanticModel",
         "file_patterns": ["*.SemanticModel/definition/expressions.tmdl"],

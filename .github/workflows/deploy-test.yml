@@ -18,13 +18,13 @@ permissions:
   contents: read
 
 jobs:
-  deploy-supported:
-    name: Deploy supported items
+  deploy-fabric-cicd:
+    name: Deploy via fabric-cicd
     # Gated by the DEPLOY_METHOD repository variable. Runs when unset or set to
     # 'fabric-cicd'. Set DEPLOY_METHOD='bulk' to route deployments through
     # deploy-test-bulk.yml instead. Any other value disables both workflows.
     if: vars.DEPLOY_METHOD == '' || vars.DEPLOY_METHOD == 'fabric-cicd'
-    uses: ./.github/workflows/reusable-deploy-supported.yml
+    uses: ./.github/workflows/reusable-deploy-fabric-cicd.yml
     with:
       environment: Test
       item_type_in_scope: '["Lakehouse", "Ontology", "VariableLibrary", "Notebook", "SemanticModel", "Report", "DataAgent"]'

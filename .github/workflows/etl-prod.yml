@@ -15,6 +15,10 @@ on:
     # The success conclusion gate below skips ETL when a deploy was skipped.
     workflows: ["Deploy to Prod (fabric-cicd)", "Deploy to Prod (Bulk API)"]
     types: [completed]
+  # Manual trigger so operators can re-run the ETL without having to fake a
+  # deploy. The Prod GitHub Environment protection rules still apply to the
+  # reusable workflow's job, so any approval gates remain in effect.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -22,7 +26,9 @@ permissions:
 jobs:
   run-etl:
     name: Run ETL
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # Run when triggered manually, OR when the upstream deploy workflow succeeded.
+    # workflow_run-triggered runs whose deploy was skipped/failed should not run.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     uses: ./.github/workflows/reusable-fabric-etl.yml
     with:
       environment: Prod

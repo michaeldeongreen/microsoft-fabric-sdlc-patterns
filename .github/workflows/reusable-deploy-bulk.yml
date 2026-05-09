@@ -1,6 +1,6 @@
 # Reusable workflow: Deploy supported Fabric items via the Bulk Import Item Definitions API (Preview).
 #
-# Alternative deployment path to reusable-deploy-supported.yml. Uses the Fabric
+# Alternative deployment path to reusable-deploy-fabric-cicd.yml. Uses the Fabric
 # REST API's bulk import endpoint instead of the fabric-cicd Python library.
 # Selected at orchestrator level via the DEPLOY_METHOD repository variable.
 #
@@ -14,7 +14,7 @@
 #   - Every item type in the request payload must support service principals
 #     (the bulk API requires SPN support for ALL items in the request, not just some)
 #
-# Known gaps vs. reusable-deploy-supported.yml (fabric-cicd):
+# Known gaps vs. reusable-deploy-fabric-cicd.yml (fabric-cicd):
 #   - No parameter.yml find_replace / key_value_replace substitution
 #   - No orphan cleanup (Bulk Import API only supports Create/Update, not Delete)
 #   - No item_type_in_scope filter (deploys everything in repository_directory)

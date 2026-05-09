@@ -13,7 +13,7 @@ visible to later items' logicalId or ``$items`` resolution. On subsequent
 deployments all items already exist and phases are idempotent — they simply
 update in place.
 
-Invoked by .github/workflows/reusable-deploy-supported.yml.
+Invoked by .github/workflows/reusable-deploy-fabric-cicd.yml.
 
 Required environment variables:
     AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET,

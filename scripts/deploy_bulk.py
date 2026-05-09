@@ -516,6 +516,38 @@ def interpret_post_response(
     return ("error", status_code)
 
 
+def activate_variable_library_value_set(
+    workspace_id: str,
+    library_id: str,
+    value_set_name: str,
+    headers: dict,
+) -> None:
+    """Set the active value set on a deployed VariableLibrary.
+
+    PATCH /v1/workspaces/{ws}/variableLibraries/{id}
+    Body: {"properties": {"activeValueSetName": <name>}}
+
+    Reference:
+    https://learn.microsoft.com/en-us/rest/api/fabric/variablelibrary/items/update-variable-library
+
+    Fails loudly on any non-200 response \u2014 a misconfigured value set is a
+    deploy correctness issue, not a transient one.
+    """
+    url = (
+        f"https://api.fabric.microsoft.com/v1/workspaces/{workspace_id}"
+        f"/variableLibraries/{library_id}"
+    )
+    body = {"properties": {"activeValueSetName": value_set_name}}
+    print(f"PATCH {url} (active value set: {value_set_name!r})")
+    resp = requests.patch(url, headers=headers, json=body, timeout=30)
+    if resp.status_code != 200:
+        sys.exit(
+            f"::error::Failed to set active value set on VariableLibrary "
+            f"{library_id}: HTTP {resp.status_code} {resp.text}"
+        )
+    print(f"VariableLibrary {library_id} active value set is now {value_set_name!r}")
+
+
 def post_bulk(
     parts: list[dict],
     workspace_id: str,
@@ -610,44 +642,59 @@ def main() -> None:
     if not needs_two_deploy:
         # Apply $workspace.$id-only substitutions if any, then single POST.
         substituted = apply_substitutions(parts, config.substitutions, workspace_id, {})
-        post_bulk(
+        result = post_bulk(
             substituted, workspace_id, headers,
             tenant_id, client_id, client_secret, label="all items",
         )
-        sys.exit(0)
-
-    # Two-deploy flow: dependencies first, then the rest with substituted IDs.
-    dependencies, remaining = partition_dependencies(parts)
-    print(
-        f"Two-deploy flow: {len(dependencies)} dependency parts "
-        f"({', '.join(DEPENDENCY_TYPES)}), {len(remaining)} remaining parts"
-    )
-
-    if not dependencies:
-        sys.exit(
-            f"::error::Substitution rules reference $items.<Type>.<Name>.$id "
-            f"but no items of dependency types {DEPENDENCY_TYPES} were found "
-            f"in {repo_dir}"
+        item_id_map = extract_item_ids(result)
+    else:
+        # Two-deploy flow: dependencies first, then the rest with substituted IDs.
+        dependencies, remaining = partition_dependencies(parts)
+        print(
+            f"Two-deploy flow: {len(dependencies)} dependency parts "
+            f"({', '.join(DEPENDENCY_TYPES)}), {len(remaining)} remaining parts"
         )
 
-    deps_result = post_bulk(
-        dependencies, workspace_id, headers,
-        tenant_id, client_id, client_secret, label="dependencies",
-    )
-    item_id_map = extract_item_ids(deps_result)
-    print(f"Captured {len(item_id_map)} dependency item ID(s) for substitution")
+        if not dependencies:
+            sys.exit(
+                f"::error::Substitution rules reference $items.<Type>.<Name>.$id "
+                f"but no items of dependency types {DEPENDENCY_TYPES} were found "
+                f"in {repo_dir}"
+            )
 
-    substituted_remaining = apply_substitutions(
-        remaining, config.substitutions, workspace_id, item_id_map,
-    )
-    post_bulk(
-        substituted_remaining, workspace_id, headers,
-        tenant_id, client_id, client_secret, label="remaining items",
-    )
+        deps_result = post_bulk(
+            dependencies, workspace_id, headers,
+            tenant_id, client_id, client_secret, label="dependencies",
+        )
+        item_id_map = extract_item_ids(deps_result)
+        print(f"Captured {len(item_id_map)} dependency item ID(s) for substitution")
 
-    # environment is read but unused in this increment; Increment 5 will use
-    # it for VariableLibrary value-set activation.
-    _ = environment
+        substituted_remaining = apply_substitutions(
+            remaining, config.substitutions, workspace_id, item_id_map,
+        )
+        remaining_result = post_bulk(
+            substituted_remaining, workspace_id, headers,
+            tenant_id, client_id, client_secret, label="remaining items",
+        )
+        item_id_map.update(extract_item_ids(remaining_result))
+
+    # Post-deploy: VariableLibrary value-set activation. The bulk API has no
+    # equivalent of fabric-cicd's environment-driven value-set selection, so
+    # we make the PATCH call ourselves.
+    active_value_set = resolve_active_value_set(
+        config.variable_library_active_value_set, environment
+    )
+    if active_value_set:
+        library_id = find_variable_library_id(item_id_map)
+        if library_id is None:
+            print(
+                f"::warning::bulk-parameter.yml requests value-set activation "
+                f"({active_value_set!r}) but no VariableLibrary was deployed; skipping"
+            )
+        else:
+            activate_variable_library_value_set(
+                workspace_id, library_id, active_value_set, headers,
+            )
 
     sys.exit(0)
 

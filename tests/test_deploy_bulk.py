@@ -726,3 +726,43 @@ def test_find_variable_library_id_multiple_raises() -> None:
     }
     with pytest.raises(ValueError, match="Expected exactly one VariableLibrary"):
         find_variable_library_id(item_map)
+
+
+# ---------- activate_variable_library_value_set ----------
+
+
+def test_activate_variable_library_value_set_happy_path(
+    capsys: pytest.CaptureFixture,
+) -> None:
+    fake_resp = mock.Mock(status_code=200, text="{}")
+    headers = {"Authorization": "Bearer x", "Content-Type": "application/json"}
+    with mock.patch("deploy_bulk.requests.patch", return_value=fake_resp) as patch:
+        from deploy_bulk import activate_variable_library_value_set
+        activate_variable_library_value_set(
+            workspace_id="ws-id", library_id="vl-id",
+            value_set_name="Test", headers=headers,
+        )
+    patch.assert_called_once()
+    call_args = patch.call_args
+    url = call_args.args[0]
+    assert url.endswith("/v1/workspaces/ws-id/variableLibraries/vl-id")
+    body = call_args.kwargs["json"]
+    assert body == {"properties": {"activeValueSetName": "Test"}}
+    assert call_args.kwargs["headers"] is headers
+    out = capsys.readouterr().out
+    assert "Test" in out
+    assert "vl-id" in out
+
+
+def test_activate_variable_library_value_set_failure_exits() -> None:
+    fake_resp = mock.Mock(status_code=400, text="Bad value set name")
+    headers = {"Authorization": "Bearer x"}
+    with mock.patch("deploy_bulk.requests.patch", return_value=fake_resp):
+        from deploy_bulk import activate_variable_library_value_set
+        with pytest.raises(SystemExit) as exc:
+            activate_variable_library_value_set(
+                workspace_id="ws", library_id="vl",
+                value_set_name="Bad", headers=headers,
+            )
+    assert "Failed to set active value set" in str(exc.value)
+    assert "400" in str(exc.value)

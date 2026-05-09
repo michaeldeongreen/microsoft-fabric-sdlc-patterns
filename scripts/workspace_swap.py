@@ -38,6 +38,15 @@ import sys
 from pathlib import Path
 from typing import Callable, TypedDict
 
+# Force UTF-8 for stdout/stderr so the Unicode box-drawing characters used
+# in section headers and the summary banner don't crash on Windows consoles
+# that default to cp1252. ``errors="replace"`` keeps the script running if
+# any output sneaks through that the codec still can't handle.
+for _stream in (sys.stdout, sys.stderr):
+    reconfigure = getattr(_stream, "reconfigure", None)
+    if reconfigure is not None:
+        reconfigure(encoding="utf-8", errors="replace")
+
 # ── Paths (relative to repo root) ──────────────────────────────────────────
 REPO_ROOT = Path(subprocess.run(
     ["git", "rev-parse", "--show-toplevel"],

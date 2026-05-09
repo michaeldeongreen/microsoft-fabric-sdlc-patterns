@@ -42,6 +42,7 @@ import re
 import sys
 import time
 from dataclasses import dataclass, field
+from typing import TypedDict
 
 import requests
 import yaml
@@ -86,6 +87,53 @@ SUBSTITUTABLE_EXTENSIONS = (".json", ".yml", ".tmdl", ".py", ".platform")
 _ITEMS_PLACEHOLDER = re.compile(r"\$items\.([^.]+)\.([^$]+?)\.\$id")
 _WORKSPACE_PLACEHOLDER = "$workspace.$id"
 _ENVIRONMENT_PLACEHOLDER = "$environment"
+
+
+# ----- TypedDicts for the Fabric Bulk Import API surface ---------------------
+#
+# These document the shapes the script sends and receives. They're not
+# enforced at runtime (TypedDict is purely a type hint) but they give
+# Pylance/mypy the information needed to catch field-name typos and to
+# autocomplete on response objects.
+
+
+class DefinitionPart(TypedDict):
+    """One element of the request's ``definitionParts`` array.
+
+    All three fields are required by the Bulk Import API. ``payload`` is
+    base64-encoded file content; ``payloadType`` is always ``"InlineBase64"``
+    in this script.
+    """
+
+    path: str
+    payload: str
+    payloadType: str
+
+
+class ImportItemDetail(TypedDict, total=False):
+    """One element of ``importItemDefinitionsDetails`` in a bulk-import response.
+
+    Marked ``total=False`` because the API does not always return every
+    field on every entry (e.g., a partial-failure entry may omit ``itemId``).
+    """
+
+    itemDisplayName: str
+    itemType: str
+    itemId: str
+    operationStatus: str
+
+
+class BulkResponseBody(TypedDict, total=False):
+    """The shape of a sync 200 body or an LRO ``/result`` body."""
+
+    importItemDefinitionsDetails: list[ImportItemDetail]
+
+
+class LROStatusBody(TypedDict, total=False):
+    """Body of GET ``/v1/operations/{id}`` while polling."""
+
+    status: str
+    failureReason: str
 
 
 @dataclass(frozen=True)
@@ -229,7 +277,9 @@ def item_display_name_of(part_path: str) -> str | None:
     return folder.rsplit(".", 1)[0]
 
 
-def partition_dependencies(parts: list[dict]) -> tuple[list[dict], list[dict]]:
+def partition_dependencies(
+    parts: list[DefinitionPart],
+) -> tuple[list[DefinitionPart], list[DefinitionPart]]:
     """Split definitionParts[] into (dependencies, remaining).
 
     A part belongs to ``dependencies`` if its item type is in
@@ -237,8 +287,8 @@ def partition_dependencies(parts: list[dict]) -> tuple[list[dict], list[dict]]:
     their IDs are available to resolve ``$items.<Type>.<Name>.$id``
     placeholders in the remaining items' substitution rules.
     """
-    dependencies: list[dict] = []
-    remaining: list[dict] = []
+    dependencies: list[DefinitionPart] = []
+    remaining: list[DefinitionPart] = []
     for part in parts:
         if item_type_of(part["path"]) in DEPENDENCY_TYPES:
             dependencies.append(part)
@@ -247,7 +297,7 @@ def partition_dependencies(parts: list[dict]) -> tuple[list[dict], list[dict]]:
     return dependencies, remaining
 
 
-def extract_item_ids(response_body: dict) -> dict[tuple[str, str], str]:
+def extract_item_ids(response_body: BulkResponseBody) -> dict[tuple[str, str], str]:
     """Build a lookup of deployed item IDs from a bulk-import response body.
 
     Returns ``{(item_type, item_display_name): item_id}``. Skips entries
@@ -295,11 +345,11 @@ def resolve_dynamic_value(
 
 
 def apply_substitutions(
-    parts: list[dict],
+    parts: list[DefinitionPart],
     rules: tuple[SubstitutionRule, ...],
     workspace_id: str,
     item_id_map: dict[tuple[str, str], str],
-) -> list[dict]:
+) -> list[DefinitionPart]:
     """Apply all substitution rules to the matching definitionParts[].
 
     For each part:
@@ -317,7 +367,7 @@ def apply_substitutions(
     if not rules:
         return parts
 
-    out: list[dict] = []
+    out: list[DefinitionPart] = []
     for part in parts:
         path = part["path"]
         item_type = item_type_of(path)
@@ -345,8 +395,11 @@ def apply_substitutions(
             out.append(part)
             continue
 
-        new_part = dict(part)
-        new_part["payload"] = base64.b64encode(modified_text.encode("utf-8")).decode("ascii")
+        new_part: DefinitionPart = {
+            "path": part["path"],
+            "payload": base64.b64encode(modified_text.encode("utf-8")).decode("ascii"),
+            "payloadType": part["payloadType"],
+        }
         out.append(new_part)
     return out
 
@@ -400,10 +453,10 @@ def acquire_token(tenant_id: str, client_id: str, client_secret: str) -> str:
     return resp.json()["access_token"]
 
 
-def build_definition_parts(repo_dir: pathlib.Path) -> list[dict]:
+def build_definition_parts(repo_dir: pathlib.Path) -> list[DefinitionPart]:
     if not repo_dir.is_dir():
         sys.exit(f"::error::Repository directory not found: {repo_dir}")
-    parts: list[dict] = []
+    parts: list[DefinitionPart] = []
     for f in sorted(repo_dir.rglob("*")):
         if not f.is_file():
             continue
@@ -475,7 +528,7 @@ def poll_lro(
         if resp.status_code != 200:
             sys.exit(f"::error::Poll request failed: HTTP {resp.status_code} {resp.text}")
 
-        body = resp.json()
+        body: LROStatusBody = resp.json()
         status = body.get("status", "Unknown")
         print(f"Poll {poll_count} (t+{int(elapsed)}s): status={status}")
 
@@ -490,7 +543,7 @@ def poll_lro(
         retry_after = _parse_retry_after(resp.headers.get("Retry-After"))
 
 
-def check_per_item_status(result: dict) -> None:
+def check_per_item_status(result: BulkResponseBody) -> None:
     details = result.get("importItemDefinitionsDetails", [])
     print(json.dumps(result, indent=2))
     if not details:
@@ -513,7 +566,7 @@ def check_per_item_status(result: dict) -> None:
 
 def interpret_post_response(
     status_code: int,
-    body: dict,
+    body: BulkResponseBody,
     headers: dict,
 ) -> tuple[str, ...]:
     """Pure decision function for a bulk-import POST response.
@@ -575,14 +628,14 @@ def activate_variable_library_value_set(
 
 
 def post_bulk(
-    parts: list[dict],
+    parts: list[DefinitionPart],
     workspace_id: str,
     headers: dict,
     tenant_id: str,
     client_id: str,
     client_secret: str,
     label: str,
-) -> dict:
+) -> BulkResponseBody:
     """POST one bulkImportDefinitions request and return the result body.
 
     Handles both the synchronous (200) and asynchronous (202 + LRO) response

@@ -20,9 +20,22 @@ Deploy flow:
     (DEPENDENCY_TYPES) so their IDs become available, then substitute those
     IDs into the remaining items' definitions and POST the rest.
 
+The Bulk Import API itself has no parameterization, no VariableLibrary
+value-set activation, and no delete support. fabric-cicd handles the
+first two automatically in its library; with the bulk API those become
+caller responsibilities. This script implements substitution (driven by
+bulk-parameter.yml) and value-set activation (a post-deploy PATCH call)
+so the demo repo works end-to-end. They are workarounds, not platform
+fixes — choosing bulk in your own project means owning equivalent code.
+
 Known gaps vs deploy_fabric_cicd.py (intentional, documented):
-- No orphan cleanup (Bulk Import API only supports Create/Update, not Delete)
-- No item_type_in_scope filter (deploys everything in repository_directory)
+- No full parameter.yml feature coverage. bulk-parameter.yml supports
+  find_replace + $items + $workspace + $environment only. fabric-cicd's
+  key_value_replace, spark_pool, semantic_model_binding are not
+  implemented here.
+- No orphan cleanup. Bulk Import API only supports Create/Update,
+  not Delete.
+- No item_type_in_scope filter (deploys everything in repository_directory).
 
 API references:
 - Bulk import:     https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions(beta)

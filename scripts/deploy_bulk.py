@@ -9,11 +9,33 @@ level via the DEPLOY_METHOD repository variable.
 Required environment variables:
     AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET,
     FABRIC_WORKSPACE_ID, REPOSITORY_DIRECTORY
+Optional:
+    ENVIRONMENT — target environment name (e.g. "Test", "Prod"). Substituted
+    into the $environment placeholder in bulk-parameter.yml.
+
+Deploy flow:
+  - If bulk-parameter.yml has no $items.<Type>.<Name>.$id references (or the
+    file is absent), a single POST sends every item at once.
+  - Otherwise the deploy splits in two: first POST the dependency item types
+    (DEPENDENCY_TYPES) so their IDs become available, then substitute those
+    IDs into the remaining items' definitions and POST the rest.
+
+The Bulk Import API itself has no parameterization, no VariableLibrary
+value-set activation, and no delete support. fabric-cicd handles the
+first two automatically in its library; with the bulk API those become
+caller responsibilities. This script implements substitution (driven by
+bulk-parameter.yml) and value-set activation (a post-deploy PATCH call)
+so the demo repo works end-to-end. They are workarounds, not platform
+fixes — choosing bulk in your own project means owning equivalent code.
 
 Known gaps vs deploy_fabric_cicd.py (intentional, documented):
-- No parameter.yml find_replace / key_value_replace substitution
-- No orphan cleanup (Bulk Import API only supports Create/Update, not Delete)
-- No item_type_in_scope filter (deploys everything in repository_directory)
+- No full parameter.yml feature coverage. bulk-parameter.yml supports
+  find_replace + $items + $workspace + $environment only. fabric-cicd's
+  key_value_replace, spark_pool, semantic_model_binding are not
+  implemented here.
+- No orphan cleanup. Bulk Import API only supports Create/Update,
+  not Delete.
+- No item_type_in_scope filter (deploys everything in repository_directory).
 
 API references:
 - Bulk import:     https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions(beta)
@@ -29,24 +51,402 @@ import base64
 import json
 import os
 import pathlib
+import re
 import sys
 import time
+from dataclasses import dataclass, field
+from typing import TypedDict
 
 import requests
+import yaml
 
 # Polling configuration
 POLL_FALLBACK_SECONDS = 30
 POLL_FLOOR_SECONDS = 5
+POLL_CEILING_SECONDS = 600
 POLL_TIMEOUT_SECONDS = 20 * 60
 TOKEN_REFRESH_EVERY_N_POLLS = 20
 
 # Files to skip when building definitionParts[]. Two layers of exclusion:
 # 1. Named files: known files that should never be sent (parameter.yml is
-#    fabric-cicd config; .gitkeep is a Git placeholder).
+#    fabric-cicd config; bulk-parameter.yml is bulk's own config;
+#    .gitkeep is a Git placeholder).
 # 2. Structural rule: item definitions always live inside *.<Type>/ folders,
 #    so any file directly under repository_directory is excluded by
 #    construction (handled in build_definition_parts).
-EXCLUDED_FILES = {"parameter.yml", ".gitkeep"}
+EXCLUDED_FILES = {"parameter.yml", "bulk-parameter.yml", ".gitkeep"}
+
+# Bulk-specific config file at the root of repository_directory. Read by
+# load_bulk_config() to drive substitutions and VariableLibrary value-set
+# activation. See data/fabric/bulk-parameter.yml for the schema.
+BULK_PARAMETER_FILENAME = "bulk-parameter.yml"
+
+# Item types that other items may reference and that therefore must be
+# deployed first so their IDs are available for substitution into the
+# remaining items' definitions. The bulk path keeps this list intentionally
+# narrow — only types actually referenced by $items.<Type>.* in
+# bulk-parameter.yml belong here.
+DEPENDENCY_TYPES = ("Lakehouse", "Ontology")
+
+# File extensions whose payloads are safe to apply text substitutions to.
+# Anything outside this set passes through untouched to avoid corrupting
+# binary content (e.g., Report static resources).
+SUBSTITUTABLE_EXTENSIONS = (".json", ".yml", ".tmdl", ".py", ".platform")
+
+# Placeholder pattern for $items.<Type>.<Name>.$id substitutions. <Name>
+# may contain underscores, hyphens, periods, etc. — anything that's not
+# whitespace and not the literal ".$id" terminator. Captured groups:
+#   1: item type, 2: item display name
+_ITEMS_PLACEHOLDER = re.compile(r"\$items\.([^.]+)\.([^$]+?)\.\$id")
+_WORKSPACE_PLACEHOLDER = "$workspace.$id"
+_ENVIRONMENT_PLACEHOLDER = "$environment"
+
+
+# ----- TypedDicts for the Fabric Bulk Import API surface ---------------------
+#
+# These document the shapes the script sends and receives. They're not
+# enforced at runtime (TypedDict is purely a type hint) but they give
+# Pylance/mypy the information needed to catch field-name typos and to
+# autocomplete on response objects.
+
+
+class DefinitionPart(TypedDict):
+    """One element of the request's ``definitionParts`` array.
+
+    All three fields are required by the Bulk Import API. ``payload`` is
+    base64-encoded file content; ``payloadType`` is always ``"InlineBase64"``
+    in this script.
+    """
+
+    path: str
+    payload: str
+    payloadType: str
+
+
+class ImportItemDetail(TypedDict, total=False):
+    """One element of ``importItemDefinitionsDetails`` in a bulk-import response.
+
+    Marked ``total=False`` because the API does not always return every
+    field on every entry (e.g., a partial-failure entry may omit ``itemId``).
+    """
+
+    itemDisplayName: str
+    itemType: str
+    itemId: str
+    operationStatus: str
+
+
+class BulkResponseBody(TypedDict, total=False):
+    """The shape of a sync 200 body or an LRO ``/result`` body."""
+
+    importItemDefinitionsDetails: list[ImportItemDetail]
+
+
+class LROStatusBody(TypedDict, total=False):
+    """Body of GET ``/v1/operations/{id}`` while polling."""
+
+    status: str
+    failureReason: str
+
+
+@dataclass(frozen=True)
+class SubstitutionRule:
+    """A single find/replace rule scoped to one or more item types.
+
+    ``replace_with`` may contain dynamic placeholders that are resolved at
+    deploy time against the target workspace ID and dependency item IDs:
+        $workspace.$id
+        $items.<Type>.<Name>.$id
+    """
+
+    find: str
+    replace_with: str
+    item_types: frozenset[str]
+
+
+@dataclass(frozen=True)
+class VariableLibraryConfig:
+    """VariableLibrary-related settings parsed from bulk-parameter.yml.
+
+    A separate dataclass (rather than a flat field on BulkConfig) so future
+    VariableLibrary settings can be added here without changing the shape
+    of the parent config.
+    """
+
+    active_value_set: str | None = None
+
+
+@dataclass(frozen=True)
+class BulkConfig:
+    """Parsed contents of bulk-parameter.yml.
+
+    ``variable_library.active_value_set`` is None when the config has no
+    ``variable_library`` block or when its ``active_value_set`` is null. In
+    that case the deploy skips the value-set activation step.
+    """
+
+    substitutions: tuple[SubstitutionRule, ...] = field(default_factory=tuple)
+    variable_library: VariableLibraryConfig = field(default_factory=VariableLibraryConfig)
+
+
+def load_bulk_config(path: pathlib.Path) -> BulkConfig:
+    """Parse bulk-parameter.yml into a typed BulkConfig.
+
+    A missing file is not an error — the bulk path remains usable for repos
+    that don't need substitutions or value-set activation. In that case an
+    empty BulkConfig is returned and the caller's behavior is unchanged from
+    the pre-config implementation (single POST, no post-deploy steps).
+
+    Raises ValueError on a present-but-malformed file so that misconfigured
+    repos fail loudly rather than silently skipping rules.
+    """
+    if not path.exists():
+        return BulkConfig()
+
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if raw is None:
+        # Empty file is treated the same as missing.
+        return BulkConfig()
+    if not isinstance(raw, dict):
+        raise ValueError(
+            f"{path.name} must contain a YAML mapping at the top level, "
+            f"got {type(raw).__name__}"
+        )
+
+    substitutions: list[SubstitutionRule] = []
+    for index, entry in enumerate(raw.get("substitutions") or []):
+        if not isinstance(entry, dict):
+            raise ValueError(
+                f"{path.name}: substitutions[{index}] must be a mapping"
+            )
+        try:
+            find = entry["find"]
+            replace_with = entry["replace_with"]
+            item_types = entry["item_types"]
+        except KeyError as exc:
+            raise ValueError(
+                f"{path.name}: substitutions[{index}] missing required key {exc.args[0]!r}"
+            ) from None
+        if not isinstance(item_types, list) or not all(isinstance(t, str) for t in item_types):
+            raise ValueError(
+                f"{path.name}: substitutions[{index}].item_types must be a list of strings"
+            )
+        substitutions.append(
+            SubstitutionRule(
+                find=str(find),
+                replace_with=str(replace_with),
+                item_types=frozenset(item_types),
+            )
+        )
+
+    variable_library_block = raw.get("variable_library") or {}
+    if not isinstance(variable_library_block, dict):
+        raise ValueError(
+            f"{path.name}: variable_library must be a mapping if present"
+        )
+    active_value_set = variable_library_block.get("active_value_set")
+    if active_value_set is not None and not isinstance(active_value_set, str):
+        raise ValueError(
+            f"{path.name}: variable_library.active_value_set must be a string or null"
+        )
+
+    return BulkConfig(
+        substitutions=tuple(substitutions),
+        variable_library=VariableLibraryConfig(active_value_set=active_value_set),
+    )
+
+
+def item_type_of(part_path: str) -> str | None:
+    """Extract the item type from a definitionParts[].path value.
+
+    Item paths follow the convention ``/<DisplayName>.<Type>/<file>``. This
+    helper returns ``"Notebook"`` for ``/Foo.Notebook/notebook-content.py``,
+    ``"Lakehouse"`` for ``/PatternsLakehouse.Lakehouse/.platform``, etc.
+
+    Returns ``None`` for paths that don't match the convention (defensive;
+    build_definition_parts already guarantees they do).
+    """
+    parts = part_path.lstrip("/").split("/", 1)
+    if len(parts) < 2:
+        return None
+    folder = parts[0]
+    if "." not in folder:
+        return None
+    return folder.rsplit(".", 1)[1]
+
+
+def item_display_name_of(part_path: str) -> str | None:
+    """Extract the item display name from a definitionParts[].path value.
+
+    Returns ``"Foo"`` for ``/Foo.Notebook/notebook-content.py``. Returns
+    ``None`` for paths that don't match the ``*.<Type>/`` convention.
+    """
+    parts = part_path.lstrip("/").split("/", 1)
+    if len(parts) < 2:
+        return None
+    folder = parts[0]
+    if "." not in folder:
+        return None
+    return folder.rsplit(".", 1)[0]
+
+
+def partition_dependencies(
+    parts: list[DefinitionPart],
+) -> tuple[list[DefinitionPart], list[DefinitionPart]]:
+    """Split definitionParts[] into (dependencies, remaining).
+
+    A part belongs to ``dependencies`` if its item type is in
+    ``DEPENDENCY_TYPES``. The bulk deploy POSTs dependencies first so that
+    their IDs are available to resolve ``$items.<Type>.<Name>.$id``
+    placeholders in the remaining items' substitution rules.
+    """
+    dependencies: list[DefinitionPart] = []
+    remaining: list[DefinitionPart] = []
+    for part in parts:
+        if item_type_of(part["path"]) in DEPENDENCY_TYPES:
+            dependencies.append(part)
+        else:
+            remaining.append(part)
+    return dependencies, remaining
+
+
+def extract_item_ids(response_body: BulkResponseBody) -> dict[tuple[str, str], str]:
+    """Build a lookup of deployed item IDs from a bulk-import response body.
+
+    Returns ``{(item_type, item_display_name): item_id}``. Skips entries
+    that are missing any of the three fields (defensive against partial
+    response shapes from the LRO ``/result`` endpoint).
+    """
+    out: dict[tuple[str, str], str] = {}
+    for entry in response_body.get("importItemDefinitionsDetails", []):
+        item_type = entry.get("itemType")
+        display_name = entry.get("itemDisplayName")
+        item_id = entry.get("itemId")
+        if item_type and display_name and item_id:
+            out[(item_type, display_name)] = item_id
+    return out
+
+
+def resolve_dynamic_value(
+    template: str,
+    workspace_id: str,
+    item_id_map: dict[tuple[str, str], str],
+) -> str:
+    """Resolve placeholders in a substitution rule's replace_with value.
+
+    Recognized placeholders:
+        $workspace.$id              -> workspace_id
+        $items.<Type>.<Name>.$id    -> item_id_map[(Type, Name)]
+
+    Raises ValueError on any ``$items`` reference that doesn't resolve.
+    Strings without placeholders pass through unchanged.
+    """
+    resolved = template.replace(_WORKSPACE_PLACEHOLDER, workspace_id)
+
+    def _replace_items(match: re.Match[str]) -> str:
+        item_type = match.group(1)
+        display_name = match.group(2)
+        try:
+            return item_id_map[(item_type, display_name)]
+        except KeyError:
+            raise ValueError(
+                f"Unresolved placeholder $items.{item_type}.{display_name}.$id "
+                f"(item not deployed as a dependency, or wrong name/type)"
+            ) from None
+
+    return _ITEMS_PLACEHOLDER.sub(_replace_items, resolved)
+
+
+def apply_substitutions(
+    parts: list[DefinitionPart],
+    rules: tuple[SubstitutionRule, ...],
+    workspace_id: str,
+    item_id_map: dict[tuple[str, str], str],
+) -> list[DefinitionPart]:
+    """Apply all substitution rules to the matching definitionParts[].
+
+    For each part:
+      1. Determine the item type from its path; skip if unknown.
+      2. Skip files whose extension is outside SUBSTITUTABLE_EXTENSIONS
+         (binary safety).
+      3. For each rule whose ``item_types`` includes the part's type,
+         resolve dynamic placeholders in the rule's replace_with value,
+         then perform the find/replace inside the part's payload.
+      4. Re-encode the modified payload back to base64.
+
+    Returns a new list of parts (input parts that weren't modified are
+    passed through by reference; modified parts are new dicts).
+    """
+    if not rules:
+        return parts
+
+    out: list[DefinitionPart] = []
+    for part in parts:
+        path = part["path"]
+        item_type = item_type_of(path)
+        ext = pathlib.Path(path).suffix
+        applicable_rules = [r for r in rules if item_type in r.item_types]
+        if not applicable_rules or ext not in SUBSTITUTABLE_EXTENSIONS:
+            out.append(part)
+            continue
+
+        original_bytes = base64.b64decode(part["payload"])
+        try:
+            text = original_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            # Mismatched extension (e.g., a .json that's actually binary).
+            # Pass through untouched rather than corrupt it.
+            out.append(part)
+            continue
+
+        modified_text = text
+        for rule in applicable_rules:
+            replacement = resolve_dynamic_value(rule.replace_with, workspace_id, item_id_map)
+            modified_text = modified_text.replace(rule.find, replacement)
+
+        if modified_text == text:
+            out.append(part)
+            continue
+
+        new_part: DefinitionPart = {
+            "path": part["path"],
+            "payload": base64.b64encode(modified_text.encode("utf-8")).decode("ascii"),
+            "payloadType": part["payloadType"],
+        }
+        out.append(new_part)
+    return out
+
+
+def resolve_active_value_set(template: str | None, environment: str) -> str | None:
+    """Resolve the $environment placeholder in a value-set name.
+
+    Returns ``None`` when ``template`` is ``None`` (config disabled the
+    activation step). Otherwise returns the literal string with
+    ``$environment`` replaced by the ``environment`` argument.
+    """
+    if template is None:
+        return None
+    return template.replace(_ENVIRONMENT_PLACEHOLDER, environment)
+
+
+def find_variable_library_id(
+    item_id_map: dict[tuple[str, str], str],
+) -> str | None:
+    """Locate the deployed VariableLibrary's item ID.
+
+    Returns ``None`` if no VariableLibrary was deployed. Raises ValueError
+    if multiple are present \u2014 the activation step targets a single library
+    by ID and we do not know which one the caller meant.
+    """
+    matches = [item_id for (t, _), item_id in item_id_map.items() if t == "VariableLibrary"]
+    if not matches:
+        return None
+    if len(matches) > 1:
+        raise ValueError(
+            f"Expected exactly one VariableLibrary, found {len(matches)}; "
+            f"value-set activation requires a single target"
+        )
+    return matches[0]
 
 
 def acquire_token(tenant_id: str, client_id: str, client_secret: str) -> str:
@@ -63,16 +463,13 @@ def acquire_token(tenant_id: str, client_id: str, client_secret: str) -> str:
     )
     if resp.status_code != 200:
         sys.exit(f"::error::Token acquisition failed: HTTP {resp.status_code} {resp.text}")
-    token = resp.json()["access_token"]
-    # Mask the token in workflow logs
-    print(f"::add-mask::{token}")
-    return token
+    return resp.json()["access_token"]
 
 
-def build_definition_parts(repo_dir: pathlib.Path) -> list[dict]:
+def build_definition_parts(repo_dir: pathlib.Path) -> list[DefinitionPart]:
     if not repo_dir.is_dir():
         sys.exit(f"::error::Repository directory not found: {repo_dir}")
-    parts: list[dict] = []
+    parts: list[DefinitionPart] = []
     for f in sorted(repo_dir.rglob("*")):
         if not f.is_file():
             continue
@@ -93,6 +490,24 @@ def build_definition_parts(repo_dir: pathlib.Path) -> list[dict]:
     return parts
 
 
+def _parse_retry_after(raw: str | None) -> int:
+    """Convert a Retry-After header value into a clamped integer.
+
+    Returns the parsed value clamped to ``[POLL_FLOOR_SECONDS, POLL_CEILING_SECONDS]``
+    on success. Falls back to ``POLL_FALLBACK_SECONDS`` (also clamped) when the
+    header is missing or unparseable. Clamping to a ceiling prevents a malformed
+    or pathological response from sleeping past the global polling timeout.
+    """
+    if raw is None:
+        value = POLL_FALLBACK_SECONDS
+    else:
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            value = POLL_FALLBACK_SECONDS
+    return max(POLL_FLOOR_SECONDS, min(value, POLL_CEILING_SECONDS))
+
+
 def poll_lro(
     operation_id: str,
     headers: dict,
@@ -102,7 +517,7 @@ def poll_lro(
     client_secret: str,
 ) -> None:
     base = "https://api.fabric.microsoft.com/v1/operations"
-    retry_after = max(initial_retry_after or POLL_FALLBACK_SECONDS, POLL_FLOOR_SECONDS)
+    retry_after = _parse_retry_after(str(initial_retry_after) if initial_retry_after else None)
     started = time.monotonic()
     poll_count = 0
 
@@ -126,7 +541,7 @@ def poll_lro(
         if resp.status_code != 200:
             sys.exit(f"::error::Poll request failed: HTTP {resp.status_code} {resp.text}")
 
-        body = resp.json()
+        body: LROStatusBody = resp.json()
         status = body.get("status", "Unknown")
         print(f"Poll {poll_count} (t+{int(elapsed)}s): status={status}")
 
@@ -136,14 +551,12 @@ def poll_lro(
             print(json.dumps(body, indent=2))
             sys.exit(f"::error::LRO ended with status: {status}")
 
-        # NotStarted or Running — keep polling. Honor Retry-After if present.
-        retry_after = max(
-            int(resp.headers.get("Retry-After", POLL_FALLBACK_SECONDS)),
-            POLL_FLOOR_SECONDS,
-        )
+        # NotStarted or Running — keep polling. Honor Retry-After if present
+        # but clamp it so a pathological value can't bypass the global timeout.
+        retry_after = _parse_retry_after(resp.headers.get("Retry-After"))
 
 
-def check_per_item_status(result: dict) -> None:
+def check_per_item_status(result: BulkResponseBody) -> None:
     details = result.get("importItemDefinitionsDetails", [])
     print(json.dumps(result, indent=2))
     if not details:
@@ -166,7 +579,7 @@ def check_per_item_status(result: dict) -> None:
 
 def interpret_post_response(
     status_code: int,
-    body: dict,
+    body: BulkResponseBody,
     headers: dict,
 ) -> tuple[str, ...]:
     """Pure decision function for a bulk-import POST response.
@@ -190,9 +603,107 @@ def interpret_post_response(
         operation_id = headers.get("x-ms-operation-id")
         if not operation_id:
             return ("missing_op_id",)
-        retry_after = int(headers.get("Retry-After", POLL_FALLBACK_SECONDS))
+        retry_after = _parse_retry_after(headers.get("Retry-After"))
         return ("async", operation_id, retry_after)
     return ("error", status_code)
+
+
+def activate_variable_library_value_set(
+    workspace_id: str,
+    library_id: str,
+    value_set_name: str,
+    headers: dict,
+) -> None:
+    """Set the active value set on a deployed VariableLibrary.
+
+    PATCH /v1/workspaces/{ws}/variableLibraries/{id}
+    Body: {"properties": {"activeValueSetName": <name>}}
+
+    Reference:
+    https://learn.microsoft.com/en-us/rest/api/fabric/variablelibrary/items/update-variable-library
+
+    Fails loudly on any non-200 response \u2014 a misconfigured value set is a
+    deploy correctness issue, not a transient one.
+    """
+    url = (
+        f"https://api.fabric.microsoft.com/v1/workspaces/{workspace_id}"
+        f"/variableLibraries/{library_id}"
+    )
+    body = {"properties": {"activeValueSetName": value_set_name}}
+    print(f"PATCH {url} (active value set: {value_set_name!r})")
+    resp = requests.patch(url, headers=headers, json=body, timeout=30)
+    if resp.status_code != 200:
+        sys.exit(
+            f"::error::Failed to set active value set on VariableLibrary "
+            f"{library_id}: HTTP {resp.status_code} {resp.text}"
+        )
+    print(f"VariableLibrary {library_id} active value set is now {value_set_name!r}")
+
+
+def post_bulk(
+    parts: list[DefinitionPart],
+    workspace_id: str,
+    headers: dict,
+    tenant_id: str,
+    client_id: str,
+    client_secret: str,
+    label: str,
+) -> BulkResponseBody:
+    """POST one bulkImportDefinitions request and return the result body.
+
+    Handles both the synchronous (200) and asynchronous (202 + LRO) response
+    paths transparently. Calls ``check_per_item_status`` on the result so
+    per-item failures fail the deploy loudly. Returns the result body on
+    success so callers can chain (e.g. extract item IDs from one POST and
+    substitute them into the next).
+
+    ``label`` is a human-readable tag (e.g. "dependencies", "all items")
+    used only in log lines.
+    """
+    request_body = {
+        "definitionParts": parts,
+        "options": {"allowPairingByName": False},
+    }
+    api_url = (
+        f"https://api.fabric.microsoft.com/v1/workspaces/{workspace_id}"
+        f"/items/bulkImportDefinitions?beta=true"
+    )
+    print(f"POST {api_url} ({label}: {len(parts)} parts)")
+
+    post_resp = requests.post(api_url, headers=headers, json=request_body, timeout=120)
+    body = post_resp.json() if post_resp.status_code == 200 else {}
+    action = interpret_post_response(post_resp.status_code, body, post_resp.headers)
+
+    if action[0] == "sync":
+        result = action[1]
+    elif action[0] == "async":
+        _, operation_id, initial_retry = action
+        print(
+            f"202 Accepted ({label}), operation_id={operation_id}, "
+            f"initial Retry-After={initial_retry}s"
+        )
+        poll_lro(operation_id, headers, initial_retry, tenant_id, client_id, client_secret)
+        result_resp = requests.get(
+            f"https://api.fabric.microsoft.com/v1/operations/{operation_id}/result",
+            headers=headers,
+            timeout=30,
+        )
+        if result_resp.status_code != 200:
+            sys.exit(
+                f"::error::Failed to fetch operation result ({label}): "
+                f"HTTP {result_resp.status_code} {result_resp.text}"
+            )
+        result = result_resp.json()
+    elif action[0] == "missing_op_id":
+        sys.exit(f"::error::202 response missing x-ms-operation-id header ({label})")
+    else:
+        sys.exit(
+            f"::error::Bulk import POST failed ({label}): "
+            f"HTTP {post_resp.status_code} {post_resp.text}"
+        )
+
+    check_per_item_status(result)
+    return result
 
 
 def main() -> None:
@@ -201,60 +712,94 @@ def main() -> None:
     client_secret = os.environ["AZURE_CLIENT_SECRET"]
     workspace_id = os.environ["FABRIC_WORKSPACE_ID"]
     repo_dir = pathlib.Path(os.environ["REPOSITORY_DIRECTORY"]).resolve()
+    environment = os.environ.get("ENVIRONMENT", "")
 
     token = acquire_token(tenant_id, client_id, client_secret)
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
     parts = build_definition_parts(repo_dir)
-    print(f"Built request body with {len(parts)} definition parts from {repo_dir}")
+    print(f"Built {len(parts)} definition parts from {repo_dir}")
 
-    request_body = {
-        "definitionParts": parts,
-        "options": {"allowPairingByName": False},
-    }
-
-    # Endpoint URL per the API reference page (the tutorial's URL is wrong).
-    # https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions(beta)
-    api_url = (
-        f"https://api.fabric.microsoft.com/v1/workspaces/{workspace_id}"
-        f"/items/bulkImportDefinitions?beta=true"
-    )
-    print(f"POST {api_url}")
-
-    post_resp = requests.post(api_url, headers=headers, json=request_body, timeout=120)
-    body = post_resp.json() if post_resp.status_code == 200 else {}
-    action = interpret_post_response(post_resp.status_code, body, post_resp.headers)
-
-    if action[0] == "sync":
-        # Result is in the response body directly.
-        check_per_item_status(action[1])
-        sys.exit(0)
-
-    if action[0] == "async":
-        _, operation_id, initial_retry = action
-        print(f"202 Accepted, operation_id={operation_id}, initial Retry-After={initial_retry}s")
-
-        poll_lro(operation_id, headers, initial_retry, tenant_id, client_id, client_secret)
-
-        result_resp = requests.get(
-            f"https://api.fabric.microsoft.com/v1/operations/{operation_id}/result",
-            headers=headers,
-            timeout=30,
+    config_path = repo_dir / BULK_PARAMETER_FILENAME
+    config = load_bulk_config(config_path)
+    if config.substitutions:
+        print(
+            f"Loaded {len(config.substitutions)} substitution rule(s) from {config_path}"
         )
-        if result_resp.status_code != 200:
+    elif not config_path.exists():
+        print(
+            f"No {BULK_PARAMETER_FILENAME} at {config_path}; "
+            f"bulk deploy will use a single POST with no substitutions"
+        )
+    else:
+        print(
+            f"{config_path} exists but defines no substitution rules; "
+            f"bulk deploy will use a single POST with no substitutions"
+        )
+
+    # Decide single-deploy vs. two-deploy. We only need to deploy the
+    # dependency types separately when at least one rule references their
+    # IDs via $items.<Type>.<Name>.$id; otherwise a single POST is enough.
+    needs_two_deploy = any("$items." in r.replace_with for r in config.substitutions)
+
+    if not needs_two_deploy:
+        # Apply $workspace.$id-only substitutions if any, then single POST.
+        substituted = apply_substitutions(parts, config.substitutions, workspace_id, {})
+        result = post_bulk(
+            substituted, workspace_id, headers,
+            tenant_id, client_id, client_secret, label="all items",
+        )
+        item_id_map = extract_item_ids(result)
+    else:
+        # Two-deploy flow: dependencies first, then the rest with substituted IDs.
+        dependencies, remaining = partition_dependencies(parts)
+        print(
+            f"Two-deploy flow: {len(dependencies)} dependency parts "
+            f"({', '.join(DEPENDENCY_TYPES)}), {len(remaining)} remaining parts"
+        )
+
+        if not dependencies:
             sys.exit(
-                f"::error::Failed to fetch operation result: "
-                f"HTTP {result_resp.status_code} {result_resp.text}"
+                f"::error::Substitution rules reference $items.<Type>.<Name>.$id "
+                f"but no items of dependency types {DEPENDENCY_TYPES} were found "
+                f"in {repo_dir}"
             )
-        check_per_item_status(result_resp.json())
-        sys.exit(0)
 
-    if action[0] == "missing_op_id":
-        sys.exit("::error::202 response missing x-ms-operation-id header")
+        deps_result = post_bulk(
+            dependencies, workspace_id, headers,
+            tenant_id, client_id, client_secret, label="dependencies",
+        )
+        item_id_map = extract_item_ids(deps_result)
+        print(f"Captured {len(item_id_map)} dependency item ID(s) for substitution")
 
-    sys.exit(
-        f"::error::Bulk import POST failed: HTTP {post_resp.status_code} {post_resp.text}"
+        substituted_remaining = apply_substitutions(
+            remaining, config.substitutions, workspace_id, item_id_map,
+        )
+        remaining_result = post_bulk(
+            substituted_remaining, workspace_id, headers,
+            tenant_id, client_id, client_secret, label="remaining items",
+        )
+        item_id_map.update(extract_item_ids(remaining_result))
+
+    # Post-deploy: VariableLibrary value-set activation. The bulk API has no
+    # equivalent of fabric-cicd's environment-driven value-set selection, so
+    # we make the PATCH call ourselves.
+    active_value_set = resolve_active_value_set(
+        config.variable_library.active_value_set, environment
     )
+    if active_value_set:
+        library_id = find_variable_library_id(item_id_map)
+        if library_id is None:
+            print(
+                f"::warning::bulk-parameter.yml requests value-set activation "
+                f"({active_value_set!r}) but no VariableLibrary was deployed; skipping"
+            )
+        else:
+            activate_variable_library_value_set(
+                workspace_id, library_id, active_value_set, headers,
+            )
+
+    sys.exit(0)
 
 
 if __name__ == "__main__":

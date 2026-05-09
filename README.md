@@ -57,7 +57,8 @@ Branch protection (PR required, source-branch restrictions, status checks) is en
 | Document | Description |
 |---|---|
 | [CI/CD Release Options](fabric-cicd-release-options.md) | Evaluates all CI/CD release options for Fabric (Deployment Pipelines, Git-based, Build-based, Hybrid) and recommends the Hybrid approach. Includes a [comparison of fabric-cicd vs the new Bulk Import / Export APIs](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) (Preview) within Option 3. **Start here** if you're deciding on a strategy. |
-| [Hybrid CI/CD Implementation Guide](fabric-hybrid-cicd-guide.md) | Deep dive into the implementation: workflow structure, configuration strategy, prerequisites, setup steps, and gotchas. |
+| [Hybrid CI/CD Implementation Guide](fabric-hybrid-cicd-guide.md) | Deep dive into the recommended fabric-cicd implementation: workflow structure, configuration strategy, prerequisites, setup steps, and gotchas. |
+| [Bulk CI/CD Implementation Guide](fabric-bulk-cicd-guide.md) | Implementation guide for the alternative Bulk Import API (Preview) deploy path. Covers the gap-bridging workarounds (substitution, value-set activation), the two-deploy decision, extension patterns, and limitations not bridged. |
 | [Development Process](fabric-development-process.md) | How developers work day-to-day: branch-out workflow, the workspace swap script, and PR readiness check. |
 | [CI/CD Governance Considerations](fabric-cicd-governance-considerations.md) | Considerations on identities, RBAC, branch protection, and approval gates for the CI/CD pipeline. Includes pointers to adjacent controls owned outside the pipeline (security/compliance topics). |
 

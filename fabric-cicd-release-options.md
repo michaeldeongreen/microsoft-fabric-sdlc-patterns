@@ -260,12 +260,19 @@ Both implementations sit inside Option 3 — branch per stage, build environment
 | Dimension | fabric-cicd | Bulk Import / Export APIs |
 |---|---|---|
 | **Maturity** | GA | Preview (`?beta=true` query parameter required) |
-| **Environment-specific config** | `parameter.yml` (declarative `find_replace`, `key_value_replace`, `$items` resolution) | None — caller must preprocess files or rely entirely on Variable Libraries + logical IDs |
+| **Environment-specific config** | `parameter.yml` (declarative `find_replace`, `key_value_replace`, `$items` resolution) | None at the API level — caller must preprocess files or rely entirely on Variable Libraries + logical IDs. *This repo demonstrates one way to bridge the gap in caller code (see note below the table).* |
 | **Orphan cleanup** | `unpublish_all_orphan_items()` built in | None — API only supports Create / Update; deletes are caller's responsibility |
 | **Dependency ordering** | Caller phases manually (e.g., Lakehouse + Ontology first, then everything else) | Service resolves automatically in a single call |
 | **Long-running operations** | Hidden by the library | When the call returns `202 Accepted`, the caller polls `/operations/{id}` and then `/operations/{id}/result` explicitly. Sync `200 OK` returns the result body directly with no polling needed. |
 | **API call shape** | Many per-item REST calls | One POST for the entire workspace payload |
 | **Service principal coverage** | Per item — an unsupported item type fails only that item | Per request — service principals are supported only when *every* item in the payload supports service principals |
+
+> **Note on the gaps in this repo.** The Bulk Import API gaps above are properties of the API itself — Microsoft has not added these capabilities. This repo implements two of them in caller code so the demo works end-to-end:
+>
+> - **Substitution:** `data/fabric/bulk-parameter.yml` + `scripts/deploy_bulk.py` apply find/replace and `$items.<Type>.<Name>.$id` resolution between two POSTs (dependencies first, then the rest).
+> - **VariableLibrary value-set activation:** A post-deploy `PATCH /v1/workspaces/{ws}/variableLibraries/{id}` call sets the active value set per environment.
+>
+> Both are workarounds, not platform fixes. Orphan cleanup, the broader fabric-cicd feature surface (`key_value_replace`, `spark_pool`, `semantic_model_binding`), and per-item service principal coverage remain unimplemented in this repo's bulk path. If you go with bulk in your own project, you take on the same caller-side work. See the [Bulk CI/CD Implementation Guide](fabric-bulk-cicd-guide.md) for the full implementation walkthrough.
 
 **When to choose fabric-cicd:**
 - You want environment-specific configuration handled declaratively
@@ -279,7 +286,7 @@ Both implementations sit inside Option 3 — branch per stage, build environment
 - You're moving large numbers of items and want fewer round trips
 - You need a workspace-level export (e.g., for disaster-recovery snapshots) that the Bulk Export API provides
 
-Recommendation today: fabric-cicd. The Bulk APIs are an exciting direction and worth tracking, but in their current Preview state the missing parameterization layer and lack of orphan cleanup mean the caller has to rebuild capabilities the library already provides. Re-evaluate when (a) the APIs exit Preview and (b) Microsoft adds a parameterization story, or when your repo has already been refactored so that those capabilities aren't needed.
+Recommendation today: fabric-cicd. The Bulk APIs are still in Preview and have no parameterization or orphan-cleanup story at the API level — the caller must implement substitution, value-set activation, and any delete logic themselves. fabric-cicd already provides these capabilities, maintained by Microsoft. This repo's bulk path shows that bridging is feasible and what it costs (~600 lines of Python + a config file), but choosing bulk means you own that bridging code. Re-evaluate when (a) the APIs exit Preview and (b) Microsoft adds parameterization and orphan-cleanup at the API level, or when your repo's shape doesn't need those capabilities to begin with.
 
 > This repository demonstrates both. The fabric-cicd workflows are the recommended path; the Bulk API workflows are included alongside them for evaluation. A `DEPLOY_METHOD` repository variable selects which implementation runs. See the [README quick start](README.md#quick-start) for how to switch.
 

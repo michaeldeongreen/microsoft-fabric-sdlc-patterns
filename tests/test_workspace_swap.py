@@ -436,40 +436,17 @@ class TestReadEnvFile:
 
 @pytest.mark.usefixtures("_patch_paths")
 class TestResolveFeatureIds:
-    """Priority order: existing value set -> .env -> interactive prompt."""
+    """Source of truth: .env at repo root. Missing/blank → exit with error."""
 
     def _vs_path(self, fabric_dir: Path) -> Path:
         return fabric_dir / "Patterns_Variables.VariableLibrary" / "valueSets" / "feat.json"
-
-    def _write_value_set(self, path: Path, ws_id: str, lh_id: str) -> None:
-        path.write_text(json.dumps({
-            "name": "feat",
-            "variableOverrides": [
-                {"name": "target_workspace_id", "value": ws_id},
-                {"name": "target_lakehouse_id", "value": lh_id},
-            ],
-        }), encoding="utf-8")
 
     def _write_env(self, fabric_dir: Path, content: str) -> None:
         # ENV_FILE = REPO_ROOT / ".env"; in the test fixture REPO_ROOT == tmp_path
         env_path = fabric_dir.parent.parent / ".env"
         env_path.write_text(content, encoding="utf-8")
 
-    def test_value_set_takes_priority(self, fabric_dir: Path):
-        from workspace_swap import resolve_feature_ids
-        vs_path = self._vs_path(fabric_dir)
-        self._write_value_set(vs_path, FEAT_WS_ID, FEAT_LH_ID)
-        # Even with an .env present pointing elsewhere, value set wins.
-        self._write_env(
-            fabric_dir,
-            f"FEATURE_WORKSPACE_ID=99999999-9999-9999-9999-999999999999\n"
-            f"FEATURE_LAKEHOUSE_ID=88888888-8888-8888-8888-888888888888\n",
-        )
-        ws_id, lh_id = resolve_feature_ids("feat", vs_path)
-        assert ws_id == FEAT_WS_ID
-        assert lh_id == FEAT_LH_ID
-
-    def test_env_file_used_when_no_value_set(self, fabric_dir: Path):
+    def test_env_file_resolves_ids(self, fabric_dir: Path):
         from workspace_swap import resolve_feature_ids
         vs_path = self._vs_path(fabric_dir)
         self._write_env(
@@ -480,51 +457,84 @@ class TestResolveFeatureIds:
         assert ws_id == FEAT_WS_ID
         assert lh_id == FEAT_LH_ID
 
-    def test_value_set_with_partial_data_falls_through_to_env(self, fabric_dir: Path):
+    def test_env_takes_precedence_over_existing_value_set(self, fabric_dir: Path):
+        """A pre-existing value set must NOT override .env. Stale value sets
+        were the cause of a wrong-workspace swap before this change."""
         from workspace_swap import resolve_feature_ids
         vs_path = self._vs_path(fabric_dir)
-        # Only target_workspace_id, no target_lakehouse_id
+        vs_path.parent.mkdir(parents=True, exist_ok=True)
         vs_path.write_text(json.dumps({
             "name": "feat",
             "variableOverrides": [
-                {"name": "target_workspace_id", "value": FEAT_WS_ID},
+                {"name": "target_workspace_id", "value": "99999999-9999-9999-9999-999999999999"},
+                {"name": "target_lakehouse_id", "value": "88888888-8888-8888-8888-888888888888"},
             ],
         }), encoding="utf-8")
         self._write_env(
             fabric_dir,
-            f"FEATURE_WORKSPACE_ID=99999999-9999-9999-9999-999999999999\n"
-            f"FEATURE_LAKEHOUSE_ID={FEAT_LH_ID}\n",
+            f"FEATURE_WORKSPACE_ID={FEAT_WS_ID}\nFEATURE_LAKEHOUSE_ID={FEAT_LH_ID}\n",
         )
         ws_id, lh_id = resolve_feature_ids("feat", vs_path)
-        # Falls through to .env, so .env values are returned (not partial value set)
-        assert ws_id == "99999999-9999-9999-9999-999999999999"
-        assert lh_id == FEAT_LH_ID
-
-    def test_no_value_set_no_env_prompts(self, fabric_dir: Path):
-        from workspace_swap import resolve_feature_ids
-        vs_path = self._vs_path(fabric_dir)
-        with patch("builtins.input", side_effect=[FEAT_WS_ID, FEAT_LH_ID]):
-            ws_id, lh_id = resolve_feature_ids("feat", vs_path)
         assert ws_id == FEAT_WS_ID
         assert lh_id == FEAT_LH_ID
 
-    def test_env_missing_workspace_key_falls_through_to_prompt(self, fabric_dir: Path):
+    def test_no_env_file_exits(self, fabric_dir: Path):
+        from workspace_swap import resolve_feature_ids
+        vs_path = self._vs_path(fabric_dir)
+        # No .env created.
+        with pytest.raises(SystemExit) as exc:
+            resolve_feature_ids("feat", vs_path)
+        assert ".env" in str(exc.value)
+
+    def test_env_missing_workspace_key_exits(self, fabric_dir: Path):
         from workspace_swap import resolve_feature_ids
         vs_path = self._vs_path(fabric_dir)
         self._write_env(fabric_dir, f"FEATURE_LAKEHOUSE_ID={FEAT_LH_ID}\n")
-        with patch("builtins.input", side_effect=[FEAT_WS_ID, FEAT_LH_ID]):
-            ws_id, lh_id = resolve_feature_ids("feat", vs_path)
-        assert ws_id == FEAT_WS_ID
-        assert lh_id == FEAT_LH_ID
+        with pytest.raises(SystemExit) as exc:
+            resolve_feature_ids("feat", vs_path)
+        assert "FEATURE_WORKSPACE_ID" in str(exc.value)
 
-    def test_env_missing_lakehouse_key_falls_through_to_prompt(self, fabric_dir: Path):
+    def test_env_missing_lakehouse_key_exits(self, fabric_dir: Path):
         from workspace_swap import resolve_feature_ids
         vs_path = self._vs_path(fabric_dir)
         self._write_env(fabric_dir, f"FEATURE_WORKSPACE_ID={FEAT_WS_ID}\n")
-        with patch("builtins.input", side_effect=[FEAT_WS_ID, FEAT_LH_ID]):
-            ws_id, lh_id = resolve_feature_ids("feat", vs_path)
-        assert ws_id == FEAT_WS_ID
-        assert lh_id == FEAT_LH_ID
+        with pytest.raises(SystemExit) as exc:
+            resolve_feature_ids("feat", vs_path)
+        assert "FEATURE_LAKEHOUSE_ID" in str(exc.value)
+
+    def test_env_blank_workspace_value_exits(self, fabric_dir: Path):
+        from workspace_swap import resolve_feature_ids
+        vs_path = self._vs_path(fabric_dir)
+        self._write_env(
+            fabric_dir,
+            f"FEATURE_WORKSPACE_ID=\nFEATURE_LAKEHOUSE_ID={FEAT_LH_ID}\n",
+        )
+        with pytest.raises(SystemExit) as exc:
+            resolve_feature_ids("feat", vs_path)
+        assert "FEATURE_WORKSPACE_ID" in str(exc.value)
+
+    def test_env_blank_lakehouse_value_exits(self, fabric_dir: Path):
+        from workspace_swap import resolve_feature_ids
+        vs_path = self._vs_path(fabric_dir)
+        self._write_env(
+            fabric_dir,
+            f"FEATURE_WORKSPACE_ID={FEAT_WS_ID}\nFEATURE_LAKEHOUSE_ID=\n",
+        )
+        with pytest.raises(SystemExit) as exc:
+            resolve_feature_ids("feat", vs_path)
+        assert "FEATURE_LAKEHOUSE_ID" in str(exc.value)
+
+    def test_env_whitespace_only_value_exits(self, fabric_dir: Path):
+        from workspace_swap import resolve_feature_ids
+        vs_path = self._vs_path(fabric_dir)
+        self._write_env(
+            fabric_dir,
+            'FEATURE_WORKSPACE_ID="   "\n'
+            f'FEATURE_LAKEHOUSE_ID="{FEAT_LH_ID}"\n',
+        )
+        with pytest.raises(SystemExit) as exc:
+            resolve_feature_ids("feat", vs_path)
+        assert "FEATURE_WORKSPACE_ID" in str(exc.value)
 
     def test_env_invalid_guid_exits(self, fabric_dir: Path):
         from workspace_swap import resolve_feature_ids
@@ -537,54 +547,107 @@ class TestResolveFeatureIds:
         with pytest.raises(SystemExit):
             resolve_feature_ids("feat", vs_path)
 
-    def test_env_empty_workspace_value_falls_through_to_prompt(self, fabric_dir: Path):
-        from workspace_swap import resolve_feature_ids
-        vs_path = self._vs_path(fabric_dir)
-        self._write_env(
-            fabric_dir,
-            f"FEATURE_WORKSPACE_ID=\nFEATURE_LAKEHOUSE_ID={FEAT_LH_ID}\n",
-        )
-        with patch("builtins.input", side_effect=[FEAT_WS_ID, FEAT_LH_ID]):
-            ws_id, lh_id = resolve_feature_ids("feat", vs_path)
+
+# ── _confirm_swap_to_feature ──────────────────────────────────────────────
+
+class TestConfirmSwapToFeature:
+    """Confirmation gating before any files are rewritten by swap-to-feature."""
+
+    def test_yes_uppercase_proceeds(self):
+        from workspace_swap import _confirm_swap_to_feature
+        with patch("builtins.input", return_value="YES"):
+            # Should return without raising.
+            _confirm_swap_to_feature("feat", DEV_WS_ID, DEV_LH_ID, FEAT_WS_ID, FEAT_LH_ID)
+
+    def test_yes_lowercase_aborts(self):
+        from workspace_swap import _confirm_swap_to_feature
+        with patch("builtins.input", return_value="yes"):
+            with pytest.raises(SystemExit) as exc:
+                _confirm_swap_to_feature("feat", DEV_WS_ID, DEV_LH_ID, FEAT_WS_ID, FEAT_LH_ID)
+        assert "Aborted" in str(exc.value)
+
+    def test_y_aborts(self):
+        from workspace_swap import _confirm_swap_to_feature
+        with patch("builtins.input", return_value="y"):
+            with pytest.raises(SystemExit) as exc:
+                _confirm_swap_to_feature("feat", DEV_WS_ID, DEV_LH_ID, FEAT_WS_ID, FEAT_LH_ID)
+        assert "Aborted" in str(exc.value)
+
+    def test_blank_aborts(self):
+        from workspace_swap import _confirm_swap_to_feature
+        with patch("builtins.input", return_value=""):
+            with pytest.raises(SystemExit) as exc:
+                _confirm_swap_to_feature("feat", DEV_WS_ID, DEV_LH_ID, FEAT_WS_ID, FEAT_LH_ID)
+        assert "Aborted" in str(exc.value)
+
+    def test_eof_aborts(self):
+        from workspace_swap import _confirm_swap_to_feature
+        with patch("builtins.input", side_effect=EOFError):
+            with pytest.raises(SystemExit) as exc:
+                _confirm_swap_to_feature("feat", DEV_WS_ID, DEV_LH_ID, FEAT_WS_ID, FEAT_LH_ID)
+        assert "Aborted" in str(exc.value)
+
+    def test_yes_with_surrounding_whitespace_proceeds(self):
+        """input().strip() removes surrounding whitespace; case still matters."""
+        from workspace_swap import _confirm_swap_to_feature
+        with patch("builtins.input", return_value="  YES  "):
+            _confirm_swap_to_feature("feat", DEV_WS_ID, DEV_LH_ID, FEAT_WS_ID, FEAT_LH_ID)
+
+    def test_planned_swap_is_displayed(self, capsys: pytest.CaptureFixture):
+        """User must see the planned IDs before being asked to confirm."""
+        from workspace_swap import _confirm_swap_to_feature
+        with patch("builtins.input", return_value="YES"):
+            _confirm_swap_to_feature("my-branch", DEV_WS_ID, DEV_LH_ID, FEAT_WS_ID, FEAT_LH_ID)
+        out = capsys.readouterr().out
+        assert "my-branch" in out
+        assert DEV_WS_ID in out
+        assert FEAT_WS_ID in out
+        assert DEV_LH_ID in out
+        assert FEAT_LH_ID in out
+
+
+# ── _read_previous_feature_ids ────────────────────────────────────────────
+
+class TestReadPreviousFeatureIds:
+    """Recovery support: read the IDs a previous swap applied so the next
+    swap can rewrite them if .env has changed."""
+
+    def test_returns_none_when_value_set_missing(self, tmp_path: Path):
+        from workspace_swap import _read_previous_feature_ids
+        ws_id, lh_id = _read_previous_feature_ids(tmp_path / "missing.json")
+        assert ws_id is None
+        assert lh_id is None
+
+    def test_reads_both_ids_from_value_set(self, tmp_path: Path):
+        from workspace_swap import _read_previous_feature_ids
+        path = tmp_path / "feat.json"
+        path.write_text(json.dumps({
+            "name": "feat",
+            "variableOverrides": [
+                {"name": "target_workspace_id", "value": FEAT_WS_ID},
+                {"name": "target_lakehouse_id", "value": FEAT_LH_ID},
+            ],
+        }), encoding="utf-8")
+        ws_id, lh_id = _read_previous_feature_ids(path)
         assert ws_id == FEAT_WS_ID
         assert lh_id == FEAT_LH_ID
 
-    def test_env_empty_lakehouse_value_falls_through_to_prompt(self, fabric_dir: Path):
-        from workspace_swap import resolve_feature_ids
-        vs_path = self._vs_path(fabric_dir)
-        self._write_env(
-            fabric_dir,
-            f"FEATURE_WORKSPACE_ID={FEAT_WS_ID}\nFEATURE_LAKEHOUSE_ID=\n",
-        )
-        with patch("builtins.input", side_effect=[FEAT_WS_ID, FEAT_LH_ID]):
-            ws_id, lh_id = resolve_feature_ids("feat", vs_path)
-        assert ws_id == FEAT_WS_ID
-        assert lh_id == FEAT_LH_ID
+    def test_returns_none_for_missing_overrides(self, tmp_path: Path):
+        from workspace_swap import _read_previous_feature_ids
+        path = tmp_path / "feat.json"
+        path.write_text(json.dumps({"name": "feat", "variableOverrides": []}), encoding="utf-8")
+        ws_id, lh_id = _read_previous_feature_ids(path)
+        assert ws_id is None
+        assert lh_id is None
 
-    def test_env_both_empty_values_falls_through_to_prompt(self, fabric_dir: Path):
-        from workspace_swap import resolve_feature_ids
-        vs_path = self._vs_path(fabric_dir)
-        self._write_env(
-            fabric_dir,
-            "FEATURE_WORKSPACE_ID=\nFEATURE_LAKEHOUSE_ID=\n",
-        )
-        with patch("builtins.input", side_effect=[FEAT_WS_ID, FEAT_LH_ID]):
-            ws_id, lh_id = resolve_feature_ids("feat", vs_path)
-        assert ws_id == FEAT_WS_ID
-        assert lh_id == FEAT_LH_ID
-
-    def test_env_whitespace_only_value_falls_through_to_prompt(self, fabric_dir: Path):
-        from workspace_swap import resolve_feature_ids
-        vs_path = self._vs_path(fabric_dir)
-        self._write_env(
-            fabric_dir,
-            'FEATURE_WORKSPACE_ID="   "\n'
-            f'FEATURE_LAKEHOUSE_ID="{FEAT_LH_ID}"\n',
-        )
-        with patch("builtins.input", side_effect=[FEAT_WS_ID, FEAT_LH_ID]):
-            ws_id, lh_id = resolve_feature_ids("feat", vs_path)
-        assert ws_id == FEAT_WS_ID
-        assert lh_id == FEAT_LH_ID
+    def test_returns_none_when_value_set_malformed(self, tmp_path: Path):
+        """A corrupt or non-JSON value-set file shouldn't crash the swap."""
+        from workspace_swap import _read_previous_feature_ids
+        path = tmp_path / "feat.json"
+        path.write_text("not valid json", encoding="utf-8")
+        ws_id, lh_id = _read_previous_feature_ids(path)
+        assert ws_id is None
+        assert lh_id is None
 
 
 # ── _validate_guid ────────────────────────────────────────────────────────
@@ -660,7 +723,8 @@ class TestMainBranchGuard:
     def test_feature_branch_does_not_exit_early(self, monkeypatch, fabric_dir: Path):
         """Branch guard must not block feature branches. We let main() proceed
         as far as resolve_feature_ids, where we feed it a valid .env so the
-        full flow completes without prompting."""
+        full flow completes. The confirmation prompt is auto-answered with
+        YES."""
         import workspace_swap
         env_path = fabric_dir.parent.parent / ".env"
         env_path.write_text(
@@ -670,7 +734,8 @@ class TestMainBranchGuard:
         monkeypatch.setattr(sys, "argv", ["workspace_swap.py"])
         monkeypatch.setattr(workspace_swap, "get_current_branch", lambda: "feature/safe")
         # No SystemExit expected
-        workspace_swap.main()
+        with patch("builtins.input", return_value="YES"):
+            workspace_swap.main()
         # Side effect: value set was created
         vs_path = (
             fabric_dir / "Patterns_Variables.VariableLibrary"
@@ -700,7 +765,8 @@ class TestRunSwapToFeature:
         from workspace_swap import _run_swap_to_feature, load_json, SETTINGS_FILE
         self._write_env(fabric_dir, FEAT_WS_ID, FEAT_LH_ID)
         vs_path = self._vs_path(fabric_dir, "feat")
-        _run_swap_to_feature("feat", "feat", vs_path, DEV_WS_ID, DEV_LH_ID, dry_run=False)
+        with patch("builtins.input", return_value="YES"):
+            _run_swap_to_feature("feat", "feat", vs_path, DEV_WS_ID, DEV_LH_ID, dry_run=False)
 
         # Value set written with correct overrides
         assert vs_path.exists()
@@ -736,7 +802,8 @@ class TestRunSwapToFeature:
         # Same workspace ID, different lakehouse
         self._write_env(fabric_dir, DEV_WS_ID, FEAT_LH_ID)
         vs_path = self._vs_path(fabric_dir, "feat")
-        _run_swap_to_feature("feat", "feat", vs_path, DEV_WS_ID, DEV_LH_ID, dry_run=False)
+        with patch("builtins.input", return_value="YES"):
+            _run_swap_to_feature("feat", "feat", vs_path, DEV_WS_ID, DEV_LH_ID, dry_run=False)
         assert vs_path.exists()
 
     def test_dry_run_makes_no_changes(self, fabric_dir: Path):
@@ -753,19 +820,82 @@ class TestRunSwapToFeature:
         assert sm_file.read_text(encoding="utf-8") == original_sm
         assert load_json(SETTINGS_FILE) == original_settings
 
+    def test_dry_run_skips_confirmation(self, fabric_dir: Path):
+        """--dry-run is the verification step; no confirmation prompt."""
+        from workspace_swap import _run_swap_to_feature
+        self._write_env(fabric_dir, FEAT_WS_ID, FEAT_LH_ID)
+        vs_path = self._vs_path(fabric_dir, "feat")
+        # If the prompt fired, input() would be called and raise OSError
+        # under pytest's stdin capture. The fact that this passes without
+        # patching input() proves dry-run skips confirmation.
+        _run_swap_to_feature("feat", "feat", vs_path, DEV_WS_ID, DEV_LH_ID, dry_run=True)
+
     def test_idempotent_swap_to_feature(self, fabric_dir: Path):
         """Running swap-to-feature twice on the same branch must not error or
         duplicate state."""
         from workspace_swap import _run_swap_to_feature, load_json, SETTINGS_FILE
         self._write_env(fabric_dir, FEAT_WS_ID, FEAT_LH_ID)
         vs_path = self._vs_path(fabric_dir, "feat")
-        _run_swap_to_feature("feat", "feat", vs_path, DEV_WS_ID, DEV_LH_ID, dry_run=False)
-        # Second run: value set already exists, items already repointed
-        _run_swap_to_feature("feat", "feat", vs_path, DEV_WS_ID, DEV_LH_ID, dry_run=False)
+        with patch("builtins.input", return_value="YES"):
+            _run_swap_to_feature("feat", "feat", vs_path, DEV_WS_ID, DEV_LH_ID, dry_run=False)
+            # Second run: value set already exists, items already repointed
+            _run_swap_to_feature("feat", "feat", vs_path, DEV_WS_ID, DEV_LH_ID, dry_run=False)
 
         assert vs_path.exists()
         settings = load_json(SETTINGS_FILE)
         assert settings["valueSetsOrder"].count("feat") == 1
+
+    def test_recovers_from_stale_feature_ids_in_files(self, fabric_dir: Path):
+        """Regression for the wrong-.env scenario: a previous swap applied
+        stale feature IDs; .env now points at the correct workspace; re-running
+        the swap must rewrite the stale IDs to the correct ones (recovery
+        pass), without needing manual cleanup of the SemanticModel/Notebook
+        files."""
+        from workspace_swap import _run_swap_to_feature
+        STALE_WS_ID = "99999999-9999-9999-9999-999999999999"
+        STALE_LH_ID = "88888888-8888-8888-8888-888888888888"
+
+        # First: simulate a prior bad swap by writing the stale IDs into the
+        # value set and the SemanticModel file.
+        self._write_env(fabric_dir, STALE_WS_ID, STALE_LH_ID)
+        vs_path = self._vs_path(fabric_dir, "feat")
+        with patch("builtins.input", return_value="YES"):
+            _run_swap_to_feature("feat", "feat", vs_path, DEV_WS_ID, DEV_LH_ID, dry_run=False)
+
+        sm_file = fabric_dir / "Test.SemanticModel" / "definition" / "expressions.tmdl"
+        assert STALE_WS_ID in sm_file.read_text(encoding="utf-8")
+
+        # Now: correct .env and re-run. Recovery pass should rewrite the
+        # stale IDs even though dev IDs are no longer in the file.
+        self._write_env(fabric_dir, FEAT_WS_ID, FEAT_LH_ID)
+        with patch("builtins.input", return_value="YES"):
+            _run_swap_to_feature("feat", "feat", vs_path, DEV_WS_ID, DEV_LH_ID, dry_run=False)
+
+        content = sm_file.read_text(encoding="utf-8")
+        assert FEAT_WS_ID in content
+        assert FEAT_LH_ID in content
+        assert STALE_WS_ID not in content
+        assert STALE_LH_ID not in content
+
+    def test_no_recovery_pass_when_stale_matches_target(self, fabric_dir: Path):
+        """When the value set already has the target IDs (e.g., a prior run
+        succeeded), the recovery pass must not run \u2014 nothing to recover."""
+        from workspace_swap import _run_swap_to_feature
+        self._write_env(fabric_dir, FEAT_WS_ID, FEAT_LH_ID)
+        vs_path = self._vs_path(fabric_dir, "feat")
+
+        # First run: applies feature IDs cleanly.
+        with patch("builtins.input", return_value="YES"):
+            _run_swap_to_feature("feat", "feat", vs_path, DEV_WS_ID, DEV_LH_ID, dry_run=False)
+
+        # Second run with the same .env: capture stdout to confirm no recovery
+        # log line.
+        with patch("builtins.input", return_value="YES"):
+            with patch("builtins.print") as mock_print:
+                _run_swap_to_feature("feat", "feat", vs_path, DEV_WS_ID, DEV_LH_ID, dry_run=False)
+
+        all_output = " ".join(str(call) for call in mock_print.call_args_list)
+        assert "Recovery:" not in all_output
 
 
 # ── _run_swap_to_dev orchestration ─────────────────────────────────────────────
@@ -789,7 +919,9 @@ class TestRunSwapToDev:
         sm_file = fabric_dir / "Test.SemanticModel" / "definition" / "expressions.tmdl"
         original_sm = sm_file.read_text(encoding="utf-8")
 
-        _run_swap_to_feature("feat", "feat", vs_path, DEV_WS_ID, DEV_LH_ID, dry_run=False)
+        with patch("builtins.input", return_value="YES"):
+            _run_swap_to_feature("feat", "feat", vs_path, DEV_WS_ID, DEV_LH_ID, dry_run=False)
+        # swap-to-dev does not prompt for confirmation.
         _run_swap_to_dev("feat", "feat", vs_path, DEV_WS_ID, DEV_LH_ID, dry_run=False)
 
         # Items reverted to dev IDs
@@ -821,7 +953,8 @@ class TestRunSwapToDev:
         vs_path = self._vs_path(fabric_dir, "feat")
         sm_file = fabric_dir / "Test.SemanticModel" / "definition" / "expressions.tmdl"
         original_sm = sm_file.read_text(encoding="utf-8")
-        _run_swap_to_feature("feat", "feat", vs_path, DEV_WS_ID, DEV_LH_ID, dry_run=False)
+        with patch("builtins.input", return_value="YES"):
+            _run_swap_to_feature("feat", "feat", vs_path, DEV_WS_ID, DEV_LH_ID, dry_run=False)
 
         # Now corrupt the .env (different IDs from what's actually in the items)
         env_path.write_text(

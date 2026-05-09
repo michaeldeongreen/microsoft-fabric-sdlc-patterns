@@ -1,0 +1,33 @@
+# Bulk-deploy substitution rules and post-deploy configuration.
+#
+# This file is read by scripts/deploy_bulk.py to bridge the gaps between the
+# Bulk Import API and what fabric-cicd handles automatically:
+#   - find/replace substitutions (no parameter.yml equivalent in bulk API)
+#   - VariableLibrary active value-set selection (no bulk API equivalent)
+#
+# Format is intentionally distinct from fabric-cicd's parameter.yml — bulk
+# does not (and should not) implement parameter.yml's full DSL. The two
+# config files coexist in this directory: parameter.yml for fabric-cicd,
+# bulk-parameter.yml for bulk. Both are excluded from the bulk request
+# payload by deploy_bulk.py.
+#
+# Dynamic placeholders (resolved at deploy time):
+#   $workspace.$id                    target workspace ID
+#   $items.<Type>.<Name>.$id          ID of an item deployed in phase 1
+#   $environment                      value of the ENVIRONMENT env var (Test/Prod)
+
+substitutions:
+  # Replace dev lakehouse ID in items that reference it.
+  - find: "c185283c-9dd9-4e40-a17c-aa6303e3a2e9"
+    replace_with: "$items.Lakehouse.PatternsLakehouse.$id"
+    item_types: [VariableLibrary, SemanticModel, Notebook]
+
+  # Replace dev workspace ID in items that reference it.
+  - find: "d7270f11-feba-4990-baa6-d45e47f23737"
+    replace_with: "$workspace.$id"
+    item_types: [SemanticModel, Notebook]
+
+variable_library:
+  # Active value-set name to set on the deployed VariableLibrary.
+  # Resolved at deploy time. Set to null to skip activation.
+  active_value_set: "$environment"

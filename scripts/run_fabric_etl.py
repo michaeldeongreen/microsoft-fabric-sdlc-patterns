@@ -23,12 +23,39 @@ from __future__ import annotations
 import os
 import sys
 import time
+from typing import TypedDict
 
 import requests
 from azure.identity import ClientSecretCredential
 
 
-def find_item_id_by_name(items: list[dict], item_name: str) -> str:
+# ----- TypedDicts for the Fabric Items + Jobs API surface --------------------
+#
+# Document the response shapes the script consumes. Not enforced at runtime
+# (TypedDict is purely a type hint) but gives Pylance/mypy the information
+# needed to catch field-name typos.
+
+
+class FabricItem(TypedDict, total=False):
+    """One element of the List Items API ``value`` array.
+
+    Marked ``total=False`` because the API returns additional fields
+    (description, workspaceId, etc.) we don't consume here.
+    """
+
+    id: str
+    displayName: str
+    type: str
+
+
+class JobStatusBody(TypedDict, total=False):
+    """Body of a Fabric Jobs API status poll response."""
+
+    status: str
+    failureReason: str
+
+
+def find_item_id_by_name(items: list[FabricItem], item_name: str) -> str:
     """Return the ID of the item whose displayName matches item_name.
 
     Exits with code 1 if no match is found, printing the available item names
@@ -46,7 +73,7 @@ def find_item_id_by_name(items: list[dict], item_name: str) -> str:
 
 def interpret_poll_response(
     status_code: int,
-    body: dict,
+    body: JobStatusBody,
     headers: dict,
 ) -> tuple[str, ...]:
     """Pure decision function for a job-status poll response.
@@ -103,7 +130,7 @@ def main() -> None:
         print(f"Failed to list items: {list_response.status_code} {list_response.text}")
         sys.exit(1)
 
-    items = list_response.json().get("value", [])
+    items: list[FabricItem] = list_response.json().get("value", [])
     item_id = find_item_id_by_name(items, item_name)
     print(f"Resolved {item_name} -> {item_id}")
 

@@ -1,6 +1,6 @@
 # Reusable workflow: Deploy supported Fabric items via the Bulk Import Item Definitions API (Preview).
 #
-# Alternative deployment path to reusable-deploy-supported.yml. Uses the Fabric
+# Alternative deployment path to reusable-deploy-fabric-cicd.yml. Uses the Fabric
 # REST API's bulk import endpoint instead of the fabric-cicd Python library.
 # Selected at orchestrator level via the DEPLOY_METHOD repository variable.
 #
@@ -14,10 +14,19 @@
 #   - Every item type in the request payload must support service principals
 #     (the bulk API requires SPN support for ALL items in the request, not just some)
 #
-# Known gaps vs. reusable-deploy-supported.yml (fabric-cicd):
-#   - No parameter.yml find_replace / key_value_replace substitution
-#   - No orphan cleanup (Bulk Import API only supports Create/Update, not Delete)
-#   - No item_type_in_scope filter (deploys everything in repository_directory)
+# Known gaps vs. reusable-deploy-fabric-cicd.yml (fabric-cicd):
+#   The Bulk Import API itself has no parameterization, no value-set
+#   activation, and no delete support. This repo bridges the first two in
+#   scripts/deploy_bulk.py + data/fabric/bulk-parameter.yml. The remaining
+#   gaps are intentionally not implemented:
+#   - No full parameter.yml feature coverage. bulk-parameter.yml supports
+#     find_replace + $items + $workspace + $environment placeholders only.
+#     fabric-cicd's key_value_replace, spark_pool, semantic_model_binding
+#     are not implemented here.
+#   - No orphan cleanup. The Bulk Import API only supports Create/Update,
+#     not Delete; deletes would need a separate per-item DELETE call loop.
+#   - No item_type_in_scope filter. Deploys everything under
+#     repository_directory.
 #
 # API references:
 #   - Bulk import: https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions(beta)
@@ -60,7 +69,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install requests
+        run: pip install requests PyYAML
 
       - name: Bulk import item definitions
         env:
@@ -69,4 +78,5 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           FABRIC_WORKSPACE_ID: ${{ secrets.FABRIC_WORKSPACE_ID }}
           REPOSITORY_DIRECTORY: ${{ inputs.repository_directory }}
+          ENVIRONMENT: ${{ inputs.environment }}
         run: python scripts/deploy_bulk.py

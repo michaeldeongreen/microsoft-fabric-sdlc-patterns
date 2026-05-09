@@ -49,6 +49,7 @@ import yaml
 # Polling configuration
 POLL_FALLBACK_SECONDS = 30
 POLL_FLOOR_SECONDS = 5
+POLL_CEILING_SECONDS = 600
 POLL_TIMEOUT_SECONDS = 20 * 60
 TOKEN_REFRESH_EVERY_N_POLLS = 20
 
@@ -103,16 +104,28 @@ class SubstitutionRule:
 
 
 @dataclass(frozen=True)
+class VariableLibraryConfig:
+    """VariableLibrary-related settings parsed from bulk-parameter.yml.
+
+    A separate dataclass (rather than a flat field on BulkConfig) so future
+    VariableLibrary settings can be added here without changing the shape
+    of the parent config.
+    """
+
+    active_value_set: str | None = None
+
+
+@dataclass(frozen=True)
 class BulkConfig:
     """Parsed contents of bulk-parameter.yml.
 
-    ``variable_library_active_value_set`` is None when the config has no
+    ``variable_library.active_value_set`` is None when the config has no
     ``variable_library`` block or when its ``active_value_set`` is null. In
     that case the deploy skips the value-set activation step.
     """
 
     substitutions: tuple[SubstitutionRule, ...] = field(default_factory=tuple)
-    variable_library_active_value_set: str | None = None
+    variable_library: VariableLibraryConfig = field(default_factory=VariableLibraryConfig)
 
 
 def load_bulk_config(path: pathlib.Path) -> BulkConfig:
@@ -178,7 +191,7 @@ def load_bulk_config(path: pathlib.Path) -> BulkConfig:
 
     return BulkConfig(
         substitutions=tuple(substitutions),
-        variable_library_active_value_set=active_value_set,
+        variable_library=VariableLibraryConfig(active_value_set=active_value_set),
     )
 
 
@@ -384,10 +397,7 @@ def acquire_token(tenant_id: str, client_id: str, client_secret: str) -> str:
     )
     if resp.status_code != 200:
         sys.exit(f"::error::Token acquisition failed: HTTP {resp.status_code} {resp.text}")
-    token = resp.json()["access_token"]
-    # Mask the token in workflow logs
-    print(f"::add-mask::{token}")
-    return token
+    return resp.json()["access_token"]
 
 
 def build_definition_parts(repo_dir: pathlib.Path) -> list[dict]:
@@ -414,6 +424,24 @@ def build_definition_parts(repo_dir: pathlib.Path) -> list[dict]:
     return parts
 
 
+def _parse_retry_after(raw: str | None) -> int:
+    """Convert a Retry-After header value into a clamped integer.
+
+    Returns the parsed value clamped to ``[POLL_FLOOR_SECONDS, POLL_CEILING_SECONDS]``
+    on success. Falls back to ``POLL_FALLBACK_SECONDS`` (also clamped) when the
+    header is missing or unparseable. Clamping to a ceiling prevents a malformed
+    or pathological response from sleeping past the global polling timeout.
+    """
+    if raw is None:
+        value = POLL_FALLBACK_SECONDS
+    else:
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            value = POLL_FALLBACK_SECONDS
+    return max(POLL_FLOOR_SECONDS, min(value, POLL_CEILING_SECONDS))
+
+
 def poll_lro(
     operation_id: str,
     headers: dict,
@@ -423,7 +451,7 @@ def poll_lro(
     client_secret: str,
 ) -> None:
     base = "https://api.fabric.microsoft.com/v1/operations"
-    retry_after = max(initial_retry_after or POLL_FALLBACK_SECONDS, POLL_FLOOR_SECONDS)
+    retry_after = _parse_retry_after(str(initial_retry_after) if initial_retry_after else None)
     started = time.monotonic()
     poll_count = 0
 
@@ -457,11 +485,9 @@ def poll_lro(
             print(json.dumps(body, indent=2))
             sys.exit(f"::error::LRO ended with status: {status}")
 
-        # NotStarted or Running — keep polling. Honor Retry-After if present.
-        retry_after = max(
-            int(resp.headers.get("Retry-After", POLL_FALLBACK_SECONDS)),
-            POLL_FLOOR_SECONDS,
-        )
+        # NotStarted or Running — keep polling. Honor Retry-After if present
+        # but clamp it so a pathological value can't bypass the global timeout.
+        retry_after = _parse_retry_after(resp.headers.get("Retry-After"))
 
 
 def check_per_item_status(result: dict) -> None:
@@ -511,7 +537,7 @@ def interpret_post_response(
         operation_id = headers.get("x-ms-operation-id")
         if not operation_id:
             return ("missing_op_id",)
-        retry_after = int(headers.get("Retry-After", POLL_FALLBACK_SECONDS))
+        retry_after = _parse_retry_after(headers.get("Retry-After"))
         return ("async", operation_id, retry_after)
     return ("error", status_code)
 
@@ -628,11 +654,22 @@ def main() -> None:
     parts = build_definition_parts(repo_dir)
     print(f"Built {len(parts)} definition parts from {repo_dir}")
 
-    config = load_bulk_config(repo_dir / BULK_PARAMETER_FILENAME)
+    config_path = repo_dir / BULK_PARAMETER_FILENAME
+    config = load_bulk_config(config_path)
     if config.substitutions:
-        print(f"Loaded {len(config.substitutions)} substitution rule(s) from {BULK_PARAMETER_FILENAME}")
+        print(
+            f"Loaded {len(config.substitutions)} substitution rule(s) from {config_path}"
+        )
+    elif not config_path.exists():
+        print(
+            f"No {BULK_PARAMETER_FILENAME} at {config_path}; "
+            f"bulk deploy will use a single POST with no substitutions"
+        )
     else:
-        print(f"No substitution rules found (no {BULK_PARAMETER_FILENAME} or empty substitutions)")
+        print(
+            f"{config_path} exists but defines no substitution rules; "
+            f"bulk deploy will use a single POST with no substitutions"
+        )
 
     # Decide single-deploy vs. two-deploy. We only need to deploy the
     # dependency types separately when at least one rule references their
@@ -682,7 +719,7 @@ def main() -> None:
     # equivalent of fabric-cicd's environment-driven value-set selection, so
     # we make the PATCH call ourselves.
     active_value_set = resolve_active_value_set(
-        config.variable_library_active_value_set, environment
+        config.variable_library.active_value_set, environment
     )
     if active_value_set:
         library_id = find_variable_library_id(item_id_map)

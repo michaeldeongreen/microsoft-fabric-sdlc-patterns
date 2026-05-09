@@ -15,14 +15,24 @@ import pytest
 
 from deploy_bulk import (
     BULK_PARAMETER_FILENAME,
+    DEPENDENCY_TYPES,
     EXCLUDED_FILES,
+    SUBSTITUTABLE_EXTENSIONS,
     BulkConfig,
     SubstitutionRule,
     acquire_token,
+    apply_substitutions,
     build_definition_parts,
     check_per_item_status,
+    extract_item_ids,
+    find_variable_library_id,
     interpret_post_response,
+    item_display_name_of,
+    item_type_of,
     load_bulk_config,
+    partition_dependencies,
+    resolve_active_value_set,
+    resolve_dynamic_value,
 )
 
 
@@ -410,3 +420,309 @@ def test_acquire_token_failure_exits() -> None:
             acquire_token("tenant", "client", "secret")
     assert "Token acquisition failed" in str(exc.value)
     assert "401" in str(exc.value)
+
+
+# ---------- Phase 2 helpers: item_type_of / item_display_name_of ----------
+
+
+@pytest.mark.parametrize("path,expected", [
+    ("/Foo.Notebook/notebook-content.py", "Notebook"),
+    ("/PatternsLakehouse.Lakehouse/.platform", "Lakehouse"),
+    ("/My.Item.SemanticModel/definition/model.tmdl", "SemanticModel"),
+    ("Foo.Notebook/x.py", "Notebook"),  # tolerates missing leading slash
+])
+def test_item_type_of_extracts_type(path: str, expected: str) -> None:
+    assert item_type_of(path) == expected
+
+
+@pytest.mark.parametrize("path", [
+    "/no-extension-folder/file.py",
+    "/just-a-root-file.py",
+    "",
+    "/",
+])
+def test_item_type_of_returns_none_for_non_conforming(path: str) -> None:
+    assert item_type_of(path) is None
+
+
+@pytest.mark.parametrize("path,expected", [
+    ("/Foo.Notebook/x.py", "Foo"),
+    ("/PatternsLakehouse.Lakehouse/.platform", "PatternsLakehouse"),
+    ("/My.Item.SemanticModel/x", "My.Item"),  # multi-dot name preserved
+])
+def test_item_display_name_of_extracts_name(path: str, expected: str) -> None:
+    assert item_display_name_of(path) == expected
+
+
+def test_item_display_name_of_returns_none_for_non_conforming() -> None:
+    assert item_display_name_of("/no-extension-folder/file.py") is None
+    assert item_display_name_of("") is None
+
+
+# ---------- partition_dependencies ----------
+
+
+def test_partition_dependencies_splits_correctly() -> None:
+    parts = [
+        {"path": "/A.Lakehouse/.platform"},
+        {"path": "/B.Notebook/x.py"},
+        {"path": "/C.Ontology/definition.json"},
+        {"path": "/D.SemanticModel/model.tmdl"},
+    ]
+    dependencies, remaining = partition_dependencies(parts)
+    assert [p["path"] for p in dependencies] == ["/A.Lakehouse/.platform", "/C.Ontology/definition.json"]
+    assert [p["path"] for p in remaining] == ["/B.Notebook/x.py", "/D.SemanticModel/model.tmdl"]
+
+
+def test_partition_dependencies_empty_input() -> None:
+    assert partition_dependencies([]) == ([], [])
+
+
+def test_partition_dependencies_all_dependencies() -> None:
+    parts = [{"path": "/A.Lakehouse/.platform"}, {"path": "/B.Ontology/x"}]
+    dependencies, remaining = partition_dependencies(parts)
+    assert len(dependencies) == 2
+    assert remaining == []
+
+
+def test_partition_dependencies_no_dependencies() -> None:
+    parts = [{"path": "/A.Notebook/x.py"}, {"path": "/B.Report/y.json"}]
+    dependencies, remaining = partition_dependencies(parts)
+    assert dependencies == []
+    assert len(remaining) == 2
+
+
+def test_dependency_types_constant() -> None:
+    """Sanity check on the constant — protects against accidental edits."""
+    assert DEPENDENCY_TYPES == ("Lakehouse", "Ontology")
+
+
+# ---------- extract_item_ids ----------
+
+
+def test_extract_item_ids_happy_path() -> None:
+    body = {
+        "importItemDefinitionsDetails": [
+            {"itemType": "Lakehouse", "itemDisplayName": "LH", "itemId": "id-1",
+             "operationStatus": "Succeeded"},
+            {"itemType": "Notebook", "itemDisplayName": "NB", "itemId": "id-2",
+             "operationStatus": "Succeeded"},
+        ]
+    }
+    assert extract_item_ids(body) == {
+        ("Lakehouse", "LH"): "id-1",
+        ("Notebook", "NB"): "id-2",
+    }
+
+
+def test_extract_item_ids_empty_body() -> None:
+    assert extract_item_ids({}) == {}
+    assert extract_item_ids({"importItemDefinitionsDetails": []}) == {}
+
+
+def test_extract_item_ids_skips_entries_with_missing_fields() -> None:
+    body = {
+        "importItemDefinitionsDetails": [
+            {"itemType": "Lakehouse", "itemDisplayName": "LH", "itemId": "id-1"},
+            {"itemType": "Notebook", "itemDisplayName": "NB"},  # no itemId
+            {"itemDisplayName": "Other", "itemId": "id-3"},      # no itemType
+        ]
+    }
+    assert extract_item_ids(body) == {("Lakehouse", "LH"): "id-1"}
+
+
+# ---------- resolve_dynamic_value ----------
+
+
+def test_resolve_dynamic_value_workspace() -> None:
+    assert resolve_dynamic_value("$workspace.$id", "ws-123", {}) == "ws-123"
+
+
+def test_resolve_dynamic_value_items() -> None:
+    item_map = {("Lakehouse", "LH"): "lh-id"}
+    assert resolve_dynamic_value("$items.Lakehouse.LH.$id", "ws", item_map) == "lh-id"
+
+
+def test_resolve_dynamic_value_no_placeholders_passthrough() -> None:
+    assert resolve_dynamic_value("plain-value", "ws", {}) == "plain-value"
+
+
+def test_resolve_dynamic_value_mixed_string() -> None:
+    """Placeholders may appear inside larger strings (defensive — the repo
+    doesn't currently use this but the resolver should still handle it)."""
+    item_map = {("Lakehouse", "LH"): "lh-id"}
+    template = "ws=$workspace.$id;lh=$items.Lakehouse.LH.$id"
+    assert resolve_dynamic_value(template, "ws-123", item_map) == "ws=ws-123;lh=lh-id"
+
+
+def test_resolve_dynamic_value_unresolved_items_raises() -> None:
+    with pytest.raises(ValueError, match="Unresolved placeholder"):
+        resolve_dynamic_value("$items.Lakehouse.MissingName.$id", "ws", {})
+
+
+def test_resolve_dynamic_value_only_workspace_resolved_no_items() -> None:
+    """When item_id_map is empty, $workspace.$id still resolves cleanly."""
+    assert resolve_dynamic_value("$workspace.$id", "ws-456", {}) == "ws-456"
+
+
+# ---------- apply_substitutions ----------
+
+
+def _make_part(path: str, content: str) -> dict:
+    return {
+        "path": path,
+        "payload": base64.b64encode(content.encode("utf-8")).decode("ascii"),
+        "payloadType": "InlineBase64",
+    }
+
+
+def _payload_text(part: dict) -> str:
+    return base64.b64decode(part["payload"]).decode("utf-8")
+
+
+def test_apply_substitutions_no_rules_passes_through() -> None:
+    parts = [_make_part("/A.Notebook/x.py", "abc")]
+    out = apply_substitutions(parts, (), "ws", {})
+    assert out == parts
+
+
+def test_apply_substitutions_substitutes_when_item_type_matches() -> None:
+    rules = (
+        SubstitutionRule(
+            find="DEV-LAKEHOUSE",
+            replace_with="$items.Lakehouse.LH.$id",
+            item_types=frozenset({"Notebook"}),
+        ),
+    )
+    parts = [_make_part("/A.Notebook/x.py", "lakehouse=DEV-LAKEHOUSE")]
+    out = apply_substitutions(parts, rules, "ws", {("Lakehouse", "LH"): "lh-id"})
+    assert _payload_text(out[0]) == "lakehouse=lh-id"
+
+
+def test_apply_substitutions_skips_when_item_type_doesnt_match() -> None:
+    rules = (
+        SubstitutionRule(
+            find="DEV-LAKEHOUSE",
+            replace_with="lh-id",
+            item_types=frozenset({"Notebook"}),  # rule scoped to Notebook only
+        ),
+    )
+    parts = [_make_part("/A.SemanticModel/x.tmdl", "lakehouse=DEV-LAKEHOUSE")]
+    out = apply_substitutions(parts, rules, "ws", {})
+    assert _payload_text(out[0]) == "lakehouse=DEV-LAKEHOUSE"  # unchanged
+
+
+def test_apply_substitutions_skips_non_text_extensions() -> None:
+    """Files outside SUBSTITUTABLE_EXTENSIONS pass through as-is."""
+    rules = (
+        SubstitutionRule(
+            find="abc",
+            replace_with="xyz",
+            item_types=frozenset({"Report"}),
+        ),
+    )
+    parts = [_make_part("/R.Report/StaticResources/img.png", "abc")]
+    out = apply_substitutions(parts, rules, "ws", {})
+    assert _payload_text(out[0]) == "abc"  # unchanged
+
+
+def test_apply_substitutions_multiple_rules_applied_in_order() -> None:
+    rules = (
+        SubstitutionRule(find="A", replace_with="X", item_types=frozenset({"Notebook"})),
+        SubstitutionRule(find="B", replace_with="Y", item_types=frozenset({"Notebook"})),
+    )
+    parts = [_make_part("/N.Notebook/x.py", "AABB")]
+    out = apply_substitutions(parts, rules, "ws", {})
+    assert _payload_text(out[0]) == "XXYY"
+
+
+def test_apply_substitutions_preserves_non_matching_parts() -> None:
+    rules = (
+        SubstitutionRule(find="abc", replace_with="xyz", item_types=frozenset({"Notebook"})),
+    )
+    parts = [
+        _make_part("/A.Notebook/x.py", "abc"),
+        _make_part("/B.SemanticModel/m.tmdl", "abc"),  # rule doesn't apply
+    ]
+    out = apply_substitutions(parts, rules, "ws", {})
+    assert _payload_text(out[0]) == "xyz"
+    assert _payload_text(out[1]) == "abc"
+
+
+def test_apply_substitutions_workspace_placeholder() -> None:
+    rules = (
+        SubstitutionRule(
+            find="DEV-WS",
+            replace_with="$workspace.$id",
+            item_types=frozenset({"Notebook"}),
+        ),
+    )
+    parts = [_make_part("/A.Notebook/x.py", "ws=DEV-WS")]
+    out = apply_substitutions(parts, rules, "target-ws-id", {})
+    assert _payload_text(out[0]) == "ws=target-ws-id"
+
+
+def test_apply_substitutions_no_change_returns_same_part_object() -> None:
+    """If a rule applies but the find string isn't present, no re-encode."""
+    rules = (
+        SubstitutionRule(find="not-present", replace_with="x", item_types=frozenset({"Notebook"})),
+    )
+    parts = [_make_part("/A.Notebook/x.py", "hello")]
+    out = apply_substitutions(parts, rules, "ws", {})
+    # Same part object passed through (identity check is intentional)
+    assert out[0] is parts[0]
+
+
+def test_substitutable_extensions_constant() -> None:
+    """Sanity check on the constant — protects against accidental edits."""
+    assert ".json" in SUBSTITUTABLE_EXTENSIONS
+    assert ".py" in SUBSTITUTABLE_EXTENSIONS
+    assert ".tmdl" in SUBSTITUTABLE_EXTENSIONS
+    assert ".platform" in SUBSTITUTABLE_EXTENSIONS
+    assert ".png" not in SUBSTITUTABLE_EXTENSIONS
+
+
+# ---------- resolve_active_value_set ----------
+
+
+def test_resolve_active_value_set_environment_placeholder() -> None:
+    assert resolve_active_value_set("$environment", "Test") == "Test"
+    assert resolve_active_value_set("$environment", "Prod") == "Prod"
+
+
+def test_resolve_active_value_set_literal_passthrough() -> None:
+    assert resolve_active_value_set("Test", "Prod") == "Test"
+
+
+def test_resolve_active_value_set_none_passthrough() -> None:
+    assert resolve_active_value_set(None, "Test") is None
+
+
+# ---------- find_variable_library_id ----------
+
+
+def test_find_variable_library_id_single_match() -> None:
+    item_map = {
+        ("Lakehouse", "LH"): "lh-id",
+        ("VariableLibrary", "VL"): "vl-id",
+        ("Notebook", "NB"): "nb-id",
+    }
+    assert find_variable_library_id(item_map) == "vl-id"
+
+
+def test_find_variable_library_id_none_present() -> None:
+    item_map = {("Lakehouse", "LH"): "lh-id"}
+    assert find_variable_library_id(item_map) is None
+
+
+def test_find_variable_library_id_empty_map() -> None:
+    assert find_variable_library_id({}) is None
+
+
+def test_find_variable_library_id_multiple_raises() -> None:
+    item_map = {
+        ("VariableLibrary", "VL1"): "id-1",
+        ("VariableLibrary", "VL2"): "id-2",
+    }
+    with pytest.raises(ValueError, match="Expected exactly one VariableLibrary"):
+        find_variable_library_id(item_map)

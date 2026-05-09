@@ -29,6 +29,7 @@ import base64
 import json
 import os
 import pathlib
+import re
 import sys
 import time
 from dataclasses import dataclass, field
@@ -56,13 +57,33 @@ EXCLUDED_FILES = {"parameter.yml", "bulk-parameter.yml", ".gitkeep"}
 # activation. See data/fabric/bulk-parameter.yml for the schema.
 BULK_PARAMETER_FILENAME = "bulk-parameter.yml"
 
+# Item types that other items may reference and that therefore must be
+# deployed first so their IDs are available for substitution into the
+# remaining items' definitions. The bulk path keeps this list intentionally
+# narrow — only types actually referenced by $items.<Type>.* in
+# bulk-parameter.yml belong here.
+DEPENDENCY_TYPES = ("Lakehouse", "Ontology")
+
+# File extensions whose payloads are safe to apply text substitutions to.
+# Anything outside this set passes through untouched to avoid corrupting
+# binary content (e.g., Report static resources).
+SUBSTITUTABLE_EXTENSIONS = (".json", ".yml", ".tmdl", ".py", ".platform")
+
+# Placeholder pattern for $items.<Type>.<Name>.$id substitutions. <Name>
+# may contain underscores, hyphens, periods, etc. — anything that's not
+# whitespace and not the literal ".$id" terminator. Captured groups:
+#   1: item type, 2: item display name
+_ITEMS_PLACEHOLDER = re.compile(r"\$items\.([^.]+)\.([^$]+?)\.\$id")
+_WORKSPACE_PLACEHOLDER = "$workspace.$id"
+_ENVIRONMENT_PLACEHOLDER = "$environment"
+
 
 @dataclass(frozen=True)
 class SubstitutionRule:
     """A single find/replace rule scoped to one or more item types.
 
     ``replace_with`` may contain dynamic placeholders that are resolved at
-    deploy time against the target workspace ID and Phase 1 item IDs:
+    deploy time against the target workspace ID and dependency item IDs:
         $workspace.$id
         $items.<Type>.<Name>.$id
     """
@@ -91,7 +112,7 @@ def load_bulk_config(path: pathlib.Path) -> BulkConfig:
     A missing file is not an error — the bulk path remains usable for repos
     that don't need substitutions or value-set activation. In that case an
     empty BulkConfig is returned and the caller's behavior is unchanged from
-    the pre-Phase-2 implementation (single POST, no post-deploy steps).
+    the pre-config implementation (single POST, no post-deploy steps).
 
     Raises ValueError on a present-but-malformed file so that misconfigured
     repos fail loudly rather than silently skipping rules.
@@ -150,6 +171,194 @@ def load_bulk_config(path: pathlib.Path) -> BulkConfig:
         substitutions=tuple(substitutions),
         variable_library_active_value_set=active_value_set,
     )
+
+
+def item_type_of(part_path: str) -> str | None:
+    """Extract the item type from a definitionParts[].path value.
+
+    Item paths follow the convention ``/<DisplayName>.<Type>/<file>``. This
+    helper returns ``"Notebook"`` for ``/Foo.Notebook/notebook-content.py``,
+    ``"Lakehouse"`` for ``/PatternsLakehouse.Lakehouse/.platform``, etc.
+
+    Returns ``None`` for paths that don't match the convention (defensive;
+    build_definition_parts already guarantees they do).
+    """
+    parts = part_path.lstrip("/").split("/", 1)
+    if len(parts) < 2:
+        return None
+    folder = parts[0]
+    if "." not in folder:
+        return None
+    return folder.rsplit(".", 1)[1]
+
+
+def item_display_name_of(part_path: str) -> str | None:
+    """Extract the item display name from a definitionParts[].path value.
+
+    Returns ``"Foo"`` for ``/Foo.Notebook/notebook-content.py``. Returns
+    ``None`` for paths that don't match the ``*.<Type>/`` convention.
+    """
+    parts = part_path.lstrip("/").split("/", 1)
+    if len(parts) < 2:
+        return None
+    folder = parts[0]
+    if "." not in folder:
+        return None
+    return folder.rsplit(".", 1)[0]
+
+
+def partition_dependencies(parts: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Split definitionParts[] into (dependencies, remaining).
+
+    A part belongs to ``dependencies`` if its item type is in
+    ``DEPENDENCY_TYPES``. The bulk deploy POSTs dependencies first so that
+    their IDs are available to resolve ``$items.<Type>.<Name>.$id``
+    placeholders in the remaining items' substitution rules.
+    """
+    dependencies: list[dict] = []
+    remaining: list[dict] = []
+    for part in parts:
+        if item_type_of(part["path"]) in DEPENDENCY_TYPES:
+            dependencies.append(part)
+        else:
+            remaining.append(part)
+    return dependencies, remaining
+
+
+def extract_item_ids(response_body: dict) -> dict[tuple[str, str], str]:
+    """Build a lookup of deployed item IDs from a bulk-import response body.
+
+    Returns ``{(item_type, item_display_name): item_id}``. Skips entries
+    that are missing any of the three fields (defensive against partial
+    response shapes from the LRO ``/result`` endpoint).
+    """
+    out: dict[tuple[str, str], str] = {}
+    for entry in response_body.get("importItemDefinitionsDetails", []):
+        item_type = entry.get("itemType")
+        display_name = entry.get("itemDisplayName")
+        item_id = entry.get("itemId")
+        if item_type and display_name and item_id:
+            out[(item_type, display_name)] = item_id
+    return out
+
+
+def resolve_dynamic_value(
+    template: str,
+    workspace_id: str,
+    item_id_map: dict[tuple[str, str], str],
+) -> str:
+    """Resolve placeholders in a substitution rule's replace_with value.
+
+    Recognized placeholders:
+        $workspace.$id              -> workspace_id
+        $items.<Type>.<Name>.$id    -> item_id_map[(Type, Name)]
+
+    Raises ValueError on any ``$items`` reference that doesn't resolve.
+    Strings without placeholders pass through unchanged.
+    """
+    resolved = template.replace(_WORKSPACE_PLACEHOLDER, workspace_id)
+
+    def _replace_items(match: re.Match[str]) -> str:
+        item_type = match.group(1)
+        display_name = match.group(2)
+        try:
+            return item_id_map[(item_type, display_name)]
+        except KeyError:
+            raise ValueError(
+                f"Unresolved placeholder $items.{item_type}.{display_name}.$id "
+                f"(item not deployed as a dependency, or wrong name/type)"
+            ) from None
+
+    return _ITEMS_PLACEHOLDER.sub(_replace_items, resolved)
+
+
+def apply_substitutions(
+    parts: list[dict],
+    rules: tuple[SubstitutionRule, ...],
+    workspace_id: str,
+    item_id_map: dict[tuple[str, str], str],
+) -> list[dict]:
+    """Apply all substitution rules to the matching definitionParts[].
+
+    For each part:
+      1. Determine the item type from its path; skip if unknown.
+      2. Skip files whose extension is outside SUBSTITUTABLE_EXTENSIONS
+         (binary safety).
+      3. For each rule whose ``item_types`` includes the part's type,
+         resolve dynamic placeholders in the rule's replace_with value,
+         then perform the find/replace inside the part's payload.
+      4. Re-encode the modified payload back to base64.
+
+    Returns a new list of parts (input parts that weren't modified are
+    passed through by reference; modified parts are new dicts).
+    """
+    if not rules:
+        return parts
+
+    out: list[dict] = []
+    for part in parts:
+        path = part["path"]
+        item_type = item_type_of(path)
+        ext = pathlib.Path(path).suffix
+        applicable_rules = [r for r in rules if item_type in r.item_types]
+        if not applicable_rules or ext not in SUBSTITUTABLE_EXTENSIONS:
+            out.append(part)
+            continue
+
+        original_bytes = base64.b64decode(part["payload"])
+        try:
+            text = original_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            # Mismatched extension (e.g., a .json that's actually binary).
+            # Pass through untouched rather than corrupt it.
+            out.append(part)
+            continue
+
+        modified_text = text
+        for rule in applicable_rules:
+            replacement = resolve_dynamic_value(rule.replace_with, workspace_id, item_id_map)
+            modified_text = modified_text.replace(rule.find, replacement)
+
+        if modified_text == text:
+            out.append(part)
+            continue
+
+        new_part = dict(part)
+        new_part["payload"] = base64.b64encode(modified_text.encode("utf-8")).decode("ascii")
+        out.append(new_part)
+    return out
+
+
+def resolve_active_value_set(template: str | None, environment: str) -> str | None:
+    """Resolve the $environment placeholder in a value-set name.
+
+    Returns ``None`` when ``template`` is ``None`` (config disabled the
+    activation step). Otherwise returns the literal string with
+    ``$environment`` replaced by the ``environment`` argument.
+    """
+    if template is None:
+        return None
+    return template.replace(_ENVIRONMENT_PLACEHOLDER, environment)
+
+
+def find_variable_library_id(
+    item_id_map: dict[tuple[str, str], str],
+) -> str | None:
+    """Locate the deployed VariableLibrary's item ID.
+
+    Returns ``None`` if no VariableLibrary was deployed. Raises ValueError
+    if multiple are present \u2014 the activation step targets a single library
+    by ID and we do not know which one the caller meant.
+    """
+    matches = [item_id for (t, _), item_id in item_id_map.items() if t == "VariableLibrary"]
+    if not matches:
+        return None
+    if len(matches) > 1:
+        raise ValueError(
+            f"Expected exactly one VariableLibrary, found {len(matches)}; "
+            f"value-set activation requires a single target"
+        )
+    return matches[0]
 
 
 def acquire_token(tenant_id: str, client_id: str, client_secret: str) -> str:

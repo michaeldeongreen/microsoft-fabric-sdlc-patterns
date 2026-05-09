@@ -175,41 +175,84 @@ def get_dev_ids() -> tuple[str, str]:
 
 def resolve_feature_ids(branch: str, value_set_path: Path) -> tuple[str, str]:
     """
-    Resolve workspace and lakehouse IDs for the feature environment.
+    Resolve workspace and lakehouse IDs for the feature environment from .env.
 
-    Priority:
-      1. Existing value set file for this branch (already bootstrapped).
-      2. .env file at repo root (FEATURE_WORKSPACE_ID, FEATURE_LAKEHOUSE_ID).
-      3. Interactive prompt as fallback.
+    .env is the single source of truth for swap-to-feature. The script does NOT
+    fall back to the existing value-set file or to interactive input — both were
+    removed because they let stale values silently override what the developer
+    typed in .env, producing swaps that pointed at the wrong workspace.
+
+    The user is asked to confirm the resolved IDs in _run_swap_to_feature
+    before any files are rewritten.
+
+    Exits with a clear error when .env is missing or either key is missing or
+    blank.
     """
-    # 1. Reuse existing value set
-    if value_set_path.exists():
-        overrides = load_json(value_set_path)["variableOverrides"]
-        lookup = {o["name"]: o["value"] for o in overrides}
-        ws_id = lookup.get("target_workspace_id")
-        lh_id = lookup.get("target_lakehouse_id")
-        if ws_id and lh_id:
-            print(f"  Reusing IDs from existing value set: {value_set_path.name}")
-            return ws_id, lh_id
+    # Note: ``value_set_path`` is unused but kept in the signature so callers
+    # don't have to change. Removing it would also break the test fixture's
+    # call shape.
+    _ = value_set_path
 
-    # 2. Try .env file at the repo root
+    if not ENV_FILE.exists():
+        sys.exit(
+            f"ERROR: {ENV_FILE.name} not found at the repo root. "
+            f"Copy .env.sample to .env and fill in FEATURE_WORKSPACE_ID and "
+            f"FEATURE_LAKEHOUSE_ID for branch '{branch}'."
+        )
+
     env = _read_env_file(ENV_FILE)
     ws_id = env.get("FEATURE_WORKSPACE_ID", "").strip()
     lh_id = env.get("FEATURE_LAKEHOUSE_ID", "").strip()
-    if ws_id and lh_id:
-        _validate_guid(ws_id, "FEATURE_WORKSPACE_ID")
-        _validate_guid(lh_id, "FEATURE_LAKEHOUSE_ID")
-        print(f"  Loaded feature IDs from {ENV_FILE.name}")
-        return ws_id, lh_id
 
-    # 3. Interactive fallback
-    print(f"\nNo feature IDs found for branch '{branch}'.")
-    print("Tip: copy .env.sample to .env and fill in the GUIDs to skip this prompt.")
-    ws_id = input("  FEATURE_WORKSPACE_ID : ").strip()
-    lh_id = input("  FEATURE_LAKEHOUSE_ID : ").strip()
+    missing: list[str] = []
+    if not ws_id:
+        missing.append("FEATURE_WORKSPACE_ID")
+    if not lh_id:
+        missing.append("FEATURE_LAKEHOUSE_ID")
+    if missing:
+        sys.exit(
+            f"ERROR: {ENV_FILE.name} is missing or has empty values for: "
+            f"{', '.join(missing)}. See .env.sample for the expected shape."
+        )
+
     _validate_guid(ws_id, "FEATURE_WORKSPACE_ID")
     _validate_guid(lh_id, "FEATURE_LAKEHOUSE_ID")
+    print(f"  Loaded feature IDs from {ENV_FILE.name}")
     return ws_id, lh_id
+
+
+def _confirm_swap_to_feature(
+    branch: str,
+    dev_ws_id: str,
+    dev_lh_id: str,
+    new_ws_id: str,
+    new_lh_id: str,
+) -> None:
+    """Show the planned swap and require the user to type ``YES`` to proceed.
+
+    The swap rewrites tracked Fabric files. A previous bug surfaced when stale
+    .env values silently produced a swap pointed at the wrong workspace; this
+    confirmation gate forces the developer to look at the actual GUIDs before
+    any files change. Case-sensitive ``YES`` is required — ``yes``, ``y``, or
+    a blank line all abort.
+
+    Skipped when the script is invoked with --dry-run (the dry-run is itself
+    the verification step).
+    """
+    print("\nPlanned swap:")
+    print(f"  Branch       : {branch}")
+    print(f"  Workspace ID : {dev_ws_id} → {new_ws_id}")
+    print(f"  Lakehouse ID : {dev_lh_id} → {new_lh_id}")
+    print(
+        "\nThis will rewrite tracked Fabric files and create a per-branch "
+        "value set.\nType YES (uppercase) to apply, anything else to abort."
+    )
+    try:
+        answer = input("Confirm: ").strip()
+    except EOFError:
+        sys.exit("Aborted (no input available).")
+    if answer != "YES":
+        sys.exit("Aborted by user.")
 
 
 def _validate_guid(value: str, name: str) -> None:
@@ -274,6 +317,29 @@ def repoint_items(dev_ws_id: str, dev_lh_id: str,
     if not changed:
         print("  No files with target IDs found.")
     return changed
+
+
+def _read_previous_feature_ids(
+    value_set_path: Path,
+) -> tuple[str | None, str | None]:
+    """Read previously-applied feature IDs from the per-branch value-set file.
+
+    Returns ``(None, None)`` when the file doesn't exist (first swap on this
+    branch) or when either override is missing.
+
+    Used to recover from a wrong-IDs-applied state: if a previous swap wrote
+    the wrong feature GUIDs into the SemanticModel/Notebook files, the value
+    set still records what was applied, so the next swap can find/replace
+    those stale GUIDs as well as the dev baseline.
+    """
+    if not value_set_path.exists():
+        return None, None
+    try:
+        overrides = load_json(value_set_path).get("variableOverrides", [])
+    except (json.JSONDecodeError, KeyError):
+        return None, None
+    lookup = {o["name"]: o["value"] for o in overrides if "name" in o and "value" in o}
+    return lookup.get("target_workspace_id"), lookup.get("target_lakehouse_id")
 
 
 def validate_no_ids(ws_id: str, lh_id: str, *, label: str = "target") -> list[str]:
@@ -403,6 +469,14 @@ def _run_swap_to_feature(branch: str, branch_label: str, value_set_path: Path,
     if new_ws_id == dev_ws_id and new_lh_id == dev_lh_id:
         sys.exit("ERROR: Feature IDs are identical to dev IDs. Nothing to do.")
 
+    # Capture the previously-applied feature IDs (if any) BEFORE the value set
+    # gets rewritten in step 3. Used in step 4 to recover from a prior swap
+    # that applied wrong IDs.
+    stale_ws_id, stale_lh_id = _read_previous_feature_ids(value_set_path)
+
+    if not dry_run:
+        _confirm_swap_to_feature(branch, dev_ws_id, dev_lh_id, new_ws_id, new_lh_id)
+
     changes: list[str] = []
 
     print("\n3. Creating/updating value set...")
@@ -412,9 +486,25 @@ def _run_swap_to_feature(branch: str, branch_label: str, value_set_path: Path,
         changes.append(f"Settings:  {SETTINGS_FILE.relative_to(REPO_ROOT)}")
 
     print("\n4. Repointing items...")
+    # Standard pass: dev IDs -> new IDs. Handles the first-time swap and
+    # any items that still reference the dev baseline.
     repointed = repoint_items(dev_ws_id, dev_lh_id, new_ws_id, new_lh_id, dry_run=dry_run)
     for r in repointed:
         changes.append(f"Repointed: {r}")
+
+    # Recovery pass: if a previous run applied stale feature IDs that aren't
+    # in .env anymore, sweep them out too. Skip when the previous and target
+    # IDs match (no recovery needed) or when there's no previous record.
+    if stale_ws_id and stale_lh_id and (
+        stale_ws_id != new_ws_id or stale_lh_id != new_lh_id
+    ):
+        print(
+            f"  Recovery: also rewriting any stale feature IDs from prior swap "
+            f"({stale_ws_id} → {new_ws_id}; {stale_lh_id} → {new_lh_id})"
+        )
+        recovered = repoint_items(stale_ws_id, stale_lh_id, new_ws_id, new_lh_id, dry_run=dry_run)
+        for r in recovered:
+            changes.append(f"Recovered: {r}")
 
     print("\n5. Validating...")
     if dry_run:

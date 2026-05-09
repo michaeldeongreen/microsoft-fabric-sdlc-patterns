@@ -69,4 +69,5 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           FABRIC_WORKSPACE_ID: ${{ secrets.FABRIC_WORKSPACE_ID }}
           REPOSITORY_DIRECTORY: ${{ inputs.repository_directory }}
+          ENVIRONMENT: ${{ inputs.environment }}
         run: python scripts/deploy_bulk.py

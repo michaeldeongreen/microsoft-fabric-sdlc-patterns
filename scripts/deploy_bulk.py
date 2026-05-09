@@ -9,9 +9,18 @@ level via the DEPLOY_METHOD repository variable.
 Required environment variables:
     AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET,
     FABRIC_WORKSPACE_ID, REPOSITORY_DIRECTORY
+Optional:
+    ENVIRONMENT — target environment name (e.g. "Test", "Prod"). Substituted
+    into the $environment placeholder in bulk-parameter.yml.
+
+Deploy flow:
+  - If bulk-parameter.yml has no $items.<Type>.<Name>.$id references (or the
+    file is absent), a single POST sends every item at once.
+  - Otherwise the deploy splits in two: first POST the dependency item types
+    (DEPENDENCY_TYPES) so their IDs become available, then substitute those
+    IDs into the remaining items' definitions and POST the rest.
 
 Known gaps vs deploy_fabric_cicd.py (intentional, documented):
-- No parameter.yml find_replace / key_value_replace substitution
 - No orphan cleanup (Bulk Import API only supports Create/Update, not Delete)
 - No item_type_in_scope filter (deploys everything in repository_directory)
 
@@ -507,47 +516,49 @@ def interpret_post_response(
     return ("error", status_code)
 
 
-def main() -> None:
-    tenant_id = os.environ["AZURE_TENANT_ID"]
-    client_id = os.environ["AZURE_CLIENT_ID"]
-    client_secret = os.environ["AZURE_CLIENT_SECRET"]
-    workspace_id = os.environ["FABRIC_WORKSPACE_ID"]
-    repo_dir = pathlib.Path(os.environ["REPOSITORY_DIRECTORY"]).resolve()
+def post_bulk(
+    parts: list[dict],
+    workspace_id: str,
+    headers: dict,
+    tenant_id: str,
+    client_id: str,
+    client_secret: str,
+    label: str,
+) -> dict:
+    """POST one bulkImportDefinitions request and return the result body.
 
-    token = acquire_token(tenant_id, client_id, client_secret)
-    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    Handles both the synchronous (200) and asynchronous (202 + LRO) response
+    paths transparently. Calls ``check_per_item_status`` on the result so
+    per-item failures fail the deploy loudly. Returns the result body on
+    success so callers can chain (e.g. extract item IDs from one POST and
+    substitute them into the next).
 
-    parts = build_definition_parts(repo_dir)
-    print(f"Built request body with {len(parts)} definition parts from {repo_dir}")
-
+    ``label`` is a human-readable tag (e.g. "dependencies", "all items")
+    used only in log lines.
+    """
     request_body = {
         "definitionParts": parts,
         "options": {"allowPairingByName": False},
     }
-
-    # Endpoint URL per the API reference page (the tutorial's URL is wrong).
-    # https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions(beta)
     api_url = (
         f"https://api.fabric.microsoft.com/v1/workspaces/{workspace_id}"
         f"/items/bulkImportDefinitions?beta=true"
     )
-    print(f"POST {api_url}")
+    print(f"POST {api_url} ({label}: {len(parts)} parts)")
 
     post_resp = requests.post(api_url, headers=headers, json=request_body, timeout=120)
     body = post_resp.json() if post_resp.status_code == 200 else {}
     action = interpret_post_response(post_resp.status_code, body, post_resp.headers)
 
     if action[0] == "sync":
-        # Result is in the response body directly.
-        check_per_item_status(action[1])
-        sys.exit(0)
-
-    if action[0] == "async":
+        result = action[1]
+    elif action[0] == "async":
         _, operation_id, initial_retry = action
-        print(f"202 Accepted, operation_id={operation_id}, initial Retry-After={initial_retry}s")
-
+        print(
+            f"202 Accepted ({label}), operation_id={operation_id}, "
+            f"initial Retry-After={initial_retry}s"
+        )
         poll_lro(operation_id, headers, initial_retry, tenant_id, client_id, client_secret)
-
         result_resp = requests.get(
             f"https://api.fabric.microsoft.com/v1/operations/{operation_id}/result",
             headers=headers,
@@ -555,18 +566,90 @@ def main() -> None:
         )
         if result_resp.status_code != 200:
             sys.exit(
-                f"::error::Failed to fetch operation result: "
+                f"::error::Failed to fetch operation result ({label}): "
                 f"HTTP {result_resp.status_code} {result_resp.text}"
             )
-        check_per_item_status(result_resp.json())
+        result = result_resp.json()
+    elif action[0] == "missing_op_id":
+        sys.exit(f"::error::202 response missing x-ms-operation-id header ({label})")
+    else:
+        sys.exit(
+            f"::error::Bulk import POST failed ({label}): "
+            f"HTTP {post_resp.status_code} {post_resp.text}"
+        )
+
+    check_per_item_status(result)
+    return result
+
+
+def main() -> None:
+    tenant_id = os.environ["AZURE_TENANT_ID"]
+    client_id = os.environ["AZURE_CLIENT_ID"]
+    client_secret = os.environ["AZURE_CLIENT_SECRET"]
+    workspace_id = os.environ["FABRIC_WORKSPACE_ID"]
+    repo_dir = pathlib.Path(os.environ["REPOSITORY_DIRECTORY"]).resolve()
+    environment = os.environ.get("ENVIRONMENT", "")
+
+    token = acquire_token(tenant_id, client_id, client_secret)
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+    parts = build_definition_parts(repo_dir)
+    print(f"Built {len(parts)} definition parts from {repo_dir}")
+
+    config = load_bulk_config(repo_dir / BULK_PARAMETER_FILENAME)
+    if config.substitutions:
+        print(f"Loaded {len(config.substitutions)} substitution rule(s) from {BULK_PARAMETER_FILENAME}")
+    else:
+        print(f"No substitution rules found (no {BULK_PARAMETER_FILENAME} or empty substitutions)")
+
+    # Decide single-deploy vs. two-deploy. We only need to deploy the
+    # dependency types separately when at least one rule references their
+    # IDs via $items.<Type>.<Name>.$id; otherwise a single POST is enough.
+    needs_two_deploy = any("$items." in r.replace_with for r in config.substitutions)
+
+    if not needs_two_deploy:
+        # Apply $workspace.$id-only substitutions if any, then single POST.
+        substituted = apply_substitutions(parts, config.substitutions, workspace_id, {})
+        post_bulk(
+            substituted, workspace_id, headers,
+            tenant_id, client_id, client_secret, label="all items",
+        )
         sys.exit(0)
 
-    if action[0] == "missing_op_id":
-        sys.exit("::error::202 response missing x-ms-operation-id header")
-
-    sys.exit(
-        f"::error::Bulk import POST failed: HTTP {post_resp.status_code} {post_resp.text}"
+    # Two-deploy flow: dependencies first, then the rest with substituted IDs.
+    dependencies, remaining = partition_dependencies(parts)
+    print(
+        f"Two-deploy flow: {len(dependencies)} dependency parts "
+        f"({', '.join(DEPENDENCY_TYPES)}), {len(remaining)} remaining parts"
     )
+
+    if not dependencies:
+        sys.exit(
+            f"::error::Substitution rules reference $items.<Type>.<Name>.$id "
+            f"but no items of dependency types {DEPENDENCY_TYPES} were found "
+            f"in {repo_dir}"
+        )
+
+    deps_result = post_bulk(
+        dependencies, workspace_id, headers,
+        tenant_id, client_id, client_secret, label="dependencies",
+    )
+    item_id_map = extract_item_ids(deps_result)
+    print(f"Captured {len(item_id_map)} dependency item ID(s) for substitution")
+
+    substituted_remaining = apply_substitutions(
+        remaining, config.substitutions, workspace_id, item_id_map,
+    )
+    post_bulk(
+        substituted_remaining, workspace_id, headers,
+        tenant_id, client_id, client_secret, label="remaining items",
+    )
+
+    # environment is read but unused in this increment; Increment 5 will use
+    # it for VariableLibrary value-set activation.
+    _ = environment
+
+    sys.exit(0)
 
 
 if __name__ == "__main__":

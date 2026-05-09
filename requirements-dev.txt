@@ -1,1 +1,8 @@
 pytest>=8.0
+
+# Runtime dependencies used by scripts/ — installed locally so editor and
+# linters can resolve imports. CI also installs these per-workflow before
+# invoking each script.
+requests>=2.31
+azure-identity>=1.15
+fabric-cicd>=1.0.0,<2.0.0

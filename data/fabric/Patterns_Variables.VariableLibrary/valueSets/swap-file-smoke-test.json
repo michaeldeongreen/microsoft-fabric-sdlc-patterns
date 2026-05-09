@@ -1,0 +1,14 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/variableLibrary/definition/valueSet/1.0.0/schema.json",
+  "name": "swap-file-smoke-test",
+  "variableOverrides": [
+    {
+      "name": "target_workspace_id",
+      "value": "6aca848e-fa1e-4b9c-b30b-d5c9f1668f20"
+    },
+    {
+      "name": "target_lakehouse_id",
+      "value": "c3d82cf3-d753-4609-910c-35a91a72577d"
+    }
+  ]
+}

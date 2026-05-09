@@ -31,8 +31,10 @@ import os
 import pathlib
 import sys
 import time
+from dataclasses import dataclass, field
 
 import requests
+import yaml
 
 # Polling configuration
 POLL_FALLBACK_SECONDS = 30
@@ -42,11 +44,112 @@ TOKEN_REFRESH_EVERY_N_POLLS = 20
 
 # Files to skip when building definitionParts[]. Two layers of exclusion:
 # 1. Named files: known files that should never be sent (parameter.yml is
-#    fabric-cicd config; .gitkeep is a Git placeholder).
+#    fabric-cicd config; bulk-parameter.yml is bulk's own config;
+#    .gitkeep is a Git placeholder).
 # 2. Structural rule: item definitions always live inside *.<Type>/ folders,
 #    so any file directly under repository_directory is excluded by
 #    construction (handled in build_definition_parts).
-EXCLUDED_FILES = {"parameter.yml", ".gitkeep"}
+EXCLUDED_FILES = {"parameter.yml", "bulk-parameter.yml", ".gitkeep"}
+
+# Bulk-specific config file at the root of repository_directory. Read by
+# load_bulk_config() to drive substitutions and VariableLibrary value-set
+# activation. See data/fabric/bulk-parameter.yml for the schema.
+BULK_PARAMETER_FILENAME = "bulk-parameter.yml"
+
+
+@dataclass(frozen=True)
+class SubstitutionRule:
+    """A single find/replace rule scoped to one or more item types.
+
+    ``replace_with`` may contain dynamic placeholders that are resolved at
+    deploy time against the target workspace ID and Phase 1 item IDs:
+        $workspace.$id
+        $items.<Type>.<Name>.$id
+    """
+
+    find: str
+    replace_with: str
+    item_types: frozenset[str]
+
+
+@dataclass(frozen=True)
+class BulkConfig:
+    """Parsed contents of bulk-parameter.yml.
+
+    ``variable_library_active_value_set`` is None when the config has no
+    ``variable_library`` block or when its ``active_value_set`` is null. In
+    that case the deploy skips the value-set activation step.
+    """
+
+    substitutions: tuple[SubstitutionRule, ...] = field(default_factory=tuple)
+    variable_library_active_value_set: str | None = None
+
+
+def load_bulk_config(path: pathlib.Path) -> BulkConfig:
+    """Parse bulk-parameter.yml into a typed BulkConfig.
+
+    A missing file is not an error — the bulk path remains usable for repos
+    that don't need substitutions or value-set activation. In that case an
+    empty BulkConfig is returned and the caller's behavior is unchanged from
+    the pre-Phase-2 implementation (single POST, no post-deploy steps).
+
+    Raises ValueError on a present-but-malformed file so that misconfigured
+    repos fail loudly rather than silently skipping rules.
+    """
+    if not path.exists():
+        return BulkConfig()
+
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if raw is None:
+        # Empty file is treated the same as missing.
+        return BulkConfig()
+    if not isinstance(raw, dict):
+        raise ValueError(
+            f"{path.name} must contain a YAML mapping at the top level, "
+            f"got {type(raw).__name__}"
+        )
+
+    substitutions: list[SubstitutionRule] = []
+    for index, entry in enumerate(raw.get("substitutions") or []):
+        if not isinstance(entry, dict):
+            raise ValueError(
+                f"{path.name}: substitutions[{index}] must be a mapping"
+            )
+        try:
+            find = entry["find"]
+            replace_with = entry["replace_with"]
+            item_types = entry["item_types"]
+        except KeyError as exc:
+            raise ValueError(
+                f"{path.name}: substitutions[{index}] missing required key {exc.args[0]!r}"
+            ) from None
+        if not isinstance(item_types, list) or not all(isinstance(t, str) for t in item_types):
+            raise ValueError(
+                f"{path.name}: substitutions[{index}].item_types must be a list of strings"
+            )
+        substitutions.append(
+            SubstitutionRule(
+                find=str(find),
+                replace_with=str(replace_with),
+                item_types=frozenset(item_types),
+            )
+        )
+
+    variable_library_block = raw.get("variable_library") or {}
+    if not isinstance(variable_library_block, dict):
+        raise ValueError(
+            f"{path.name}: variable_library must be a mapping if present"
+        )
+    active_value_set = variable_library_block.get("active_value_set")
+    if active_value_set is not None and not isinstance(active_value_set, str):
+        raise ValueError(
+            f"{path.name}: variable_library.active_value_set must be a string or null"
+        )
+
+    return BulkConfig(
+        substitutions=tuple(substitutions),
+        variable_library_active_value_set=active_value_set,
+    )
 
 
 def acquire_token(tenant_id: str, client_id: str, client_secret: str) -> str:

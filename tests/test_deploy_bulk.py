@@ -14,11 +14,15 @@ from unittest import mock
 import pytest
 
 from deploy_bulk import (
+    BULK_PARAMETER_FILENAME,
     EXCLUDED_FILES,
+    BulkConfig,
+    SubstitutionRule,
     acquire_token,
     build_definition_parts,
     check_per_item_status,
     interpret_post_response,
+    load_bulk_config,
 )
 
 
@@ -56,6 +60,15 @@ def test_build_definition_parts_excludes_parameter_yml(tmp_path: pathlib.Path) -
     parts = build_definition_parts(tmp_path)
     paths = [p["path"] for p in parts]
     assert "/parameter.yml" not in paths
+
+
+def test_build_definition_parts_excludes_bulk_parameter_yml(tmp_path: pathlib.Path) -> None:
+    """bulk-parameter.yml is bulk's own config and must never be sent to Fabric."""
+    (tmp_path / "bulk-parameter.yml").write_bytes(b"substitutions: []")
+    _make_item_file(tmp_path, "MyItem.Notebook/notebook-content.py")
+    parts = build_definition_parts(tmp_path)
+    paths = [p["path"] for p in parts]
+    assert "/bulk-parameter.yml" not in paths
 
 
 def test_build_definition_parts_excludes_root_level_files(tmp_path: pathlib.Path) -> None:
@@ -99,7 +112,194 @@ def test_build_definition_parts_missing_dir_exits(tmp_path: pathlib.Path) -> Non
 def test_excluded_files_constant_includes_known_excludes() -> None:
     """Sanity check on the constant — protects against accidental edits."""
     assert "parameter.yml" in EXCLUDED_FILES
+    assert "bulk-parameter.yml" in EXCLUDED_FILES
     assert ".gitkeep" in EXCLUDED_FILES
+
+
+def test_bulk_parameter_filename_constant() -> None:
+    """The filename constant must match the file we exclude and the file we read."""
+    assert BULK_PARAMETER_FILENAME == "bulk-parameter.yml"
+    assert BULK_PARAMETER_FILENAME in EXCLUDED_FILES
+
+
+# ---------- load_bulk_config ----------
+
+
+def test_load_bulk_config_missing_file_returns_empty(tmp_path: pathlib.Path) -> None:
+    """Missing file is not an error — bulk path stays usable without config."""
+    config = load_bulk_config(tmp_path / "does_not_exist.yml")
+    assert config == BulkConfig()
+    assert config.substitutions == ()
+    assert config.variable_library_active_value_set is None
+
+
+def test_load_bulk_config_empty_file_returns_empty(tmp_path: pathlib.Path) -> None:
+    """An empty YAML file parses to None and is treated as no config."""
+    path = tmp_path / "bulk-parameter.yml"
+    path.write_text("", encoding="utf-8")
+    assert load_bulk_config(path) == BulkConfig()
+
+
+def test_load_bulk_config_full_happy_path(tmp_path: pathlib.Path) -> None:
+    path = tmp_path / "bulk-parameter.yml"
+    path.write_text(
+        """
+substitutions:
+  - find: "abc"
+    replace_with: "$workspace.$id"
+    item_types: [Notebook, SemanticModel]
+  - find: "def"
+    replace_with: "$items.Lakehouse.LH.$id"
+    item_types: [Notebook]
+
+variable_library:
+  active_value_set: "$environment"
+""",
+        encoding="utf-8",
+    )
+    config = load_bulk_config(path)
+    assert len(config.substitutions) == 2
+    assert config.substitutions[0] == SubstitutionRule(
+        find="abc",
+        replace_with="$workspace.$id",
+        item_types=frozenset({"Notebook", "SemanticModel"}),
+    )
+    assert config.substitutions[1] == SubstitutionRule(
+        find="def",
+        replace_with="$items.Lakehouse.LH.$id",
+        item_types=frozenset({"Notebook"}),
+    )
+    assert config.variable_library_active_value_set == "$environment"
+
+
+def test_load_bulk_config_substitutions_only(tmp_path: pathlib.Path) -> None:
+    path = tmp_path / "bulk-parameter.yml"
+    path.write_text(
+        """
+substitutions:
+  - find: "abc"
+    replace_with: "xyz"
+    item_types: [Notebook]
+""",
+        encoding="utf-8",
+    )
+    config = load_bulk_config(path)
+    assert len(config.substitutions) == 1
+    assert config.variable_library_active_value_set is None
+
+
+def test_load_bulk_config_variable_library_only(tmp_path: pathlib.Path) -> None:
+    path = tmp_path / "bulk-parameter.yml"
+    path.write_text(
+        """
+variable_library:
+  active_value_set: "Test"
+""",
+        encoding="utf-8",
+    )
+    config = load_bulk_config(path)
+    assert config.substitutions == ()
+    assert config.variable_library_active_value_set == "Test"
+
+
+def test_load_bulk_config_variable_library_null_active_value_set(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Explicit null in YAML is the documented way to disable activation."""
+    path = tmp_path / "bulk-parameter.yml"
+    path.write_text(
+        """
+variable_library:
+  active_value_set: null
+""",
+        encoding="utf-8",
+    )
+    assert load_bulk_config(path).variable_library_active_value_set is None
+
+
+def test_load_bulk_config_top_level_not_a_mapping_raises(tmp_path: pathlib.Path) -> None:
+    path = tmp_path / "bulk-parameter.yml"
+    path.write_text("- just\n- a\n- list\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="YAML mapping at the top level"):
+        load_bulk_config(path)
+
+
+def test_load_bulk_config_substitution_missing_required_key_raises(
+    tmp_path: pathlib.Path,
+) -> None:
+    path = tmp_path / "bulk-parameter.yml"
+    path.write_text(
+        """
+substitutions:
+  - find: "abc"
+    item_types: [Notebook]
+""",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="missing required key 'replace_with'"):
+        load_bulk_config(path)
+
+
+def test_load_bulk_config_substitution_not_a_mapping_raises(tmp_path: pathlib.Path) -> None:
+    path = tmp_path / "bulk-parameter.yml"
+    path.write_text(
+        """
+substitutions:
+  - just-a-string
+""",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match=r"substitutions\[0\] must be a mapping"):
+        load_bulk_config(path)
+
+
+def test_load_bulk_config_item_types_not_a_string_list_raises(tmp_path: pathlib.Path) -> None:
+    path = tmp_path / "bulk-parameter.yml"
+    path.write_text(
+        """
+substitutions:
+  - find: "abc"
+    replace_with: "xyz"
+    item_types: "Notebook"
+""",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="item_types must be a list of strings"):
+        load_bulk_config(path)
+
+
+def test_load_bulk_config_variable_library_not_a_mapping_raises(
+    tmp_path: pathlib.Path,
+) -> None:
+    path = tmp_path / "bulk-parameter.yml"
+    path.write_text("variable_library: 'not-a-mapping'\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="variable_library must be a mapping"):
+        load_bulk_config(path)
+
+
+def test_load_bulk_config_active_value_set_wrong_type_raises(tmp_path: pathlib.Path) -> None:
+    path = tmp_path / "bulk-parameter.yml"
+    path.write_text(
+        """
+variable_library:
+  active_value_set: 42
+""",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="active_value_set must be a string or null"):
+        load_bulk_config(path)
+
+
+def test_load_bulk_config_real_repo_file_parses() -> None:
+    """Smoke test: the actual data/fabric/bulk-parameter.yml shipped in the repo loads."""
+    repo_root = pathlib.Path(__file__).resolve().parents[1]
+    path = repo_root / "data" / "fabric" / "bulk-parameter.yml"
+    if not path.exists():
+        pytest.skip("data/fabric/bulk-parameter.yml not present in this checkout")
+    config = load_bulk_config(path)
+    assert isinstance(config, BulkConfig)
+    assert len(config.substitutions) >= 1
+    assert config.variable_library_active_value_set is not None
 
 
 # ---------- check_per_item_status ----------

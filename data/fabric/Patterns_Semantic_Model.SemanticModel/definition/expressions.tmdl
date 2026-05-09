@@ -1,6 +1,6 @@
 expression 'DirectLake - PatternsLakehouse' =
 		let
-		    Source = AzureStorage.DataLake("https://onelake.dfs.fabric.microsoft.com/613e22cd-308a-4106-9745-58bd5164568a/1b80046f-d76e-4748-acfc-575f3fbd23f4", [HierarchicalNavigation=true])
+		    Source = AzureStorage.DataLake("https://onelake.dfs.fabric.microsoft.com/1484d4b0-4c88-4347-9cce-2d2bd03848b0/914bb153-d687-4ea9-9870-d61434b2884f", [HierarchicalNavigation=true])
 		in
 		    Source
 	lineageTag: 67c45651-79f4-4e05-97d9-0430dcddb756

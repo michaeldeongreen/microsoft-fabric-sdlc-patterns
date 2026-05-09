@@ -93,11 +93,13 @@ A Python script at `scripts/workspace_swap.py` handles the full lifecycle of fea
    The script automatically:
    - Detects the current branch name (no arguments needed).
    - Reads dev IDs from `variables.json` (the default value set).
-   - Reads feature workspace/lakehouse IDs from `.env` (or prompts if `.env` is missing).
+   - Reads feature workspace/lakehouse IDs from `.env`. If `.env` is missing or has empty/missing keys, the script exits with an error pointing at `.env.sample` — there is no interactive fallback.
+   - Displays the planned swap and asks `Type YES (uppercase) to apply, anything else to abort.` Type `YES` (case-sensitive) to proceed; the run is dry only when `--dry-run` is also passed.
    - Creates a feature branch value set (e.g., `valueSets/<branch-name>.json`).
    - Adds the value set to `settings.json`.
    - Rewrites the semantic model Direct Lake connection in `expressions.tmdl`.
    - Rewrites notebook META dependency blocks in all `notebook-content.py` files.
+   - Sweeps stale feature IDs from a previous swap if `.env` was changed since the last run (recovery pass).
    - Validates no dev IDs remain in critical files.
 5. **Commit and push** the changes to the feature branch:
    ```
@@ -155,7 +157,7 @@ The repo ships slash commands in `.github/prompts/` that wrap the CLI. In Copilo
 - `/swap-to-dev-dryrun` — preview the revert without writing files
 - `/check-pr-ready` — run the CI-style readiness check locally
 
-Copilot will execute the script in the VS Code integrated terminal and show you the output. This is useful when you are already working in Copilot Chat and want to stay in the same workflow without switching to the terminal.
+Copilot will execute the script in the VS Code integrated terminal and show you the output. The `/swap-to-feature` slash command moves the `YES` confirmation into the chat UI — you click `YES` or `NO` in chat and Copilot pipes the answer to the script so the terminal never blocks. This is useful when you are already working in Copilot Chat and want to stay in the same workflow without switching to the terminal.
 
 Note: Copilot cannot auto-trigger the script on branch checkout. You still need to invoke a slash command or run it yourself after pulling a feature branch.
 
@@ -170,7 +172,9 @@ Note: Copilot cannot auto-trigger the script on branch checkout. You still need 
 3. Paste both into `.env`.
 4. Run `python scripts/workspace_swap.py` (or `/swap-to-feature` in Copilot Chat).
 
-If `.env` is missing or empty, the script falls back to an interactive prompt. After the first run, the value set on disk is the source of truth for that branch — `.env` is no longer consulted for it.
+If `.env` is missing, has empty values, or is missing either key, the script exits with a clear error pointing at `.env.sample`. There is no interactive fallback — `.env` is the single source of truth for swap-to-feature.
+
+For swap-to-feature, the script always reads `.env` (the existing value-set file does not override it). The value set on disk is read by swap-to-dev (to know which feature IDs to revert) and by the recovery pass (to detect previously-applied stale IDs that need rewriting). Before any rewrite happens, the script displays the planned dev → feature change and waits for the user to type literal `YES` to confirm.
 
 The script intentionally does **not** auto-discover IDs via the Fabric REST API. An earlier implementation matched workspaces by display name, which could silently pick the wrong workspace (e.g. matching the dev workspace itself), causing the swap to abort with no value set written. Explicit `.env` config avoids that class of bug.
 

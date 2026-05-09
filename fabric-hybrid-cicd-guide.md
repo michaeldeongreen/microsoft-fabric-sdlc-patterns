@@ -30,8 +30,8 @@ Git repo (dev branch)
 ┌─────────────────────────────────────────────────────┐
 │  deploy-test.yml (orchestrator)                     │
 │                                                     │
-│  deploy-supported                                   │
-│    └─ reusable-deploy-supported.yml                 │
+│  deploy-fabric-cicd                                 │
+│    └─ reusable-deploy-fabric-cicd.yml               │
 │       └─ fabric-cicd: publish_all_items()           │
 │          (Phase 1: Lakehouse + Ontology)            │
 │          (Phase 2: all remaining items)             │
@@ -46,6 +46,8 @@ Git repo (dev branch)
 ```
 
 The same pattern applies to Prod (`deploy-prod.yml` → `etl-prod.yml`), triggered on push to `main`.
+
+> An alternative bulk-API deploy path exists alongside this fabric-cicd path; both are gated by the `DEPLOY_METHOD` repo variable. The fabric-cicd path is the recommended one — see [fabric-cicd vs Bulk APIs](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the comparison and [Bulk CI/CD Implementation Guide](fabric-bulk-cicd-guide.md) for the bulk path's implementation walkthrough.
 
 ### Branches & Workspaces
 
@@ -69,31 +71,41 @@ microsoft-fabric-sdlc-patterns/
 │   │   ├── actions.instructions.md          # Copilot instructions for workflow authoring
 │   │   └── python.instructions.md           # Copilot instructions for Python scripts
 │   └── workflows/
-│       ├── deploy-test.yml                  # Orchestrator: push to test → deploy + ETL
-│       ├── deploy-prod.yml                  # Orchestrator: push to main → deploy + ETL
-│       ├── etl-test.yml                     # Triggers after deploy-test succeeds
-│       ├── etl-prod.yml                     # Triggers after deploy-prod succeeds
-│       ├── reusable-deploy-supported.yml    # Template: fabric-cicd deployment
-│       ├── reusable-fabric-etl.yml          # Template: run Notebook via Fabric REST API
-│       ├── check-pr-ready.yml               # PR check: blocks feature IDs from merging to dev
-│       ├── run-tests.yml                    # PR check: runs pytest when scripts/tests change
-│       └── enforce-promotion-path.yml       # PR check: enforces dev→test→main source-branch promotion
+│       ├── deploy-test.yml                       # Orchestrator: push to test → fabric-cicd deploy
+│       ├── deploy-prod.yml                       # Orchestrator: push to main → fabric-cicd deploy
+│       ├── deploy-test-bulk.yml                  # Alternative orchestrator: bulk API deploy on push to test
+│       ├── deploy-prod-bulk.yml                  # Alternative orchestrator: bulk API deploy on push to main
+│       ├── etl-test.yml                          # Triggers after either deploy-test* succeeds
+│       ├── etl-prod.yml                          # Triggers after either deploy-prod* succeeds
+│       ├── reusable-deploy-fabric-cicd.yml       # Template: fabric-cicd deployment
+│       ├── reusable-deploy-bulk.yml              # Template: Bulk Import API deployment (Preview)
+│       ├── reusable-fabric-etl.yml               # Template: run Notebook via Fabric REST API
+│       ├── check-pr-ready.yml                    # PR check: blocks feature IDs from merging to dev
+│       ├── run-tests.yml                         # PR check: runs pytest when scripts/tests change
+│       └── enforce-promotion-path.yml            # PR check: enforces dev→test→main source-branch promotion
 ├── data/
 │   └── fabric/                              # Fabric item definitions (repository_directory)
 │       ├── parameter.yml                    # fabric-cicd deploy-time parameterization
-│       ├── PatternsLakehouse.Lakehouse/     # Lakehouse definition
-│       ├── Patterns_Variables.             # Variable Library with value sets
-│       │   VariableLibrary/
-│       │   ├── variables.json              # Default (Dev) variable values
-│       │   ├── settings.json               # Value set ordering
+│       ├── bulk-parameter.yml               # Bulk path's parameterization (independent format)
+│       ├── PatternsLakehouse.Lakehouse/
+│       ├── Patterns_Ontology.Ontology/
+│       ├── Patterns_Variables.VariableLibrary/
+│       │   ├── variables.json
+│       │   ├── settings.json
 │       │   └── valueSets/
-│       │       ├── Test.json               # Test environment overrides
-│       │       └── Prod.json               # Prod environment overrides
-│       ├── Import_Patterns_Data.            # ETL notebook (creates Delta tables)
-│       │   Notebook/
-│       └── Patterns_Patients_Data.Notebook/ # Query notebook (reads patients table)
+│       │       ├── Test.json
+│       │       └── Prod.json
+│       ├── Import_Patterns_Data.Notebook/   # ETL notebook (creates Delta tables)
+│       ├── Patterns_Patients_Data.Notebook/
+│       ├── Patterns_Demo.Notebook/
+│       ├── Patterns_Semantic_Model.SemanticModel/
+│       ├── Patterns_Report.Report/
+│       └── Patterns_Data_Agent.DataAgent/
 ├── scripts/
-│   └── workspace_swap.py                       # Bootstrap/reset feature branch workspace bindings
+│   ├── workspace_swap.py                    # Bootstrap/reset feature branch workspace bindings
+│   ├── deploy_fabric_cicd.py                # fabric-cicd deploy (invoked by reusable-deploy-fabric-cicd.yml)
+│   ├── deploy_bulk.py                       # Bulk Import API deploy (invoked by reusable-deploy-bulk.yml)
+│   └── run_fabric_etl.py                    # Run a Fabric Notebook job (invoked by reusable-fabric-etl.yml)
 ├── assets/                                  # Architecture diagrams (SVG)
 ├── fabric-cicd-release-options.md           # CI/CD strategy and release option comparison
 ├── fabric-hybrid-cicd-guide.md               # This file
@@ -116,7 +128,7 @@ microsoft-fabric-sdlc-patterns/
 
 ### Deploy Job
 
-Each deploy workflow calls `reusable-deploy-supported.yml`, which publishes all supported items from Git to the target workspace using fabric-cicd. It uses a two-phase approach: Phase 1 deploys Lakehouse + Ontology, Phase 2 deploys all remaining items (Variable Library, Notebooks, Semantic Model, Report, Data Agent). Item types are explicitly scoped via `item_type_in_scope`.
+Each deploy workflow calls `reusable-deploy-fabric-cicd.yml`, which publishes all supported items from Git to the target workspace using fabric-cicd. It uses a two-phase approach: Phase 1 deploys Lakehouse + Ontology, Phase 2 deploys all remaining items (Variable Library, Notebooks, Semantic Model, Report, Data Agent). Item types are explicitly scoped via `item_type_in_scope`.
 
 The ETL workflow triggers automatically after the deploy workflow completes successfully. If the deploy fails, ETL does not run.
 
@@ -130,7 +142,7 @@ The ETL workflow triggers automatically after the deploy workflow completes succ
 
 | Template | Purpose |
 |---|---|
-| `reusable-deploy-supported.yml` | Two-phase fabric-cicd deployment: Phase 1 deploys Lakehouse + Ontology, Phase 2 deploys all remaining items via `publish_all_items()` and `unpublish_all_orphan_items()`. Accepts `environment`, `repository_directory`, and optional `item_type_in_scope` inputs. |
+| `reusable-deploy-fabric-cicd.yml` | Two-phase fabric-cicd deployment: Phase 1 deploys Lakehouse + Ontology, Phase 2 deploys all remaining items via `publish_all_items()` and `unpublish_all_orphan_items()`. Accepts `environment`, `repository_directory`, and optional `item_type_in_scope` inputs. |
 | `reusable-fabric-etl.yml` | Resolves a Fabric item by **name** (not ID) via the List Items API, then starts a job (RunNotebook) and polls until completion. No item IDs need to be known ahead of time. |
 
 ### Why Reusable Workflows (Not Composite Actions)
@@ -286,7 +298,7 @@ Confirm all items are functional in the target workspace:
 
 The Variable Library and Semantic Model need the lakehouse ID for each environment, but the lakehouse doesn't exist in Test/Prod until the first deployment creates it. fabric-cicd's `$items` dynamic variables (e.g., `$items.Lakehouse.PatternsLakehouse.$id`) resolve by querying the **live target workspace** during parameterization — before items are published. On the first deployment to an empty workspace, this query returns nothing and parameterization fails.
 
-**Solution:** The `reusable-deploy-supported.yml` workflow uses a **two-phase deployment** approach. Phase 1 calls `publish_all_items()` with `item_type_in_scope=["Lakehouse", "Ontology"]` to create the Lakehouse and Ontology first. The Lakehouse must exist so that `$items.Lakehouse.PatternsLakehouse.$id` resolves for parameter.yml rules. The Ontology must exist so that the Data Agent's logicalId reference resolves (fabric-cicd caches workspace state once per `publish_all_items()` call, so items deployed within the same call aren't visible to later items' logicalId resolution). Phase 2 calls `publish_all_items()` with the remaining item types. On subsequent deployments, both phases are idempotent.
+**Solution:** The `reusable-deploy-fabric-cicd.yml` workflow uses a **two-phase deployment** approach. Phase 1 calls `publish_all_items()` with `item_type_in_scope=["Lakehouse", "Ontology"]` to create the Lakehouse and Ontology first. The Lakehouse must exist so that `$items.Lakehouse.PatternsLakehouse.$id` resolves for parameter.yml rules. The Ontology must exist so that the Data Agent's logicalId reference resolves (fabric-cicd caches workspace state once per `publish_all_items()` call, so items deployed within the same call aren't visible to later items' logicalId resolution). Phase 2 calls `publish_all_items()` with the remaining item types. On subsequent deployments, both phases are idempotent.
 
 ### Item Type Scoping
 

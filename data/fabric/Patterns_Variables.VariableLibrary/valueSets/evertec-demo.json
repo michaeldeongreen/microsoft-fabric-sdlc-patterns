@@ -9,6 +9,10 @@
     {
       "name": "target_lakehouse_id",
       "value": "b5288839-dbec-4fec-b90f-cbbc1cd2c57e"
+    },
+    {
+      "name": "target_customer_name",
+      "value": "Evertec-demo"
     }
   ]
 }

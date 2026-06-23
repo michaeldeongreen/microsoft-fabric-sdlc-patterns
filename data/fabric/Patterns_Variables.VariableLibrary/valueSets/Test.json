@@ -5,6 +5,10 @@
     {
       "name": "target_workspace_id",
       "value": "44a6a67d-43b4-4184-ba20-5111e42680ac"
+    },
+    {
+      "name": "target_customer_name",
+      "value": "Evertec-test"
     }
   ]
 }

@@ -24,6 +24,12 @@
       "note": "",
       "type": "Guid",
       "value": "c185283c-9dd9-4e40-a17c-aa6303e3a2e9"
+    },
+    {
+      "name": "target_customer_name",
+      "note": "",
+      "type": "String",
+      "value": "Evertec-dev"
     }
   ]
 }

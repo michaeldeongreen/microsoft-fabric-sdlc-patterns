@@ -1,0 +1,14 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/variableLibrary/definition/valueSet/1.0.0/schema.json",
+  "name": "micgreen-demo-feature",
+  "variableOverrides": [
+    {
+      "name": "target_workspace_id",
+      "value": "0fe2f05e-5c41-4467-97d8-d3d511ab0e8c"
+    },
+    {
+      "name": "target_lakehouse_id",
+      "value": "27bfeddc-ff34-40c0-bde8-b23353a8e00d"
+    }
+  ]
+}

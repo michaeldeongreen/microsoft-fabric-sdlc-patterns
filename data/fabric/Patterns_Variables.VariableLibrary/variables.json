@@ -30,6 +30,12 @@
       "note": "",
       "type": "String",
       "value": "Evertec-dev"
+    },
+    {
+      "name": "target_message",
+      "note": "",
+      "type": "String",
+      "value": "Hola equipo de Evertec! ¡Bienvenidos a Dev!"
     }
   ]
 }

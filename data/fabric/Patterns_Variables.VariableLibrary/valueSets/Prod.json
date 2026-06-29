@@ -9,6 +9,10 @@
     {
       "name": "target_customer_name",
       "value": "Evertec-prod"
+    },
+    {
+      "name": "target_message",
+      "value": "Hola equipo de Evertec! ¡Bienvenidos a Prod!"
     }
   ]
 }

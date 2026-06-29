@@ -9,6 +9,10 @@
     {
       "name": "target_lakehouse_id",
       "value": "27bfeddc-ff34-40c0-bde8-b23353a8e00d"
+    },
+    {
+      "name": "target_message",
+      "value": "Hola equipo de Evertec! ¡Bienvenidos a Feature!"
     }
   ]
 }

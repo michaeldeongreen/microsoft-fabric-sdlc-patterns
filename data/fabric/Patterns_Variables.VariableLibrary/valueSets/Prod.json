@@ -5,6 +5,10 @@
     {
       "name": "target_workspace_id",
       "value": "43208d27-7249-4753-9df7-4a5d8d30e54c"
+    },
+    {
+      "name": "target_customer_name",
+      "value": "Evertec-prod"
     }
   ]
 }

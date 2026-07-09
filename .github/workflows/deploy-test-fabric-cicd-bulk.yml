@@ -1,0 +1,40 @@
+# Orchestrator workflow for deploying Fabric items to the Test workspace via
+# fabric-cicd with bulk publish requested (experimental).
+#
+# Third deploy method alongside deploy-test.yml (standard fabric-cicd) and
+# deploy-test-bulk.yml (raw REST bulk). All fire on push to test; only one runs
+# based on the DEPLOY_METHOD repository variable:
+#   - DEPLOY_METHOD = 'fabric-cicd-bulk'  → this workflow runs
+#   - DEPLOY_METHOD = 'bulk'              → deploy-test-bulk.yml runs
+#   - DEPLOY_METHOD = 'fabric-cicd' or '' → deploy-test.yml runs
+#   - any other value                     → all skip (safe default)
+#
+# For this repo, fabric-cicd bulk publish always falls back to standard per-item
+# publish because parameter.yml uses $items/$workspace dynamic variables. See
+# reusable-deploy-fabric-cicd-bulk.yml for details.
+#
+# The ETL workflow (etl-test.yml) triggers automatically via workflow_run
+# once deployment completes successfully.
+
+name: Deploy to Test (fabric-cicd Bulk)
+
+on:
+  push:
+    branches: [test]
+    paths: ["data/fabric/**", ".github/workflows/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-fabric-cicd-bulk:
+    name: Deploy via fabric-cicd Bulk
+    if: vars.DEPLOY_METHOD == 'fabric-cicd-bulk'
+    uses: ./.github/workflows/reusable-deploy-fabric-cicd-bulk.yml
+    with:
+      environment: Test
+      item_type_in_scope: '["Lakehouse", "Ontology", "VariableLibrary", "Notebook", "SemanticModel", "Report", "DataAgent"]'
+      # Set to true to fail the job if bulk publish unexpectedly engages
+      # (i.e., the expected fallback did not happen).
+      fail_if_bulk_used: false
+    secrets: inherit

@@ -21,8 +21,9 @@ jobs:
   deploy-fabric-cicd:
     name: Deploy via fabric-cicd
     # Gated by the DEPLOY_METHOD repository variable. Runs when unset or set to
-    # 'fabric-cicd'. Set DEPLOY_METHOD='bulk' to route deployments through
-    # deploy-test-bulk.yml instead. Any other value disables both workflows.
+    # 'fabric-cicd'. Set DEPLOY_METHOD='bulk' (deploy-test-bulk.yml) or
+    # 'fabric-cicd-bulk' (deploy-test-fabric-cicd-bulk.yml) to route deployments
+    # elsewhere. Any other value disables all deploy workflows.
     if: vars.DEPLOY_METHOD == '' || vars.DEPLOY_METHOD == 'fabric-cicd'
     uses: ./.github/workflows/reusable-deploy-fabric-cicd.yml
     with:

@@ -1,10 +1,11 @@
 # Orchestrator workflow for deploying Fabric items to the Prod workspace via the Bulk Import API.
 #
-# Alternative to deploy-prod.yml. Both fire on push to main; only one runs based
+# Alternative to deploy-prod.yml. All fire on push to main; only one runs based
 # on the DEPLOY_METHOD repository variable:
 #   - DEPLOY_METHOD = 'bulk'              → this workflow runs
+#   - DEPLOY_METHOD = 'fabric-cicd-bulk'  → deploy-prod-fabric-cicd-bulk.yml runs
 #   - DEPLOY_METHOD = 'fabric-cicd' or '' → deploy-prod.yml runs
-#   - any other value                     → both skip (safe default)
+#   - any other value                     → all skip (safe default)
 #
 # The `Prod` GitHub Environment should have protection rules configured
 # (e.g., required reviewers, branch policy restricting to main only).

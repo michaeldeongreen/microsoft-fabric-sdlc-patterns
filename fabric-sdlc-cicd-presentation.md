@@ -537,13 +537,14 @@ Both sit inside Option 3 — branch per stage, build environment per stage, depl
 
 <br/>
 
-A `DEPLOY_METHOD` repository variable selects which implementation runs:
+A `DEPLOY_METHOD` repository variable selects which deploy method runs:
 
 | `DEPLOY_METHOD` | Behavior |
 |---|---|
 | `fabric-cicd` *(or unset)* | The `fabric-cicd` workflows run — the default and recommended path |
+| `fabric-cicd-bulk` | fabric-cicd runs with bulk publish enabled; falls back to standard for this repo (`parameter.yml` uses `$items`/`$workspace`) |
 | `bulk` | The Bulk Import API workflows run instead (Preview) |
-| any other value | Both deploy workflows skip (safe default) |
+| any other value | All deploy workflows skip (safe default) |
 
 The bulk path bridges two of the API's gaps in **caller code** — substitution (`bulk-parameter.yml` + `deploy_bulk.py`) and value‑set activation (a post‑deploy `PATCH`). These are workarounds, not platform fixes: choosing bulk means you own that bridging code (~600 lines of Python + a config file). Orphan cleanup and the broader `fabric-cicd` feature surface remain unimplemented on the bulk path.
 

@@ -10,10 +10,10 @@ name: ETL - Prod
 
 on:
   workflow_run:
-    # Triggered by either deployment workflow. The DEPLOY_METHOD repository
+    # Triggered by any of the deployment workflows. The DEPLOY_METHOD repository
     # variable ensures only one of them actually runs per push, so ETL fires once.
     # The success conclusion gate below skips ETL when a deploy was skipped.
-    workflows: ["Deploy to Prod (fabric-cicd)", "Deploy to Prod (Bulk API)"]
+    workflows: ["Deploy to Prod (fabric-cicd)", "Deploy to Prod (Bulk API)", "Deploy to Prod (fabric-cicd Bulk)"]
     types: [completed]
   # Manual trigger so operators can re-run the ETL without having to fake a
   # deploy. The Prod GitHub Environment protection rules still apply to the

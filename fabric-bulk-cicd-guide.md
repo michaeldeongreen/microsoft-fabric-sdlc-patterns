@@ -65,7 +65,7 @@ The shape mirrors the [fabric-cicd path](fabric-hybrid-cicd-guide.md#architectur
 | Value-set activation | Library handles automatically when `environment` is passed | Caller makes a separate `PATCH /variableLibraries/{id}` call |
 | Orphan cleanup | `unpublish_all_orphan_items()` built in | Not implemented |
 
-> An alternative fabric-cicd deploy path exists alongside this bulk path; both are gated by the `DEPLOY_METHOD` repo variable. fabric-cicd is the recommended path — see [fabric-cicd vs Bulk APIs](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the comparison and [fabric-hybrid-cicd-guide.md](fabric-hybrid-cicd-guide.md) for its implementation guide.
+> Other deploy paths exist alongside this bulk path — the standard fabric-cicd path and a `fabric-cicd-bulk` variant that runs fabric-cicd with bulk publish enabled — all selected by the `DEPLOY_METHOD` repo variable. fabric-cicd is the recommended path — see [fabric-cicd vs Bulk APIs](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the comparison and [fabric-hybrid-cicd-guide.md](fabric-hybrid-cicd-guide.md) for its implementation guide.
 
 ### Branches & Workspaces
 
@@ -88,8 +88,8 @@ microsoft-fabric-sdlc-patterns/
 │   └── workflows/
 │       ├── deploy-test-bulk.yml             # Orchestrator: push to test → bulk deploy
 │       ├── deploy-prod-bulk.yml             # Orchestrator: push to main → bulk deploy
-│       ├── etl-test.yml                     # Triggers after either deploy-test* succeeds
-│       ├── etl-prod.yml                     # Triggers after either deploy-prod* succeeds
+│       ├── etl-test.yml                     # Triggers after any deploy-test* workflow succeeds
+│       ├── etl-prod.yml                     # Triggers after any deploy-prod* workflow succeeds
 │       ├── reusable-deploy-bulk.yml         # Template: Bulk Import API deployment
 │       ├── reusable-fabric-etl.yml          # Template: run Notebook via Fabric REST API
 │       ├── check-pr-ready.yml               # PR check: blocks feature IDs from merging to dev
@@ -118,7 +118,7 @@ microsoft-fabric-sdlc-patterns/
 └── ... (other docs, see README)
 ```
 
-The fabric-cicd workflows (`deploy-test.yml`, `deploy-prod.yml`, `reusable-deploy-fabric-cicd.yml`) coexist with the bulk workflows in the same `.github/workflows/` directory. The `DEPLOY_METHOD` repository variable selects which one runs.
+The fabric-cicd workflows (`deploy-test.yml`, `deploy-prod.yml`, `reusable-deploy-fabric-cicd.yml`), their `fabric-cicd-bulk` counterparts (`deploy-test-fabric-cicd-bulk.yml`, `deploy-prod-fabric-cicd-bulk.yml`, `reusable-deploy-fabric-cicd-bulk.yml`), and the bulk workflows all live in the same `.github/workflows/` directory. The `DEPLOY_METHOD` repository variable selects which set runs.
 
 ---
 
@@ -137,9 +137,10 @@ The `DEPLOY_METHOD` repository variable (Settings → Secrets and variables → 
 
 | `DEPLOY_METHOD` value | Behavior |
 |---|---|
-| `fabric-cicd` *(or unset)* | fabric-cicd workflows run; bulk workflows skip |
-| `bulk` | Bulk workflows run; fabric-cicd workflows skip |
-| any other value | Both deploy workflows skip (safe default) |
+| `fabric-cicd` *(or unset)* | fabric-cicd workflows run; other deploy workflows skip |
+| `fabric-cicd-bulk` | fabric-cicd workflows run with bulk publish enabled (falls back to standard for this repo); other deploy workflows skip |
+| `bulk` | Bulk workflows run; other deploy workflows skip |
+| any other value | All deploy workflows skip (safe default) |
 
 ### The Bulk Deploy Job
 

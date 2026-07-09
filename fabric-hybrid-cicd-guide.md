@@ -47,7 +47,7 @@ Git repo (dev branch)
 
 The same pattern applies to Prod (`deploy-prod.yml` → `etl-prod.yml`), triggered on push to `main`.
 
-> An alternative bulk-API deploy path exists alongside this fabric-cicd path; both are gated by the `DEPLOY_METHOD` repo variable. The fabric-cicd path is the recommended one — see [fabric-cicd vs Bulk APIs](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the comparison and [Bulk CI/CD Implementation Guide](fabric-bulk-cicd-guide.md) for the bulk path's implementation walkthrough.
+> Alternative deploy paths exist alongside this standard fabric-cicd path — a raw Bulk Import API path and a `fabric-cicd-bulk` variant that runs fabric-cicd with bulk publish enabled — all selected by the `DEPLOY_METHOD` repo variable. The standard fabric-cicd path shown here is the recommended one — see [fabric-cicd vs Bulk APIs](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the comparison and [Bulk CI/CD Implementation Guide](fabric-bulk-cicd-guide.md) for the bulk path's implementation walkthrough.
 
 ### Branches & Workspaces
 
@@ -75,8 +75,8 @@ microsoft-fabric-sdlc-patterns/
 │       ├── deploy-prod.yml                       # Orchestrator: push to main → fabric-cicd deploy
 │       ├── deploy-test-bulk.yml                  # Alternative orchestrator: bulk API deploy on push to test
 │       ├── deploy-prod-bulk.yml                  # Alternative orchestrator: bulk API deploy on push to main
-│       ├── etl-test.yml                          # Triggers after either deploy-test* succeeds
-│       ├── etl-prod.yml                          # Triggers after either deploy-prod* succeeds
+│       ├── etl-test.yml                          # Triggers after any deploy-test* workflow succeeds
+│       ├── etl-prod.yml                          # Triggers after any deploy-prod* workflow succeeds
 │       ├── reusable-deploy-fabric-cicd.yml       # Template: fabric-cicd deployment
 │       ├── reusable-deploy-bulk.yml              # Template: Bulk Import API deployment (Preview)
 │       ├── reusable-fabric-etl.yml               # Template: run Notebook via Fabric REST API

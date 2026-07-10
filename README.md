@@ -48,7 +48,7 @@ Branch protection (PR required, source-branch restrictions, status checks) is en
 
 ![Hybrid Recommendation Flow](assets/hybrid-recommendation-flow.svg)
 
-> This repository demonstrates both deployment implementations. The default and recommended path is fabric-cicd (GA Python library). A parallel set of workflows uses the Bulk Import / Export APIs (Preview) for evaluation and side-by-side comparison. Selection is controlled by the `DEPLOY_METHOD` repository variable — see [Quick Start](#quick-start) for how to switch and [CI/CD Release Options](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the full comparison.
+> This repository demonstrates fabric-cicd (the default, recommended GA Python library) alongside a parallel set of Bulk Import / Export API workflows (Preview) for evaluation and side-by-side comparison. Selection is controlled by the `DEPLOY_METHOD` repository variable — see [Quick Start](#quick-start) for all methods and how to switch, and [CI/CD Release Options](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the full comparison.
 
 ---
 
@@ -115,15 +115,16 @@ When designing your development and CI/CD processes, identify which items in you
 
 ### Selecting the deployment method
 
-This repo ships two parallel deployment implementations. Set the `DEPLOY_METHOD` repository variable (Settings → Secrets and variables → Actions → Variables) to choose which one runs:
+This repo ships three deploy methods. Set the `DEPLOY_METHOD` repository variable (Settings → Secrets and variables → Actions → Variables) to choose which one runs:
 
 | `DEPLOY_METHOD` value | Behavior |
 |---|---|
 | `fabric-cicd` *(or unset)* | Existing fabric-cicd workflows run — the default and recommended path |
+| `fabric-cicd-bulk` | fabric-cicd workflows run with bulk publish enabled. For this repo it always falls back to standard per-item publish, because `parameter.yml` uses `$items`/`$workspace` variables — included to demonstrate the library's experimental bulk mode |
 | `bulk` | Bulk Import API workflows run instead (Preview) |
-| any other value | Both deploy workflows skip (safe default) |
+| any other value | All deploy workflows skip (safe default) |
 
-Whichever path runs, the ETL workflow chains afterward via `workflow_run`. See [CI/CD Release Options](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the trade-offs between the two.
+Whichever method runs, the ETL workflow chains afterward via `workflow_run`. See [CI/CD Release Options](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the trade-offs between fabric-cicd and the Bulk APIs.
 
 For detailed setup instructions, see the [Implementation Guide](fabric-hybrid-cicd-guide.md#prerequisites--setup). For branch-protection rulesets, deploy-time approvals, and the source-branch promotion path enforced in this repo, see the [Governance Considerations](fabric-cicd-governance-considerations.md).
 

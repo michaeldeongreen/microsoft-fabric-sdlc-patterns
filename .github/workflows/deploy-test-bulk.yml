@@ -1,10 +1,11 @@
 # Orchestrator workflow for deploying Fabric items to the Test workspace via the Bulk Import API.
 #
-# Alternative to deploy-test.yml. Both fire on push to test; only one runs based
+# Alternative to deploy-test.yml. All fire on push to test; only one runs based
 # on the DEPLOY_METHOD repository variable:
 #   - DEPLOY_METHOD = 'bulk'              → this workflow runs
+#   - DEPLOY_METHOD = 'fabric-cicd-bulk'  → deploy-test-fabric-cicd-bulk.yml runs
 #   - DEPLOY_METHOD = 'fabric-cicd' or '' → deploy-test.yml runs
-#   - any other value                     → both skip (safe default)
+#   - any other value                     → all skip (safe default)
 #
 # The ETL workflow (etl-test.yml) triggers automatically via workflow_run
 # once deployment completes successfully.

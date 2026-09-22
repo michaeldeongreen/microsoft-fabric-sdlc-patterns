@@ -34,3 +34,5 @@ When generating or improving GitHub Actions workflows in this repository:
 ## Current Action Versions (pinned to SHA)
 - `actions/checkout@v6` → `de0fac2e4500dabe0009e67214ff5f5447ce83dd`
 - `actions/setup-python@v6` → `a309ff8b426b58ec0e2a45f0f869d46889d02405`
+- `actions/cache@v6.1.0` → `55cc8345863c7cc4c66a329aec7e433d2d1c52a9`
+- `lycheeverse/lychee-action@v2.9.0` → `e7477775783ea5526144ba13e8db5eec57747ce8`

@@ -56,6 +56,17 @@ Items fall into two categories based on how they reference environment resources
 | `check-pr-ready.yml` | PR to `dev` | Blocks merge if dev IDs not restored |
 | `run-tests.yml` | PR (any branch) | Runs pytest when scripts/tests change |
 
+## Translations
+
+Spanish translations live in `translations/es/`, mirroring root filenames exactly (`fabric-hybrid-cicd-guide.md` → `translations/es/fabric-hybrid-cicd-guide.md`). English is canonical — fix the English source first, then mirror the fix.
+
+- **Never translate** code fences, CLI commands, YAML/JSON keys, Python identifiers, file paths, workflow filenames, branch names (`dev`, `test`, `main`, `feature/*`), environment variables, `DEPLOY_METHOD` values, Fabric API item types (`SemanticModel`, `Notebook`, `VariableLibrary`, `DataAgent`, `Ontology`), product names, or verbatim tool output. Code *comments* may be translated.
+- **Never translate** anything under `.github/`, `scripts/`, `tests/`, or `data/`. Files in `.github/` are model input, not documentation.
+- **Do not auto-translate** when editing an English doc. Translations are updated as separate reviewed work; a stale translation is a tracked task, not a merge blocker.
+- Translated headings change GitHub anchors — regenerate tables of contents and cross-references against the translated headings.
+- Links within `translations/es/` use bare relative filenames (resolve to Spanish siblings); shared assets use `../../`.
+- Follow `translations/es/GLOSARIO.md` and `translations/es/GUIA-DE-ESTILO.md` for terminology, and `TRANSLATION.md` for the full contract.
+
 ## Documentation
 
 See `fabric-development-process.md` for the Branch Out workflow, item type reference table, and step-by-step swap-to-feature / swap-to-dev guides. See `fabric-hybrid-cicd-guide.md` for the deployment architecture.

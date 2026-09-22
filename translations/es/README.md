@@ -6,7 +6,7 @@
 
 # Patrones de SDLC para Microsoft Fabric
 
-Implementación de referencia y acelerador de soluciones para el flujo de trabajo del desarrollador y la *pipeline* de CI/CD en Microsoft Fabric. Muestra cómo elegir una estrategia de publicación, implementar despliegues, trabajar día a día en *feature branches* y gobernar la *pipeline* para desarrollo, pruebas y producción con GitHub Actions y la biblioteca de Python [fabric-cicd](https://microsoft.github.io/fabric-cicd). Tanto el flujo de trabajo del desarrollador como la *pipeline* de implementación están implementados de principio a fin, de modo que el repositorio funciona como una referencia completa y no como ejemplos aislados.
+Implementación de referencia y acelerador de soluciones para el flujo de trabajo del desarrollador *pipeline* de CI/CD en Microsoft Fabric. Muestra cómo elegir una estrategia de publicación, despliegues, trabajo día a día en *feature branches* y gobierno de *pipeline* para desarrollo, pruebas y producción con GitHub Actions y la biblioteca de Python [fabric-cicd](https://microsoft.github.io/fabric-cicd). Tanto el flujo de trabajo y el *pipeline* están completamente implementados de principio a fin, de modo que el repositorio funciona como una referencia completa y no como ejemplos aislados.
 
 *Basado en la experiencia de campo con clientes y partners de Microsoft Fabric. Las opiniones aquí expresadas son propias y no representan la guía oficial de Microsoft.*
 
@@ -14,7 +14,7 @@ Implementación de referencia y acelerador de soluciones para el flujo de trabaj
 
 ## ¿A quién está dirigido?
 
-A los equipos de ingeniería y de plataforma responsables de llevar las cargas de trabajo de Microsoft Fabric desde el equipo de un desarrollador hasta producción de forma segura y repetible, abarcando el flujo de trabajo del desarrollador, la propia *pipeline* de implementación y la gobernanza que se superpone a ambos.
+A los equipos de ingeniería y de plataforma responsables de llevar las cargas de trabajo de Microsoft Fabric desde el equipo de un desarrollador hasta producción de forma segura y repetible, abarcando el flujo de trabajo del desarrollador, *pipeline* de implementación y la gobernanza que se superpone a ambos.
 
 Los arquitectos y responsables de decisión que estén evaluando Fabric encontrarán útiles [Opciones de publicación de CI/CD](../../fabric-cicd-release-options.md) *(solo en inglés)* y [Consideraciones de gobernanza](../../fabric-cicd-governance-considerations.md) *(solo en inglés)* para entender el modelo operativo antes de comprometerse.
 

@@ -2,7 +2,6 @@
 > Scratch planning artifact for the `feature/i18n-spanish` branch, committed only so the plan
 > survives session loss. It is not a deliverable and must not reach `dev`.
 > The permanent, contributor-facing policy lives in `TRANSLATION.md`.
-
 # Plan: Multilingual (Spanish, later Portuguese) for microsoft-fabric-sdlc-patterns
 
 ## 1. What this repository is
@@ -152,13 +151,45 @@ Five mechanisms, layered:
 4. **Untranslated targets link to English and say so**, e.g. `[Guía Bulk](../../fabric-bulk-cicd-guide.md) (solo en inglés)`. No silent fallback exists on raw GitHub.
 5. **CI enforcement** — `lychee-action` over `./**/*.md` with `fail: true`. This catches the #1 translation bug class: a copied file whose `../` depth is now wrong.
 
-### Discoverability (no switcher exists)
+### Discoverability — the language switcher
 
-GitHub has **no** built-in language switcher. README precedence is `.github` → root → `docs`, with no locale dimension anywhere in GitHub's docs, and no localization mechanism for community health files. Every large project hand-builds a language table. So:
+GitHub has **no** built-in language switcher and **no** content negotiation. README precedence is `.github` → root → `docs`, with no locale dimension anywhere in GitHub's docs, and no localization mechanism for community health files. The switcher must be hand-built into the Markdown.
 
-- English `README.md` gets a language table at the very top: `🌐 English | [Español](translations/es/README.md)`
-- Each Spanish doc gets a header banner: link back to the English original + "English is the authoritative version"
-- Each Spanish doc gets a footer disclaimer modeled on Microsoft's co-op-translator disclaimer
+**Every document in both languages carries a switcher — not just the README.** W3C is explicit: *"it is always best to add links to alternate language versions, and to do so on every page… Such information should not be hidden, since the user may be looking at a page full of text that means nothing to them."* This matters concretely here: `fabric-cicd-release-options.md` is the "start here" doc and is deep-linked from other docs, so a reader can easily land somewhere that isn't the README.
+
+#### Format
+
+First line of the file, above the `#` heading. Current language is plain bold text, not a link.
+
+English doc at root (`fabric-cicd-release-options.md`):
+```markdown
+**English** | [Español](translations/es/fabric-cicd-release-options.md)
+```
+
+Spanish counterpart (`translations/es/fabric-cicd-release-options.md`):
+```markdown
+[English](../../fabric-cicd-release-options.md) | **Español**
+```
+
+`README.md` gets the same line; as the landing page it may also carry a short "Este proyecto está disponible en español" note.
+
+#### Rules
+
+1. **Label each language in its own language** — `Español`, not `Spanish`; `English`, not `Inglés`. Per W3C: *"the links are in the language of the page they point to… If you were English and faced with a Persian page, and if the link to the English page was written in the Arabic script, you might not find it easily."*
+2. **No flags.** Languages are not countries. Spanish is official in 21 nations, and we chose *español neutro* precisely to avoid privileging one — a 🇪🇸 or 🇲🇽 flag would contradict that decision.
+3. **Top of file, above the H1** — maximally visible on arrival. Accepted limitation: anchor deep links (`file.md#seccion`) land mid-page and scroll past the switcher. Unavoidable on GitHub; the alternative (repeating the switcher per section) is worse.
+4. **Add the switcher to an English doc only when its Spanish counterpart merges.** A switcher pointing at a not-yet-translated file is a 404 and will fail the lychee CI job. So English docs stay untouched until their translation lands — each Phase 3 PR adds one Spanish doc *and* one switcher line to its English source.
+5. **Spanish docs also get** a header note ("La versión en inglés es la autoritativa", linking the English original) and the footer disclaimer, both separate from the switcher line.
+
+#### Free wins
+
+- GitHub auto-renders `README.md` in any directory listing, so browsing to `translations/es/` displays the Spanish README without extra work.
+- GitHub auto-generates an "Outline" table of contents for every rendered Markdown file, which will reflect the translated headings.
+- English remains the fallback for anything untranslated — matching W3C's own rationale: the original version is *"most up-to-date, and has undergone wide review."*
+
+#### Portuguese later
+
+The separator pattern extends without restructuring: `[English](../../file.md) | [Español](../es/file.md) | **Português**`. At three languages a plain inline list is still correct; W3C only recommends a dropdown for long lists, which has its own drawbacks.
 
 ---
 
@@ -192,7 +223,7 @@ Vue **stopped accepting new translations in 2025** — not for quality reasons, 
 | ID | Task |
 |---|---|
 | `pilot-readme` | Translate `README.md` → `translations/es/README.md`. Includes banner, footer disclaimer, source stamp, `../../` asset links, translated ASCII architecture diagram labels, `/es-es/` Learn links |
-| `language-table` | Add language table to English `README.md` |
+| `language-switcher` | Add switcher line to English `README.md` + Spanish `README.md`. Establishes the pattern all later docs follow |
 | `pilot-review` | **Native-speaker review.** Reviewer validates glossary, register, and anglicism handling — then we amend `GLOSARIO.md` with what they corrected |
 
 **Gate:** nothing in Phase 2 starts until the reviewer signs off. The glossary corrections from this review are the whole point of piloting.
@@ -215,7 +246,7 @@ Ordered by reader value, cheapest-first within that:
 | `translate-bulk-guide` | `fabric-bulk-cicd-guide.md` | 4,336 |
 | `translate-presentation` | `fabric-sdlc-cicd-presentation.md` | 6,041 |
 
-One doc = one PR into `dev`. Long docs may be split by section across PRs.
+One doc = one PR into `dev`. Each PR adds the Spanish file **and** the switcher line to its English source, so no switcher ever points at a missing file. Long docs may be split by section across PRs.
 
 ### Phase 4 — Diagrams
 | ID | Task |
@@ -268,4 +299,5 @@ Machine translation is used strictly **as a base, never as the final result** �
 - MDN translated-content active-locale policy — github.com/mdn/translated-content
 - Docusaurus i18n with Git (trade-offs) — docusaurus.io/docs/i18n/git
 - lychee-action — github.com/lycheeverse/lychee-action
+- W3C i18n, linking to translated pages & language negotiation — w3.org/International/questions/qa-site-conneg
 - FSF on license translations — gnu.org/licenses/translations.html

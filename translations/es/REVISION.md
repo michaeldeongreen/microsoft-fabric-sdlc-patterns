@@ -72,14 +72,22 @@ Se corrige primero el inglés y después se replica la corrección. Véase [`TRA
 
 ## Decisiones ya tomadas
 
-> Resueltas a partir de la primera revisión (Ana Franco, 22-09-2026). Se documentan aquí para no reabrirlas en cada PR.
+> Resueltas en revisión con **Ana Franco** y **Marlon Ramos** (22-09-2026). Se documentan aquí para no reabrirlas en cada PR.
 
 | Decisión | Resultado |
 |---|---|
 | **Registro** | Impersonal por defecto; **usted** cuando hay instrucción directa. **Nunca tú.** |
 | **Tipos de elemento de Fabric** | Se mantienen en inglés, también en prosa (*Lakehouse*, *Notebook*, *Semantic Model*, *Variable Library*, *Data Pipeline*). |
-| **pipeline** | Nunca se traduce. «Tubería» es la traducción literal y resulta absurda en CI/CD. |
-| **Deployment Pipelines** | En inglés, con glosa «canalizaciones de implementación en el portal en español» la primera vez. |
+| **pipeline** | Nunca se traduce, y es **masculino**: «el *pipeline*», no «la *pipeline*». |
+| **canalización** | No se usa nunca, aunque sea el término oficial de Microsoft: no se entiende en este contexto. |
+| **Deployment Pipelines** | «*Pipelines* de despliegue». En singular: «*Pipeline* de despliegue de Fabric». |
+| **workspace** | En inglés. No «área de trabajo», pese a ser el término de Microsoft Terminology. |
+| **Service principal** | En inglés. No «entidad de servicio». |
+| **Trigger** | En inglés. No «desencadenador». |
+| **Merge del PR** | Preferido sobre «PR fusionado» o «Fusión de PR». |
+| **Update from Git** | El botón del portal se mantiene en inglés; la **API** se traduce: «Actualización desde el API de Git». |
+| **equipo** | No se usa para *laptop* — colisiona con «equipos de ingeniería». Se usa «laptop». |
+| **Autoridad terminológica** | La revisión nativa **prevalece sobre Microsoft Terminology**. El término oficial no siempre es el que se usa. |
 
 ---
 
@@ -89,19 +97,27 @@ Se corrige primero el inglés y después se replica la corrección. Véase [`TRA
 
 ### A. Alcance del principio «ante la duda, en inglés»
 
-Se mantienen en español algunos términos por considerarse transparentes y de uso general. ¿Son correctos, o también deberían ir en inglés?
+Tras aplicar *workspace* y *Service principal* en inglés, estos siguen en español. ¿Son correctos, o también deberían ir en inglés?
 
 | Término | Traducción actual | ¿Correcto? |
 |---|---|---|
-| workspace | área de trabajo | |
-| service principal | entidad de servicio | |
-| deployment | implementación | |
+| deployment | despliegue | |
 | environment | entorno | |
 | branch | rama | |
+| repository | repositorio | |
+| workflow *(GitHub Actions)* | flujo de trabajo | |
+
+### A2. Fabric capacity
+
+Se ha cambiado «Capacidad de Fabric» por «Fabric capacity», pendiente de confirmar con Michelle. ¿Es correcto?
+
+### A3. Botón «Update from Git»
+
+En el diagrama, la flecha conserva **Update from Git** por ser el nombre literal del botón del portal, mientras que el paso numerado dice **Actualización desde el API de Git**. ¿Debe unificarse?
 
 ### B. Enlaces a Microsoft Learn
 
-Los enlaces a `learn.microsoft.com` apuntan a `/es-es/`. Esas páginas están **traducidas automáticamente** por Microsoft (`ms.translationtype: MT`) y su calidad es desigual: la página de integración de Git usa «espacio de trabajo» y «área de trabajo» en el mismo párrafo.
+Los enlaces a `learn.microsoft.com` apuntan a `/es-es/`. Esas páginas están **traducidas automáticamente** por Microsoft (`ms.translationtype: MT`) y su calidad es desigual: la página de integración de Git usa «espacio de trabajo» y «workspace» en el mismo párrafo.
 
 ¿Conviene mantenerlas en español por comodidad del lector, o apuntar al inglés por precisión técnica? Es un cambio de una línea.
 

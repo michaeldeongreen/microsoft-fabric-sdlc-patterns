@@ -21,7 +21,7 @@
 
   <!-- Feature workspace -->
   <rect x="30" y="260" width="160" height="55" rx="8" fill="#6f42c1" stroke="#59359a" stroke-width="1.5"/>
-  <text x="110" y="284" text-anchor="middle" font-size="11" fill="#fff" font-weight="bold">Área de trabajo feature</text>
+  <text x="110" y="284" text-anchor="middle" font-size="11" fill="#fff" font-weight="bold">Workspace feature</text>
   <text x="110" y="300" text-anchor="middle" font-size="9" fill="#d4c5f9">(feature branch)</text>
 
   <!-- Arrow: dev → feature -->
@@ -35,11 +35,11 @@
   <!-- ==================== DEV STAGE ==================== -->
   <rect x="280" y="50" width="230" height="230" rx="8" fill="#e8f5e9" stroke="#28a745" stroke-width="1.5"/>
   <text x="395" y="73" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e7e34">FASE DEV</text>
-  <text x="395" y="88" text-anchor="middle" font-size="9" fill="#555">Desencadenador: PR fusionado → rama dev</text>
+  <text x="395" y="88" text-anchor="middle" font-size="9" fill="#555">Trigger: Merge del PR → rama dev</text>
 
   <!-- Dev Workspace -->
   <rect x="300" y="100" width="190" height="40" rx="6" fill="#28a745" stroke="#1e7e34" stroke-width="1.5"/>
-  <text x="395" y="125" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Área de trabajo Dev</text>
+  <text x="395" y="125" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Workspace Dev</text>
 
   <!-- Arrow: dev branch → Dev Workspace -->
   <line x1="178" y1="99" x2="300" y2="120" stroke="#28a745" stroke-width="2" marker-end="url(#arrowGreen)"/>
@@ -47,7 +47,7 @@
 
   <!-- Step 1 -->
   <rect x="300" y="150" width="190" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
-  <text x="310" y="169" font-size="9" fill="#333"><tspan font-weight="bold">1.</tspan> API Update from Git</text>
+  <text x="310" y="169" font-size="9" fill="#333"><tspan font-weight="bold">1.</tspan> Actualización desde el API de Git</text>
 
   <!-- Step 2 -->
   <rect x="300" y="184" width="190" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
@@ -60,11 +60,11 @@
   <!-- ==================== TEST STAGE ==================== -->
   <rect x="545" y="50" width="230" height="230" rx="8" fill="#fff3e0" stroke="#fd7e14" stroke-width="1.5"/>
   <text x="660" y="73" text-anchor="middle" font-size="13" font-weight="bold" fill="#e8590c">FASE TEST</text>
-  <text x="660" y="88" text-anchor="middle" font-size="9" fill="#555">Desencadenador: PR fusionado → rama test</text>
+  <text x="660" y="88" text-anchor="middle" font-size="9" fill="#555">Trigger: Merge del PR → rama test</text>
 
   <!-- Test Workspace -->
   <rect x="565" y="100" width="190" height="40" rx="6" fill="#fd7e14" stroke="#e8590c" stroke-width="1.5"/>
-  <text x="660" y="125" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Área de trabajo Test</text>
+  <text x="660" y="125" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Workspace Test</text>
 
   <!-- fabric-cicd deploy -->
   <rect x="565" y="150" width="190" height="28" rx="4" fill="#e8f0fe" stroke="#0078d4" stroke-width="1"/>
@@ -82,11 +82,11 @@
   <!-- ==================== PROD STAGE ==================== -->
   <rect x="810" y="50" width="260" height="230" rx="8" fill="#fce4ec" stroke="#dc3545" stroke-width="1.5"/>
   <text x="940" y="73" text-anchor="middle" font-size="13" font-weight="bold" fill="#bd2130">FASE PROD</text>
-  <text x="940" y="88" text-anchor="middle" font-size="9" fill="#555">Desencadenador: PR fusionado → rama main</text>
+  <text x="940" y="88" text-anchor="middle" font-size="9" fill="#555">Trigger: Merge del PR → rama main</text>
 
   <!-- Prod Workspace -->
   <rect x="835" y="100" width="210" height="40" rx="6" fill="#dc3545" stroke="#bd2130" stroke-width="1.5"/>
-  <text x="940" y="125" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Área de trabajo Prod</text>
+  <text x="940" y="125" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Workspace Prod</text>
 
   <!-- fabric-cicd deploy -->
   <rect x="835" y="150" width="210" height="28" rx="4" fill="#e8f0fe" stroke="#0078d4" stroke-width="1"/>
@@ -103,7 +103,7 @@
 
   <!-- ==================== DEPLOYMENT PIPELINE (conceptual) ==================== -->
   <rect x="545" y="385" width="525" height="50" rx="6" fill="none" stroke="#6f42c1" stroke-width="2" stroke-dasharray="6,3"/>
-  <text x="807" y="408" text-anchor="middle" font-size="11" fill="#6f42c1" font-weight="bold">Fabric Deployment Pipeline (disponible para elementos no compatibles)</text>
+  <text x="807" y="408" text-anchor="middle" font-size="11" fill="#6f42c1" font-weight="bold">Pipeline de despliegue de Fabric (disponible para elementos no compatibles)</text>
   <text x="807" y="425" text-anchor="middle" font-size="9" fill="#6f42c1">No se usa — todos los elementos de este repositorio se implementan con fabric-cicd</text>
 
   <!-- ==================== CONFIGURATION ==================== -->
@@ -113,7 +113,7 @@
   <rect x="45" y="498" width="240" height="70" rx="5" fill="#fff" stroke="#ccc" stroke-width="1"/>
   <text x="165" y="518" text-anchor="middle" font-size="11" font-weight="bold" fill="#333">Variable Libraries (ejecución)</text>
   <text x="165" y="534" text-anchor="middle" font-size="9" fill="#555">Los conjuntos de valores por entorno</text>
-  <text x="165" y="548" text-anchor="middle" font-size="9" fill="#555">enlazan IDs de área de trabajo y de</text>
+  <text x="165" y="548" text-anchor="middle" font-size="9" fill="#555">enlazan IDs de workspace y de</text>
   <text x="165" y="562" text-anchor="middle" font-size="9" fill="#555">Lakehouse al ejecutar el Notebook</text>
 
   <rect x="300" y="498" width="240" height="70" rx="5" fill="#fff" stroke="#ccc" stroke-width="1"/>
@@ -141,9 +141,9 @@
   <text x="322" y="657" font-size="10" fill="#333">Paso estándar del pipeline</text>
 
   <rect x="550" y="645" width="14" height="14" rx="2" fill="none" stroke="#6f42c1" stroke-width="1.5" stroke-dasharray="3,2"/>
-  <text x="572" y="657" font-size="10" fill="#333">Deployment Pipeline (elementos no compatibles)</text>
+  <text x="572" y="657" font-size="10" fill="#333">Pipeline de despliegue (elementos no compatibles)</text>
 
-  <text x="50" y="685" font-size="10" fill="#555">Dev = conectado a Git (API Update from Git) | Test y Prod = fabric-cicd implementa todo</text>
+  <text x="50" y="685" font-size="10" fill="#555">Dev = conectado a Git (Actualización desde el API de Git) | Test y Prod = fabric-cicd implementa todo</text>
 
   <!-- Arrow markers -->
   <defs>

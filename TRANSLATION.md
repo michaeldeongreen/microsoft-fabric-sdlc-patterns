@@ -94,7 +94,9 @@ Where a term stays in English and a localized portal string exists, gloss it in 
 Las ***Deployment Pipelines*** (canalizaciones de implementación en el portal en español) permiten...
 ```
 
-Terminology for the terms that *are* translated comes from **Microsoft Terminology**, not from `learn.microsoft.com/es-es` prose. The Spanish Fabric documentation is machine-translated (`ms.translationtype: MT`) and is internally inconsistent — the Git integration page uses both "espacio de trabajo" and "área de trabajo" in a single paragraph. Link to it for the reader's convenience; never mine it for terminology.
+Terminology for the terms that *are* translated starts from **Microsoft Terminology**, not from `learn.microsoft.com/es-es` prose. The Spanish Fabric documentation is machine-translated (`ms.translationtype: MT`) and is internally inconsistent — the Git integration page uses both "espacio de trabajo" and "área de trabajo" in a single paragraph. Link to it for the reader's convenience; never mine it for terminology.
+
+**But Microsoft Terminology is the starting point, not the final authority.** It records the *official* term, which is not always the one practitioners use. Where a native reviewer says the official term isn't what people actually say, the reviewer wins. Spanish examples, all overriding the official form: *workspace* (not "área de trabajo"), *Service principal* (not "entidad de servicio"), *pipeline* (never "canalización" — the official term, and reportedly not understood in context).
 
 ### Register
 

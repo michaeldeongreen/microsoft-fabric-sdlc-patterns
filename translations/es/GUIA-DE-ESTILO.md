@@ -40,10 +40,10 @@ Esta es también la práctica de la documentación en español de Microsoft. En 
 Para describir comportamiento, procesos o reglas se emplea la pasiva refleja o una construcción impersonal:
 
 ```
-✅ Los identificadores del área de trabajo se revierten automáticamente.
-✅ El script revierte los identificadores del área de trabajo.
+✅ Los identificadores del workspace se revierten automáticamente.
+✅ El script revierte los identificadores del workspace.
 ✅ La terminología procede de Microsoft Terminology.
-❌ Tú revertirás los identificadores del área de trabajo.
+❌ Tú revertirás los identificadores del workspace.
 ```
 
 ### 2. Usted cuando hay instrucción directa
@@ -52,7 +52,7 @@ En procedimientos paso a paso, donde hay que dirigirse a alguien, se usa el impe
 
 ```
 ✅ Para implementar el elemento, ejecute el script desde la raíz del repositorio.
-✅ Cree una entidad de servicio y añádala como colaborador.
+✅ Cree un service principal y añádalo como colaborador.
 ❌ Para implementar el elemento, ejecuta el script desde la raíz del repositorio.
 ```
 
@@ -105,8 +105,8 @@ Quien lee esta documentación trabaja a diario con Fabric, Git y GitHub, casi si
 Esto afecta sobre todo a:
 
 - **Tipos de elemento de Fabric** — *Lakehouse*, *Notebook*, *Semantic Model*, *Variable Library*, *Data Pipeline*, *Data Agent*, *Ontology*. Se mantienen en inglés siempre, también en prosa corrida.
-- **Nombres de funciones del portal** — *Branch Out*, *Update from Git*, *Deployment Pipelines*.
-- **Vocabulario de CI/CD sin equivalente asentado** — *pipeline*, *commit*, *pull request*, *feature branch*.
+- **Nombres de funciones y objetos del portal** — *Branch Out*, *Update from Git*, *workspace*, *Fabric capacity*.
+- **Vocabulario de CI/CD sin equivalente asentado** — *pipeline*, *commit*, *pull request*, *feature branch*, *Trigger*, *Service principal*.
 
 ### Cuándo sí se traduce
 
@@ -115,24 +115,33 @@ Se traduce cuando el equivalente español está plenamente asentado y resulta tr
 | Se traduce | No se traduce |
 |---|---|
 | branch → rama | *pipeline* |
-| merge → fusionar | *commit* |
-| repository → repositorio | *pull request* |
-| workspace → área de trabajo | *Lakehouse*, *Notebook* |
-| deployment → implementación | *Semantic Model* |
-| environment → entorno | *Data Pipeline* |
+| merge → fusionar | *commit*, *pull request* |
+| repository → repositorio | *workspace* |
+| deployment → despliegue | *Service principal* |
+| environment → entorno | *Lakehouse*, *Notebook*, *Semantic Model* |
+| trigger → *Trigger* *(no se traduce)* | *Fabric capacity* |
+
+### El término oficial no siempre gana
+
+**Microsoft Terminology es el punto de partida, no la autoridad final.** Recoge el término *oficial*, que no siempre coincide con el que usa quien trabaja a diario con el producto. Cuando difieren, gana el uso real:
+
+| Inglés | Término oficial de Microsoft | Lo que se usa aquí |
+|---|---|---|
+| workspace | área de trabajo | ***workspace*** |
+| service principal | entidad de servicio | ***Service principal*** |
+| deployment pipeline | canalización de implementación | ***Pipeline* de despliegue** |
+
+«Canalización» es el caso más claro: es el término oficial y, aun así, **no se entiende** en este contexto. Estas decisiones se marcan 👤 Revisión en [`GLOSARIO.md`](GLOSARIO.md).
 
 ### Glosa en la primera aparición
 
-Cuando un término se mantiene en inglés y existe una forma española en el portal localizado, se añade entre paréntesis la primera vez, para quien trabaje con la interfaz en español:
+Cuando un término se mantiene en inglés y existe una forma española reconocible, puede glosarse entre paréntesis la primera vez:
 
 ```markdown
-Las ***Deployment Pipelines*** (canalizaciones de implementación en el portal en español)
-permiten promover contenido entre áreas de trabajo.
+Cree un *Service principal* (entidad de servicio) con el rol de colaborador.
 ```
 
-Después de esa primera aparición se usa solo la forma inglesa.
-
-La terminología española procede de **Microsoft Terminology**, no de `learn.microsoft.com/es-es`. Véase [`GLOSARIO.md`](GLOSARIO.md) y la advertencia que contiene.
+Después de esa primera aparición se usa solo la forma inglesa. Si la forma española **no** es reconocible —«canalización», «tubería»— no se glosa: solo añade ruido.
 
 
 ---

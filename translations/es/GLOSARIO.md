@@ -10,11 +10,14 @@ Cada entrada lleva una marca de origen:
 
 | Marca | Significado |
 |---|---|
-| ✅ **MS** | Verificado en [Microsoft Terminology](https://learn.microsoft.com/en-us/globalization/reference/microsoft-terminology) (colección oficial `SPANISH.tbx`, 61 956 entradas). Es autoritativo. |
+| 👤 **Revisión** | Decidido por revisión de un hablante nativo, **con prioridad sobre Microsoft Terminology**. Cuando el término oficial no coincide con el uso real de quien trabaja con Fabric, manda el uso real. |
+| ✅ **MS** | Verificado en [Microsoft Terminology](https://learn.microsoft.com/en-us/globalization/reference/microsoft-terminology) (colección oficial `SPANISH.tbx`, 61 956 entradas). |
 | 🟡 **Provisional** | No existe en Microsoft Terminology — normalmente por ser terminología reciente de Fabric. Propuesta pendiente de confirmación por un hablante nativo. |
 | 📘 **Convención** | Uso establecido en documentación técnica; no procede de una fuente única. |
 
-> ⚠️ **No debe tomarse terminología de `learn.microsoft.com/es-es`.** Esas páginas están traducidas automáticamente (`ms.translationtype: MT`) y son inconsistentes incluso dentro de una misma página: la de integración de Git usa «espacio de trabajo» y «área de trabajo» en el mismo párrafo. Otro ejemplo: Learn traduce *service principal* como «principal de servicio», mientras que Microsoft Terminology establece **entidad de servicio**.
+> 📌 **La revisión nativa tiene la última palabra.** Microsoft Terminology es el punto de partida, no la autoridad final: recoge el término *oficial*, que no siempre es el que usa quien trabaja a diario con el producto. Cuando ambos difieren, gana el uso real y la entrada se marca 👤 Revisión.
+
+> ⚠️ **No debe tomarse terminología de `learn.microsoft.com/es-es`.** Esas páginas están traducidas automáticamente (`ms.translationtype: MT`) y son inconsistentes incluso dentro de una misma página: la de integración de Git usa «espacio de trabajo» y «workspace» en el mismo párrafo. Otro ejemplo: Learn traduce *service principal* como «principal de servicio», mientras que Microsoft Terminology establece **service principal**.
 
 ---
 
@@ -30,19 +33,20 @@ Por tanto, los **tipos de elemento de Fabric y los nombres de funciones del port
 
 | Inglés | Español | Origen | Notas |
 |---|---|---|---|
-| workspace | **área de trabajo** | ✅ MS | Equivalente asentado y transparente. Definición coincidente: *"A container of Power BI content… designed for collaboration"*. No se usa «espacio de trabajo», que en la terminología de Microsoft designa otro concepto. |
-| Lakehouse | ***Lakehouse*** | 📘 Convención | **No se traduce.** Microsoft Terminology ofrece «almacén de lago de datos», pero no es reconocible para quien trabaja con Fabric. |
+| workspace | ***workspace*** | 👤 Revisión | **No se traduce.** Microsoft Terminology ofrece «área de trabajo», pero la revisión nativa determinó que quien trabaja con Fabric usa «workspace». Prevalece el uso real sobre la terminología oficial. |
+| Lakehouse | ***Lakehouse*** | 👤 Revisión | **No se traduce.** Microsoft Terminology ofrece «almacén de lago de datos», pero no es reconocible para quien trabaja con Fabric. |
 | Notebook | ***Notebook*** | 📘 Convención | **No se traduce.** «Cuaderno» no se usa en este contexto. |
 | Semantic Model | ***Semantic Model*** | 📘 Convención | **No se traduce.** Tipo de elemento de Fabric. |
 | Variable Library | ***Variable Library*** | 📘 Convención | **No se traduce.** Tipo de elemento de Fabric. |
 | Data Pipeline | ***Data Pipeline*** | 📘 Convención | **No se traduce.** Tipo de elemento de Fabric. |
 | Data Agent | ***Data Agent*** | 📘 Convención | **No se traduce.** Tipo de elemento de Fabric. |
 | Ontology | ***Ontology*** | 📘 Convención | **No se traduce.** Tipo de elemento de Fabric. |
-| Deployment Pipelines | ***Deployment Pipelines*** | 📘 Convención | **No se traduce.** En la primera aparición puede glosarse: «canalizaciones de implementación en el portal en español», que es el término oficial de Microsoft Terminology. |
+| Deployment Pipelines | ***Pipelines* de despliegue** | 👤 Revisión | Microsoft Terminology ofrece «canalizaciones de implementación», pero **«canalización» no se entiende** en este contexto. Se mantiene *pipeline* y se traduce solo el complemento. En singular: «*Pipeline* de despliegue de Fabric». |
 | Branch Out | **Branch Out** | 📘 Convención | Función del portal de Fabric; no se traduce. |
-| Update from Git | **Update from Git** | 📘 Convención | Operación del portal y de la API; no se traduce. |
+| Update from Git | **Update from Git** | 📘 Convención | Nombre del botón del portal. Cuando se habla de la **API**, sí se traduce: «Actualización desde el API de Git». |
 | Git integration | **integración de Git** | 📘 Convención | Transparente y de uso general; sí se traduce. |
-| capacity | **capacidad** | ✅ MS | |
+| Fabric capacity | **Fabric capacity** | 👤 Revisión | No se traduce. *(Pendiente de confirmación definitiva.)* |
+| capacity | **capacidad** | ✅ MS | Solo en uso genérico, fuera del nombre del producto. |
 | tenant | **inquilino** | ✅ MS | Forma habitual en Azure y Entra. |
 | dataset | **conjunto de datos** | ✅ MS | |
 | report | **informe** | ✅ MS | Como tipo de elemento de la API se mantiene `Report`. |
@@ -71,7 +75,7 @@ Por tanto, los **tipos de elemento de Fabric y los nombres de funciones del port
 | release | **versión** / **lanzamiento** | ✅ MS | Según contexto. |
 | rollback | **reversión** | ✅ MS | |
 | environment | **entorno** | ✅ MS | Nunca «ambiente». |
-| pipeline | ***pipeline*** | 📘 Convención | **No se traduce nunca.** «Tubería» es la traducción literal y resulta absurda en CI/CD; «canalización» solo aparece como glosa del término del portal en español. En cursiva. |
+| pipeline | ***pipeline*** | 👤 Revisión | **No se traduce nunca.** «Tubería» es la traducción literal y resulta absurda en CI/CD. **«Canalización» tampoco se usa**: no se entiende en este contexto, aunque sea el término de Microsoft Terminology. En cursiva. |
 | workflow *(GitHub Actions)* | **flujo de trabajo** | 📘 Convención | El nombre del archivo (`deploy-test.yml`) no se traduce. |
 | feature branch | ***feature branch*** | 📘 Convención | Nombre de metodología establecido. |
 | trunk-based development | ***trunk-based development*** | 📘 Convención | |
@@ -82,7 +86,8 @@ Por tanto, los **tipos de elemento de Fabric y los nombres de funciones del port
 
 | Inglés | Español | Origen | Notas |
 |---|---|---|---|
-| service principal | **entidad de servicio** | ✅ MS | ⚠️ Learn traduce «principal de servicio»; **Microsoft Terminology dice «entidad de servicio»** y es la forma correcta. |
+| service principal | ***Service principal*** | 👤 Revisión | **No se traduce.** Microsoft Terminology ofrece «entidad de servicio» (y Learn, «principal de servicio»), pero la revisión nativa determinó que se usa el término inglés. |
+| trigger | ***Trigger*** | 👤 Revisión | **No se traduce.** «Desencadenador» resulta forzado. |
 | role | **rol** | ✅ MS | |
 | permission | **permiso** | ✅ MS | |
 | approval | **aprobación** | ✅ MS | |

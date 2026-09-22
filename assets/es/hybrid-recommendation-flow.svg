@@ -51,7 +51,7 @@
 
   <!-- Step 2 -->
   <rect x="300" y="184" width="190" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
-  <text x="310" y="203" font-size="9" fill="#333"><tspan font-weight="bold">2.</tspan> Ejecutar canalizaciones/Notebooks</text>
+  <text x="310" y="203" font-size="9" fill="#333"><tspan font-weight="bold">2.</tspan> Ejecutar Data Pipelines/Notebooks</text>
 
   <!-- Step 3 -->
   <rect x="300" y="218" width="190" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
@@ -71,7 +71,7 @@
   <text x="575" y="169" font-size="9" fill="#0078d4"><tspan font-weight="bold">1.</tspan> fabric-cicd (elementos compatibles)</text>
 
   <rect x="565" y="184" width="190" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
-  <text x="575" y="203" font-size="9" fill="#333"><tspan font-weight="bold">2.</tspan> Ejecutar canalizaciones/Notebooks</text>
+  <text x="575" y="203" font-size="9" fill="#333"><tspan font-weight="bold">2.</tspan> Ejecutar Data Pipelines/Notebooks</text>
 
   <rect x="565" y="218" width="190" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
   <text x="575" y="237" font-size="9" fill="#333"><tspan font-weight="bold">3.</tspan> Pruebas automáticas y manuales</text>
@@ -93,7 +93,7 @@
   <text x="845" y="169" font-size="9" fill="#0078d4"><tspan font-weight="bold">1.</tspan> fabric-cicd (elementos compatibles)</text>
 
   <rect x="835" y="184" width="210" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
-  <text x="845" y="203" font-size="9" fill="#333"><tspan font-weight="bold">2.</tspan> Ejecutar canalizaciones/Notebooks</text>
+  <text x="845" y="203" font-size="9" fill="#333"><tspan font-weight="bold">2.</tspan> Ejecutar Data Pipelines/Notebooks</text>
 
   <rect x="835" y="218" width="210" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
   <text x="845" y="237" font-size="9" fill="#333"><tspan font-weight="bold">3.</tspan> Validación en producción</text>
@@ -103,7 +103,7 @@
 
   <!-- ==================== DEPLOYMENT PIPELINE (conceptual) ==================== -->
   <rect x="545" y="385" width="525" height="50" rx="6" fill="none" stroke="#6f42c1" stroke-width="2" stroke-dasharray="6,3"/>
-  <text x="807" y="408" text-anchor="middle" font-size="11" fill="#6f42c1" font-weight="bold">Canalización de implementación de Fabric (disponible para elementos no compatibles)</text>
+  <text x="807" y="408" text-anchor="middle" font-size="11" fill="#6f42c1" font-weight="bold">Fabric Deployment Pipeline (disponible para elementos no compatibles)</text>
   <text x="807" y="425" text-anchor="middle" font-size="9" fill="#6f42c1">No se usa — todos los elementos de este repositorio se implementan con fabric-cicd</text>
 
   <!-- ==================== CONFIGURATION ==================== -->
@@ -111,10 +111,10 @@
   <text x="290" y="485" text-anchor="middle" font-size="13" font-weight="bold" fill="#0078d4">Estrategia de configuración</text>
 
   <rect x="45" y="498" width="240" height="70" rx="5" fill="#fff" stroke="#ccc" stroke-width="1"/>
-  <text x="165" y="518" text-anchor="middle" font-size="11" font-weight="bold" fill="#333">Bibliotecas de variables (ejecución)</text>
+  <text x="165" y="518" text-anchor="middle" font-size="11" font-weight="bold" fill="#333">Variable Libraries (ejecución)</text>
   <text x="165" y="534" text-anchor="middle" font-size="9" fill="#555">Los conjuntos de valores por entorno</text>
   <text x="165" y="548" text-anchor="middle" font-size="9" fill="#555">enlazan IDs de área de trabajo y de</text>
-  <text x="165" y="562" text-anchor="middle" font-size="9" fill="#555">Lakehouse al ejecutar el notebook</text>
+  <text x="165" y="562" text-anchor="middle" font-size="9" fill="#555">Lakehouse al ejecutar el Notebook</text>
 
   <rect x="300" y="498" width="240" height="70" rx="5" fill="#fff" stroke="#ccc" stroke-width="1"/>
   <text x="420" y="518" text-anchor="middle" font-size="11" font-weight="bold" fill="#333">parameter.yml (en el despliegue)</text>
@@ -138,10 +138,10 @@
   <text x="72" y="657" font-size="10" fill="#333">Paso de despliegue de fabric-cicd</text>
 
   <rect x="300" y="645" width="14" height="14" rx="2" fill="#fff" stroke="#ccc" stroke-width="1"/>
-  <text x="322" y="657" font-size="10" fill="#333">Paso estándar de la pipeline</text>
+  <text x="322" y="657" font-size="10" fill="#333">Paso estándar del pipeline</text>
 
   <rect x="550" y="645" width="14" height="14" rx="2" fill="none" stroke="#6f42c1" stroke-width="1.5" stroke-dasharray="3,2"/>
-  <text x="572" y="657" font-size="10" fill="#333">Canalización de implementación (elementos no compatibles)</text>
+  <text x="572" y="657" font-size="10" fill="#333">Deployment Pipeline (elementos no compatibles)</text>
 
   <text x="50" y="685" font-size="10" fill="#555">Dev = conectado a Git (API Update from Git) | Test y Prod = fabric-cicd implementa todo</text>
 

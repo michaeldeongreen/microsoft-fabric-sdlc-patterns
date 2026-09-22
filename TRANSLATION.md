@@ -2,7 +2,7 @@
 
 How translations work in this repository. **This file stays in English** — it is the shared contract between contributors who don't necessarily read each other's languages.
 
-> Para leer este repositorio en español, consulta [`translations/es/README.md`](translations/es/README.md).
+> Para leer este repositorio en español, véase [`translations/es/README.md`](translations/es/README.md).
 
 ---
 
@@ -80,17 +80,29 @@ For tool output, translate a **gloss outside the code fence** rather than the ou
 
 The `.github/` exclusion is not stylistic. Those files are **model input** consumed by GitHub Copilot through path matching, not documentation for humans. Translating them degrades agent behavior. Microsoft's own translation tooling (`Azure/co-op-translator`) hard-codes `.github` into its excluded directories for the same reason.
 
-### Product UI strings
+### Product UI strings and technical terms
 
-Fabric portal terms take the **Spanish term with the English in parentheses on first use per document**:
+**Default to English.** Readers of this documentation work with Fabric, Git, and GitHub daily, almost always with an English-language interface. A literally translated technical term is usually *less* recognizable than the original — the canonical example being *pipeline*, whose literal Spanish translation ("tubería") nobody would ever use to discuss CI/CD.
+
+So **Fabric item types and portal feature names stay in English**, including in running prose: *Lakehouse*, *Notebook*, *Semantic Model*, *Variable Library*, *Data Pipeline*, *Data Agent*, *Ontology*, *Branch Out*, *Update from Git*, *Deployment Pipelines*.
+
+Translate only where the target-language equivalent is firmly established and transparent to any practitioner — *branch* → "rama", *repository* → "repositorio", *workspace* → "área de trabajo".
+
+Where a term stays in English and a localized portal string exists, gloss it in parentheses on first use:
 
 ```markdown
-Las **canalizaciones de implementación** (*deployment pipelines*) permiten...
+Las ***Deployment Pipelines*** (canalizaciones de implementación en el portal en español) permiten...
 ```
 
-Most Fabric practitioners work in an English-locale portal, so the English term must stay visible.
+Terminology for the terms that *are* translated comes from **Microsoft Terminology**, not from `learn.microsoft.com/es-es` prose. The Spanish Fabric documentation is machine-translated (`ms.translationtype: MT`) and is internally inconsistent — the Git integration page uses both "espacio de trabajo" and "área de trabajo" in a single paragraph. Link to it for the reader's convenience; never mine it for terminology.
 
-Terminology comes from **Microsoft Terminology**, not from `learn.microsoft.com/es-es` prose. The Spanish Fabric documentation is machine-translated (`ms.translationtype: MT`) and is internally inconsistent — a single page uses both "pipelines de despliegue" and "canalizaciones de implementación". Link to it for the reader's convenience; never mine it for terminology.
+### Register
+
+Professional technical documentation is **impersonal**. Where direct address is unavoidable, use the formal form — in Spanish, *usted*. Never the familiar *tú*.
+
+This matches Microsoft's own Spanish documentation, which combines impersonal constructions ("La estructura del área de trabajo **se conserva** en el repositorio") with formal imperatives ("**Consulte** la lista de elementos admitidos").
+
+Each language records its own register decision in its style guide.
 
 ---
 
@@ -101,7 +113,7 @@ Terminology comes from **Microsoft Terminology**, not from `learn.microsoft.com/
 Inside `translations/es/`, link to sibling documents with a **bare relative filename**:
 
 ```markdown
-Consulta la [Guía de implementación híbrida](fabric-hybrid-cicd-guide.md).
+Véase la [Guía de implementación híbrida](fabric-hybrid-cicd-guide.md).
 ```
 
 GitHub resolves relative links against the current file, so this automatically lands on the **Spanish** sibling. This is what keeps a reader inside their language without any tooling.
@@ -194,7 +206,7 @@ When the English source changes, its translations become stale. That is expected
 <!-- source: README.md @ 9aa6823 | translated: 2026-09-22 -->
 
 > 📄 La versión en inglés de este documento es la autoritativa.
-> Si encuentras una discrepancia, [el original en inglés](../../README.md) tiene precedencia.
+> Si encuentra una discrepancia, [el original en inglés](../../README.md) tiene precedencia.
 
 # Título del documento
 
@@ -204,7 +216,7 @@ When the English source changes, its translations become stale. That is expected
 
 *Este documento es una traducción de [README.md](../../README.md). Las traducciones
 pueden quedar desactualizadas respecto al original en inglés, que es la fuente
-autorizada. Para informar de un error, abre una incidencia indicando el idioma.*
+autorizada. Los errores pueden comunicarse abriendo una incidencia e indicando el idioma.*
 ```
 
 ---

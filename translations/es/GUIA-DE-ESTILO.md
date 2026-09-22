@@ -18,35 +18,57 @@ La evidencia que lo confirma es que **Microsoft Learn publica un único español
 
 En la práctica:
 
-- Evita vocabulario marcado regionalmente. Usa **equipo** o **computadora**, nunca «ordenador» (marcado como España).
-- Evita modismos y coloquialismos de cualquier país.
-- Evita el voseo y cualquier forma verbal regional.
-- Ante la duda entre dos equivalentes válidos, elige el más extendido internacionalmente.
+- Debe evitarse el vocabulario marcado regionalmente: **equipo** o **computadora**, nunca «ordenador» (marcado como España).
+- Se evitan los modismos y coloquialismos de cualquier país.
+- Se evita el voseo y cualquier forma verbal regional.
+- Ante la duda entre dos equivalentes válidos, se prefiere el más extendido internacionalmente.
 
 ---
 
-## Registro: tuteo (*tú*)
+## Registro: impersonal
 
-Se usa **tú**, no «usted».
+**No se tutea.** En documentación profesional el tratamiento es **impersonal**; cuando el trato directo resulta inevitable, se usa **usted**. Nunca *tú*.
 
-Microsoft no impone una forma —su guía neutra reconoce que varía según el producto—, pero sus principios de voz apuntan al registro informal (*"Warm and relaxed… Less formal, more grounded in honest conversations"*), y los ejemplos aprobados en las guías de estilo usan sistemáticamente **tú**. Es además la norma en documentación para desarrolladores.
+Esta es también la práctica de la documentación en español de Microsoft. En las páginas de Fabric de Microsoft Learn conviven la construcción impersonal y el imperativo de cortesía:
+
+> «La integración de Git en Fabric **permite** a los desarrolladores integrar sus procesos…»
+> «La estructura del área de trabajo **se conserva** en el repositorio de Git.»
+> «**Consulte** la lista de elementos admitidos.» · «**Obtenga** más información…» · «**Asegúrese** de revisar…»
+
+### 1. Impersonal como opción preferente
+
+Para describir comportamiento, procesos o reglas se emplea la pasiva refleja o una construcción impersonal:
 
 ```
-✅ Para implementar el elemento, ejecuta el script desde la raíz del repositorio.
-❌ Para implementar el elemento, ejecute el script desde la raíz del repositorio.
-```
-
-### Prefiere construcciones impersonales
-
-Cuando sea natural, usa impersonal o pasiva refleja. Reduce la fricción del registro y suele producir prosa más limpia:
-
-```
+✅ Los identificadores del área de trabajo se revierten automáticamente.
 ✅ El script revierte los identificadores del área de trabajo.
-✅ Los identificadores se revierten automáticamente.
-⚠️ Tú revertirás los identificadores.   (correcto, pero innecesariamente personal)
+✅ La terminología procede de Microsoft Terminology.
+❌ Tú revertirás los identificadores del área de trabajo.
 ```
 
-**Lo importante es la coherencia.** Microsoft demuestra que el riesgo real no es elegir mal, sino mezclar formas dentro de un mismo documento.
+### 2. Usted cuando hay instrucción directa
+
+En procedimientos paso a paso, donde hay que dirigirse a alguien, se usa el imperativo de cortesía:
+
+```
+✅ Para implementar el elemento, ejecute el script desde la raíz del repositorio.
+✅ Cree una entidad de servicio y añádala como colaborador.
+❌ Para implementar el elemento, ejecuta el script desde la raíz del repositorio.
+```
+
+### 3. Reformular antes que tutear
+
+Muchas frases con trato directo se resuelven mejor reformulando:
+
+```
+Original en inglés:  See the Development Process doc.
+❌ Consulta el documento de proceso de desarrollo.
+✅ Véase el documento de proceso de desarrollo.
+✅ Más información en el documento de proceso de desarrollo.
+```
+
+**La coherencia es lo esencial.** Mezclar formas dentro de un mismo documento resulta más chocante que cualquiera de las dos opciones aplicada de forma sistemática.
+
 
 ---
 
@@ -54,7 +76,7 @@ Cuando sea natural, usa impersonal o pasiva refleja. Reduce la fricción del reg
 
 Se sigue la norma de la RAE/ASALE en el [*Diccionario panhispánico de dudas*](https://www.rae.es/dpd/ayuda/tratamiento-de-los-extranjerismos):
 
-1. **Extranjerismos superfluos** — si existe un equivalente español con plena vitalidad, **úsalo**. Por eso *branch* → «rama» y *deployment* → «implementación».
+1. **Extranjerismos superfluos** — si existe un equivalente español con plena vitalidad, se emplea este. Por eso *branch* → «rama» y *deployment* → «implementación».
 2. **Extranjerismos necesarios o muy extendidos** — si el término está asentado en el uso internacional en su forma original, se mantiene, **pero debe escribirse con resalte tipográfico (cursiva)**:
 
    > «se advierte de su condición de extranjerismos crudos y de la obligación de escribirlos con resalte tipográfico (cursiva o comillas) para señalar su carácter ajeno a la ortografía del español»
@@ -63,28 +85,55 @@ Se sigue la norma de la RAE/ASALE en el [*Diccionario panhispánico de dudas*](h
 
 - **Cursiva en la primera aparición por documento**: *commit*, *pull request*, *pipeline*, *feature branch*.
 - **Nunca cursiva dentro de bloques de código ni de `código en línea`.** El resalte tipográfico es para la prosa.
-- **Nunca inventes verbos híbridos**: «commitear», «deployar», «mergear» son incorrectos. Usa «hacer *commit*», «implementar», «fusionar».
-- **Glosa en la primera aparición** cuando el término tenga equivalente reconocible: «*pull request* (solicitud de cambios)».
+- **No se inventan verbos híbridos**: «commitear», «deployar», «mergear» son incorrectos. En su lugar, «hacer *commit*», «implementar», «fusionar».
+- **Glosa en la primera aparición** cuando el término tenga un equivalente reconocible: «*pull request* (solicitud de cambios)».
 
 ### Siglas
 
 Las siglas de uso internacional no se traducen ni se desarrollan: API, CI/CD, JSON, YAML, SDLC, RBAC, PR, GUID.
 
-Para las menos conocidas, desarrolla en español y añade la sigla inglesa entre paréntesis: «administración del ciclo de vida de las aplicaciones (ALM)».
+Para las menos conocidas, se desarrolla en español y se añade la sigla inglesa entre paréntesis: «administración del ciclo de vida de las aplicaciones (ALM)».
 
 ---
 
-## Términos de la interfaz de Fabric
+## Términos técnicos y de producto: el inglés manda
 
-Los profesionales de Fabric suelen trabajar con el portal en inglés. Por eso, en la **primera aparición por documento**, se da el término español seguido del inglés en cursiva entre paréntesis:
+**Regla general: ante la duda, se mantiene el término en inglés.**
+
+Quien lee esta documentación trabaja a diario con Fabric, Git y GitHub, casi siempre con la interfaz en inglés. La traducción literal de un término técnico suele ser *menos* reconocible que el original, no más. El ejemplo canónico es *pipeline*: su traducción literal, «tubería», nadie la usaría jamás para hablar de CI/CD.
+
+Esto afecta sobre todo a:
+
+- **Tipos de elemento de Fabric** — *Lakehouse*, *Notebook*, *Semantic Model*, *Variable Library*, *Data Pipeline*, *Data Agent*, *Ontology*. Se mantienen en inglés siempre, también en prosa corrida.
+- **Nombres de funciones del portal** — *Branch Out*, *Update from Git*, *Deployment Pipelines*.
+- **Vocabulario de CI/CD sin equivalente asentado** — *pipeline*, *commit*, *pull request*, *feature branch*.
+
+### Cuándo sí se traduce
+
+Se traduce cuando el equivalente español está plenamente asentado y resulta transparente para cualquier profesional:
+
+| Se traduce | No se traduce |
+|---|---|
+| branch → rama | *pipeline* |
+| merge → fusionar | *commit* |
+| repository → repositorio | *pull request* |
+| workspace → área de trabajo | *Lakehouse*, *Notebook* |
+| deployment → implementación | *Semantic Model* |
+| environment → entorno | *Data Pipeline* |
+
+### Glosa en la primera aparición
+
+Cuando un término se mantiene en inglés y existe una forma española en el portal localizado, se añade entre paréntesis la primera vez, para quien trabaje con la interfaz en español:
 
 ```markdown
-Las **canalizaciones de implementación** (*deployment pipelines*) permiten promover contenido entre áreas de trabajo.
+Las ***Deployment Pipelines*** (canalizaciones de implementación en el portal en español)
+permiten promover contenido entre áreas de trabajo.
 ```
 
-Después de la primera aparición, usa solo el término español.
+Después de esa primera aparición se usa solo la forma inglesa.
 
-La terminología procede de **Microsoft Terminology**, no de `learn.microsoft.com/es-es` — consulta [`GLOSARIO.md`](GLOSARIO.md) y la advertencia que contiene.
+La terminología española procede de **Microsoft Terminology**, no de `learn.microsoft.com/es-es`. Véase [`GLOSARIO.md`](GLOSARIO.md) y la advertencia que contiene.
+
 
 ---
 
@@ -113,16 +162,16 @@ La terminología procede de **Microsoft Terminology**, no de `learn.microsoft.co
 
 ### Longitud
 
-El español ocupa entre un **15 % y un 25 % más** que el inglés. Tenlo en cuenta en:
+El español ocupa entre un **15 % y un 25 % más** que el inglés. Conviene tenerlo en cuenta en:
 
-- **Tablas** — considera reformular para que las celdas no se desborden.
-- **Diagramas SVG** — las etiquetas viven en cajas de ancho fijo. Acorta la etiqueta o ensancha la caja; no dejes que el texto se salga.
+- **Tablas** — puede ser necesario reformular para que las celdas no se desborden.
+- **Diagramas SVG** — las etiquetas viven en cajas de ancho fijo. Hay que acortar la etiqueta o ensanchar la caja; el texto no debe salirse.
 
 ---
 
 ## Qué no se toca
 
-Consulta [`../../TRANSLATION.md`](../../TRANSLATION.md) para la lista completa. En resumen: comandos, rutas, nombres de archivo, claves YAML/JSON, identificadores de Python, nombres de rama, variables de entorno, tipos de elemento de la API y salida literal de herramientas.
+Véase [`../../TRANSLATION.md`](../../TRANSLATION.md) para la lista completa. En resumen: comandos, rutas, nombres de archivo, claves YAML/JSON, identificadores de Python, nombres de rama, variables de entorno, tipos de elemento de la API y salida literal de herramientas.
 
 Si un bloque de código contiene **comentarios**, esos sí se traducen.
 
@@ -132,7 +181,7 @@ Si un bloque de código contiene **comentarios**, esos sí se traducen.
 
 Se permite usar traducción automática o asistida por IA **como punto de partida, nunca como resultado final**. Toda traducción la revisa un hablante nativo antes de fusionarse.
 
-Recomendación práctica: usa un corrector ortográfico de español en el editor antes de abrir el *pull request*.
+Recomendación práctica: conviene pasar un corrector ortográfico de español antes de abrir el *pull request*.
 
 ---
 

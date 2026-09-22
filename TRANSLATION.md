@@ -182,7 +182,7 @@ When the English source changes, its translations become stale. That is expected
 1. **One language per pull request.** Reviewing a PR that changes several languages at once is impractical, and reviewers usually only read one of them.
 2. **One document per pull request**, including that document's diagrams and its English-side switcher line. Very long documents may be split by section.
 3. **Read [`translations/es/GLOSARIO.md`](translations/es/GLOSARIO.md) and [`translations/es/GUIA-DE-ESTILO.md`](translations/es/GUIA-DE-ESTILO.md) first.** Consistency with existing translations matters more than individual preference.
-4. **Machine translation is a starting point, never the final result.** Every translation is reviewed by a fluent speaker before merge.
+4. **Machine translation is a starting point, never the final result.** Every translation is reviewed by a fluent speaker before merge. Reviewers should follow [`translations/es/REVISION.md`](translations/es/REVISION.md).
 5. **Update the source stamp** to the commit your translation is based on.
 6. If you improve terminology, **update the glossary in the same PR** so the next translator inherits the decision.
 

@@ -150,6 +150,6 @@ Para instrucciones detalladas de configuración, consulta la [Guía de implement
 
 Este documento es una traducción de [README.md](../../README.md). La versión en inglés es la fuente autorizada y puede estar más actualizada.
 
-La terminología sigue [`GLOSARIO.md`](GLOSARIO.md) y [`GUIA-DE-ESTILO.md`](GUIA-DE-ESTILO.md). Los enlaces a `learn.microsoft.com` apuntan a la versión en español, que Microsoft traduce automáticamente; ante cualquier duda técnica, consulta la versión en inglés.
+La terminología sigue [`GLOSARIO.md`](GLOSARIO.md) y [`GUIA-DE-ESTILO.md`](GUIA-DE-ESTILO.md). Si vas a revisar esta traducción, consulta [`REVISION.md`](REVISION.md). Los enlaces a `learn.microsoft.com` apuntan a la versión en español, que Microsoft traduce automáticamente; ante cualquier duda técnica, consulta la versión en inglés.
 
 Si detectas un error, abre una incidencia indicando el idioma. Si el error también existe en el original en inglés, **corrígelo primero allí**: consulta [`TRANSLATION.md`](../../TRANSLATION.md).

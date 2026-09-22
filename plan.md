@@ -60,7 +60,7 @@ It has two halves:
 README.md                                   ← English, canonical. Language table at top.
 fabric-*.md                     (6 more)    ← unchanged, stay at root
 assets/*.svg                    (6)         ← English diagrams, unchanged
-assets/es/*.svg                             ← Spanish diagrams (Phase 4)
+assets/es/*.svg                             ← Spanish diagrams, shipped with their doc
 scripts/ tests/ data/ .github/              ← NEVER translated
 TRANSLATION.md                              ← English. The contract.
 TRANSLATION_STATUS.md                       ← English. Staleness dashboard.
@@ -75,7 +75,7 @@ translations/
     fabric-sdlc-cicd-presentation.md
     GLOSARIO.md                             ← Spanish. Terminology table.
     GUIA-DE-ESTILO.md                       ← Spanish. Variant, register, anglicisms.
-  pt-BR/                                    ← Phase 5. Costs one mkdir.
+  pt-BR/                                    ← Phase 4. Costs one mkdir.
 ```
 
 **Why:** Kubernetes (`content/es/`), MDN (`files/es/`), and ~17 Microsoft repos (`translations/es/`) all use a per-locale directory for multi-document repos. The `README.es.md` suffix pattern is only common for single-README repos. Critically, GitHub resolves relative links *relative to the current file*, so `[guía](fabric-hybrid-cicd-guide.md)` inside `translations/es/` lands on the **Spanish** sibling for free — language containment with zero tooling.
@@ -91,7 +91,7 @@ translations/
 - Prose, headings, table headers and cell prose, list items, blockquotes, admonitions
 - Link **text** (not link targets, except Learn locale swaps)
 - Prose labels inside ASCII-art diagrams in code fences (e.g. the README architecture block)
-- SVG `<text>` content (Phase 4)
+- SVG `<text>` content — translated in the same PR as the doc that embeds it
 - `learn.microsoft.com/en-us/` → `/es-es/` (95 links) — with a caveat, see below
 
 ### Never translate
@@ -222,7 +222,7 @@ Vue **stopped accepting new translations in 2025** — not for quality reasons, 
 ### Phase 1 — Pilot
 | ID | Task |
 |---|---|
-| `pilot-readme` | Translate `README.md` → `translations/es/README.md`. Includes banner, footer disclaimer, source stamp, `../../` asset links, translated ASCII architecture diagram labels, `/es-es/` Learn links |
+| `pilot-readme` | Translate `README.md` → `translations/es/README.md`. Includes banner, footer disclaimer, source stamp, `../../` asset links, translated ASCII architecture diagram labels, `/es-es/` Learn links. **Also translates `hybrid-recommendation-flow.svg` → `assets/es/`** — the one diagram the README embeds, which doubles as the reviewer's first look at terse diagram terminology |
 | `language-switcher` | Add switcher line to English `README.md` + Spanish `README.md`. Establishes the pattern all later docs follow |
 | `pilot-review` | **Native-speaker review.** Reviewer validates glossary, register, and anglicism handling — then we amend `GLOSARIO.md` with what they corrected |
 
@@ -236,24 +236,22 @@ Vue **stopped accepting new translations in 2025** — not for quality reasons, 
 | `codeowners` | `CODEOWNERS` routing `/translations/es/**` to the Spanish reviewer |
 
 ### Phase 3 — Scale, in priority order
-Ordered by reader value, cheapest-first within that:
-| ID | Doc | Words |
-|---|---|---|
-| `translate-devprocess` | `fabric-development-process.md` | 2,113 |
-| `translate-release-options` | `fabric-cicd-release-options.md` — the "start here" doc | 5,925 |
-| `translate-hybrid-guide` | `fabric-hybrid-cicd-guide.md` | 2,589 |
-| `translate-governance` | `fabric-cicd-governance-considerations.md` | 2,188 |
-| `translate-bulk-guide` | `fabric-bulk-cicd-guide.md` | 4,336 |
-| `translate-presentation` | `fabric-sdlc-cicd-presentation.md` | 6,041 |
+Ordered by reader value, cheapest-first within that. **Each diagram ships with the first doc that embeds it** — by the time `fabric-cicd-release-options.md` lands, all 6 SVGs are done, with no window where a Spanish page shows an English diagram.
 
-One doc = one PR into `dev`. Each PR adds the Spanish file **and** the switcher line to its English source, so no switcher ever points at a missing file. Long docs may be split by section across PRs.
+| ID | Doc | Words | SVGs translated in this PR |
+|---|---|---|---|
+| `translate-devprocess` | `fabric-development-process.md` | 2,113 | `development-swap-to-feature-flow`, `development-swap-to-dev-flow` |
+| `translate-release-options` | `fabric-cicd-release-options.md` — the "start here" doc | 5,925 | `fabric-deployment-pipelines-flow`, `git-based-deployments-flow`, `git-build-deployments-flow` (+ reuses `hybrid-recommendation-flow` from the pilot) |
+| `translate-hybrid-guide` | `fabric-hybrid-cicd-guide.md` | 2,589 | none |
+| `translate-governance` | `fabric-cicd-governance-considerations.md` | 2,188 | none |
+| `translate-bulk-guide` | `fabric-bulk-cicd-guide.md` | 4,336 | none |
+| `translate-presentation` | `fabric-sdlc-cicd-presentation.md` | 6,041 | none |
 
-### Phase 4 — Diagrams
-| ID | Task |
-|---|---|
-| `translate-svgs` | Translate 174 `<text>` nodes → `assets/es/`. Keep filenames identical; repoint Spanish docs. Keep `workspace_swap.py`, `git commit`, branch names untranslated inside diagrams |
+One doc = one PR into `dev`. Each PR adds the Spanish file, its diagrams, **and** the switcher line to its English source, so no switcher ever points at a missing file. Long docs may be split by section across PRs.
 
-### Phase 5 — Portuguese (deferred)
+**SVG conventions** (apply wherever a diagram is translated): output to `assets/es/` with identical filenames; Spanish docs reference `../../assets/es/<name>.svg`. Keep script names, git commands, workflow filenames, and branch names untranslated inside diagrams. Fonts are `Segoe UI, Arial, sans-serif` and the files already contain non-ASCII characters, so accented Spanish renders without encoding work — do **not** convert text to curves, which would make the SVGs non-editable. Watch for Spanish running 15–25% longer than English inside fixed-width boxes; widen boxes or shorten labels as needed.
+
+### Phase 4 — Portuguese (deferred)
 | ID | Task |
 |---|---|
 | `pt-br-pilot` | `translations/pt-BR/README.md`, same process. **`pt-BR` specifically — no neutral Portuguese exists.** Requires a Brazilian Portuguese reviewer before starting |
@@ -275,7 +273,8 @@ Machine translation is used strictly **as a base, never as the final result** �
 - **Reviewer bandwidth is the binding constraint**, not translation throughput. 24,440 words is real review work. Phase 3 ordering exists so that value lands early if review capacity runs out.
 - **Terminology Search is a Power BI–hosted app** — may need manual lookup rather than scripted extraction.
 - **Learn `/es-es/` links are machine-translated.** We link to them but disclaim them. If a reviewer objects, the fallback is keeping `/en-us/` links throughout — decide during `pilot-review`.
-- **The presentation doc may be better left in English** — it's customer-facing collateral where the presenter's own language may differ from the deck's. Worth a decision at Phase 3 rather than now.
+- **The presentation doc is confirmed in scope** (decided 2026-09-22). Sequenced last: 6,041 words, 55 self-contained internal anchors, and 15 nav blocks, all of which must be regenerated against the Spanish headings. No other document links to it, so the anchor churn has zero blast radius outside the file. It benefits most from a settled `GLOSARIO.md`.
+- **Presentation has no inbound links** — it is absent from the README Documentation table. An English-side discoverability gap, unrelated to translation, but worth fixing separately.
 - No `LICENSE` exists yet. If one is added: **never translate it** (FSF: unofficial license translations "can't do any legal harm" only as long as they're clearly unofficial; errors "could be disastrous").
 
 ---

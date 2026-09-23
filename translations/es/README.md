@@ -83,7 +83,7 @@ No todos los elementos de Fabric se pueden gestionar igual. Desde el punto de vi
 | Categoría | Descripción | Ejemplos |
 |---|---|---|
 | **Con seguimiento en Git** | Elementos compatibles con la [integración de Git de Fabric](https://learn.microsoft.com/en-us/fabric/cicd/git-integration/intro-to-git-integration#supported-items). Sus definiciones se serializan en archivos dentro del repositorio, lo que permite control de versiones, ramificación y flujos de revisión de código. | *Notebooks*, *Semantic Models*, *Lakehouses*, *Reports*, *Variable Libraries*, *Data Pipelines*, *Environments* |
-| **Solo *Pipelines* de despliegue** | Elementos no compatibles con la integración de Git ni con fabric-cicd, pero sí con los [*Pipelines* de despliegue de Fabric](https://learn.microsoft.com/en-us/fabric/cicd/deployment-pipelines/intro-to-deployment-pipelines#supported-items). Se pueden promover de un workspace a otra, pero no se pueden versionar en Git. | Véanse las listas oficiales de elementos compatibles: esta categoría cambia a medida que Microsoft añade capacidades |
+| **Solo *Pipelines* de despliegue** | Elementos no compatibles con la integración de Git ni con fabric-cicd, pero sí con los [*Pipelines* de despliegue de Fabric](https://learn.microsoft.com/en-us/fabric/cicd/deployment-pipelines/intro-to-deployment-pipelines#supported-items). Se pueden promover de un workspace a otro, pero no se pueden versionar en Git. | Véanse las listas oficiales de elementos compatibles: esta categoría cambia a medida que Microsoft añade capacidades |
 | **Manuales** | Elementos que no admiten ni la integración de Git ni los *Pipelines* de despliegue. Deben crearse y configurarse manualmente en cada workspace. | Varía a medida que Microsoft amplía la compatibilidad; conviene consultar siempre las listas oficiales de elementos compatibles |
 
 > **Importante:** ambas listas de elementos compatibles evolucionan a medida que Microsoft añade capacidades. Debe verificarse siempre la documentación oficial antes de dar por hecho que un elemento pertenece a una categoría concreta.
@@ -107,7 +107,7 @@ Al diseñar los procesos de desarrollo y de CI/CD conviene identificar qué elem
 
 ### Requisitos previos
 
-1. **Fabric capacity** — Una Fabric capacity o de Power BI Premium para todos los workspaces
+1. **Fabric capacity** — Una *Fabric capacity* o una capacidad de Power BI Premium para todos los workspaces
 2. **Tres workspaces de Fabric** — Dev (conectada a Git), Test y Prod
 3. **Service principal** (*service principal*) — Con el rol de colaborador en los workspaces de Test y Prod
 4. **Entornos de GitHub** — `Test` y `Prod` con secretos de ámbito de entorno

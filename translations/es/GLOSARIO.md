@@ -27,7 +27,9 @@ Cada entrada lleva una marca de origen:
 
 > 📌 **La revisión nativa tiene la última palabra.** Microsoft Terminology es el punto de partida, no la autoridad final: recoge el término *oficial*, que no siempre es el que usa quien trabaja a diario con el producto. Cuando ambos difieren, gana el uso real y la entrada se marca 👤 Revisión.
 
-> ⚠️ **No debe tomarse terminología de `learn.microsoft.com/es-es`.** Esas páginas están traducidas automáticamente (`ms.translationtype: MT`) y son inconsistentes incluso dentro de una misma página: la de integración de Git usa «espacio de trabajo» y «workspace» en el mismo párrafo. Otro ejemplo: Learn traduce *service principal* como «principal de servicio», mientras que Microsoft Terminology establece **service principal**.
+> ⚠️ **No debe tomarse terminología de `learn.microsoft.com/es-es`.** Esas páginas están traducidas automáticamente (`ms.translationtype: MT`) y son inconsistentes incluso dentro de una misma página: la de integración de Git alterna «espacio de trabajo» y «área de trabajo» en el mismo párrafo, y traduce *service principal* como «principal de servicio», mientras que Microsoft Terminology registra «entidad de servicio». Este repositorio no usa ninguna de las dos: usa ***Service principal***.
+
+> 🔗 **Los enlaces a documentación externa apuntan siempre al inglés** (`/en-us/`), no a `/es-es/`. La documentación en inglés es la versión de referencia, se actualiza antes y su terminología coincide con la del portal, que la mayoría usa en inglés. Enviar al lector a una versión traducida con terminología distinta de la de este glosario genera confusión sobre qué término es el correcto.
 
 ---
 
@@ -53,7 +55,7 @@ Por tanto, los **tipos de elemento de Fabric y los nombres de funciones del port
 | Ontology | ***Ontology*** | 📘 Convención | **No se traduce.** Tipo de elemento de Fabric. |
 | Deployment Pipelines | ***Pipelines* de despliegue** | 👤 Revisión | Microsoft Terminology ofrece «canalizaciones de implementación», pero **«canalización» no se entiende** en este contexto. Se mantiene *pipeline* y se traduce solo el complemento. En singular: «*Pipeline* de despliegue de Fabric». |
 | Branch Out | **Branch Out** | 📘 Convención | Función del portal de Fabric; no se traduce. |
-| Update from Git | **Update from Git** | 📘 Convención | Nombre del botón del portal. Cuando se habla de la **API**, sí se traduce: «Actualización desde el API de Git». |
+| Update from Git | **Actualización desde Git** | 👤 Revisión | Se traduce, tanto si designa el botón del portal como la API. Al hablar de la API: «Actualización desde el API de Git». |
 | Git integration | **integración de Git** | 📘 Convención | Transparente y de uso general; sí se traduce. |
 | Fabric capacity | **Fabric capacity** | 👤 Revisión | No se traduce. *(Pendiente de confirmación definitiva.)* |
 | capacity | **capacidad** | ✅ MS | Solo en uso genérico, fuera del nombre del producto. |
@@ -135,7 +137,7 @@ Estos elementos no se traducen en ningún contexto, ni siquiera dentro de prosa:
 - **Nombres de producto**: Microsoft Fabric, Power BI, GitHub Actions, fabric-cicd, Direct Lake, Azure
 - **Tipos de elemento de Fabric**: *Lakehouse*, *Notebook*, *Semantic Model*, *Variable Library*, *Data Pipeline*, *Data Agent*, *Ontology*
 - **Identificadores de la API**: `SemanticModel`, `Notebook`, `VariableLibrary`, `DataAgent`, `Ontology`, `Lakehouse`, `Report`
-- **Objetos y funciones del portal**: *Branch Out*, *Update from Git*, *workspace*, *Fabric capacity*
+- **Objetos y funciones del portal**: *Branch Out*, *workspace*, *Fabric capacity*
 - **Vocabulario de CI/CD**: *pipeline*, *commit*, *pull request*, *feature branch*, *Trigger*, *Service principal*
 - **Nombres de rama**: `dev`, `test`, `main`, `feature/*`
 - **Variables y secretos**: `FABRIC_WORKSPACE_ID`, `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_CLIENT_SECRET`, `DEPLOY_METHOD`

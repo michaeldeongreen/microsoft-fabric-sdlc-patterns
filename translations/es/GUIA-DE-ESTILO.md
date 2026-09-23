@@ -105,7 +105,7 @@ Quien lee esta documentación trabaja a diario con Fabric, Git y GitHub, casi si
 Esto afecta sobre todo a:
 
 - **Tipos de elemento de Fabric** — *Lakehouse*, *Notebook*, *Semantic Model*, *Variable Library*, *Data Pipeline*, *Data Agent*, *Ontology*. Se mantienen en inglés siempre, también en prosa corrida.
-- **Nombres de funciones y objetos del portal** — *Branch Out*, *Update from Git*, *workspace*, *Fabric capacity*.
+- **Nombres de funciones y objetos del portal** — *Branch Out*, *workspace*, *Fabric capacity*. *Update from Git* es la excepción: se traduce.
 - **Vocabulario de CI/CD sin equivalente asentado** — *pipeline*, *commit*, *pull request*, *feature branch*, *Trigger*, *Service principal*.
 
 ### Cuándo sí se traduce

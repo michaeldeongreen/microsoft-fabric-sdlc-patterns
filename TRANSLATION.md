@@ -84,7 +84,7 @@ The `.github/` exclusion is not stylistic. Those files are **model input** consu
 
 **Default to English.** Readers of this documentation work with Fabric, Git, and GitHub daily, almost always with an English-language interface. A literally translated technical term is usually *less* recognizable than the original — the canonical example being *pipeline*, whose literal Spanish translation ("tubería") nobody would ever use to discuss CI/CD.
 
-So **Fabric item types and portal feature names stay in English**, including in running prose: *Lakehouse*, *Notebook*, *Semantic Model*, *Variable Library*, *Data Pipeline*, *Data Agent*, *Ontology*, *Branch Out*, *Update from Git*, *Deployment Pipelines*.
+So **Fabric item types and portal object names stay in English**, including in running prose: *Lakehouse*, *Notebook*, *Semantic Model*, *Variable Library*, *Data Pipeline*, *Data Agent*, *Ontology*, *Branch Out*, *workspace*.
 
 Translate only where the target-language equivalent is firmly established and transparent to any practitioner — *branch* → "rama", *repository* → "repositorio", *workspace* → "área de trabajo".
 
@@ -145,7 +145,13 @@ So within a translated document, **every cross-reference and table of contents m
 
 ### External documentation links
 
-Microsoft Learn links may be localized by swapping the locale segment: `learn.microsoft.com/en-us/...` becomes `learn.microsoft.com/es-es/...`. Those pages are machine-translated; that is acceptable for reader convenience and is disclaimed in each translated file's footer.
+**Links to external documentation stay in English**, even in a translated file. Microsoft Learn and GitHub Docs both publish localized versions, and swapping the locale segment would work — but:
+
+- The English documentation is the **reference version**: it is published and updated first.
+- This repository's terminology is fixed by native review and **will not always match** the vendor's localized terminology, so sending a reader from one to the other invites confusion about which term is correct.
+- Practitioners typically run the product interface in English, so English documentation matches what is actually on their screen.
+
+Each translated file explains this in its closing section and tells readers how to switch locale themselves if they prefer.
 
 ---
 

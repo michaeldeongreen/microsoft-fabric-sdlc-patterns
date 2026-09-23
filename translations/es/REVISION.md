@@ -53,7 +53,7 @@ Estos elementos están sin traducir **a propósito**. Señalarlos consume atenci
 - Nombres de rama (`dev`, `test`, `main`, `feature/*`)
 - Variables y secretos (`FABRIC_WORKSPACE_ID`, `DEPLOY_METHOD` y sus valores)
 - Tipos de elemento de Fabric (*Lakehouse*, *Notebook*, *Semantic Model*, *Variable Library*, *Data Pipeline*, *Data Agent*, *Ontology*)
-- Funciones del portal (*Branch Out*, *Update from Git*, *Deployment Pipelines*)
+- Funciones del portal (*Branch Out*, *workspace*, *Fabric capacity*)
 - Nombres de producto (Microsoft Fabric, fabric-cicd, GitHub Actions)
 - Salida literal de herramientas y mensajes de error
 - Las marcas *(solo en inglés)*, que son deliberadas
@@ -85,8 +85,9 @@ Se corrige primero el inglés y después se replica la corrección. Véase [`TRA
 | **Service principal** | En inglés. No «entidad de servicio». |
 | **Trigger** | En inglés. No «desencadenador». |
 | **Merge del PR** | Preferido sobre «PR fusionado» o «Fusión de PR». |
-| **Update from Git** | El botón del portal se mantiene en inglés; la **API** se traduce: «Actualización desde el API de Git». |
+| **Update from Git** | **Se traduce** («Actualización desde Git»), tanto el botón como la API, para que el diagrama sea coherente. |
 | **equipo** | No se usa para *laptop* — colisiona con «equipos de ingeniería». Se usa «laptop». |
+| **Enlaces externos** | Apuntan **siempre al inglés** (`/en-us/`), no a `/es-es/`. Véase el apartado «Sobre esta traducción» del README para los motivos. |
 | **Autoridad terminológica** | La revisión nativa **prevalece sobre Microsoft Terminology**. El término oficial no siempre es el que se usa. |
 
 ---
@@ -107,21 +108,17 @@ Tras aplicar *workspace* y *Service principal* en inglés, estos siguen en espa�
 | repository | repositorio | |
 | workflow *(GitHub Actions)* | flujo de trabajo | |
 
-### A2. Fabric capacity
+### B. Fabric capacity
 
 Se ha cambiado «Capacidad de Fabric» por «Fabric capacity», pendiente de confirmar con Michelle. ¿Es correcto?
 
-### A3. Botón «Update from Git»
+---
 
-En el diagrama, la flecha conserva **Update from Git** por ser el nombre literal del botón del portal, mientras que el paso numerado dice **Actualización desde el API de Git**. ¿Debe unificarse?
+## Revisión final
 
-### B. Enlaces a Microsoft Learn
+> Una vez resueltas las preguntas A y B, y aplicados los cambios que impliquen.
 
-Los enlaces a `learn.microsoft.com` apuntan a `/es-es/`. Esas páginas están **traducidas automáticamente** por Microsoft (`ms.translationtype: MT`) y su calidad es desigual: la página de integración de Git usa «espacio de trabajo» y «workspace» en el mismo párrafo.
-
-¿Conviene mantenerlas en español por comodidad del lector, o apuntar al inglés por precisión técnica? Es un cambio de una línea.
-
-### C. Naturalidad del resultado impersonal
+### C. Naturalidad del resultado
 
 La conversión de tuteo a impersonal y usted se ha hecho en todo el documento. ¿Suena natural, o ha quedado algún punto forzado o telegráfico?
 

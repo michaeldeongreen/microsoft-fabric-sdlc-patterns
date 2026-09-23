@@ -82,8 +82,8 @@ No todos los elementos de Fabric se pueden gestionar igual. Desde el punto de vi
 
 | Categoría | Descripción | Ejemplos |
 |---|---|---|
-| **Con seguimiento en Git** | Elementos compatibles con la [integración de Git de Fabric](https://learn.microsoft.com/es-es/fabric/cicd/git-integration/intro-to-git-integration#supported-items). Sus definiciones se serializan en archivos dentro del repositorio, lo que permite control de versiones, ramificación y flujos de revisión de código. | *Notebooks*, *Semantic Models*, *Lakehouses*, *Reports*, *Variable Libraries*, *Data Pipelines*, *Environments* |
-| **Solo *Pipelines* de despliegue** | Elementos no compatibles con la integración de Git ni con fabric-cicd, pero sí con los [*Pipelines* de despliegue de Fabric](https://learn.microsoft.com/es-es/fabric/cicd/deployment-pipelines/intro-to-deployment-pipelines#supported-items). Se pueden promover de un workspace a otra, pero no se pueden versionar en Git. | Véanse las listas oficiales de elementos compatibles: esta categoría cambia a medida que Microsoft añade capacidades |
+| **Con seguimiento en Git** | Elementos compatibles con la [integración de Git de Fabric](https://learn.microsoft.com/en-us/fabric/cicd/git-integration/intro-to-git-integration#supported-items). Sus definiciones se serializan en archivos dentro del repositorio, lo que permite control de versiones, ramificación y flujos de revisión de código. | *Notebooks*, *Semantic Models*, *Lakehouses*, *Reports*, *Variable Libraries*, *Data Pipelines*, *Environments* |
+| **Solo *Pipelines* de despliegue** | Elementos no compatibles con la integración de Git ni con fabric-cicd, pero sí con los [*Pipelines* de despliegue de Fabric](https://learn.microsoft.com/en-us/fabric/cicd/deployment-pipelines/intro-to-deployment-pipelines#supported-items). Se pueden promover de un workspace a otra, pero no se pueden versionar en Git. | Véanse las listas oficiales de elementos compatibles: esta categoría cambia a medida que Microsoft añade capacidades |
 | **Manuales** | Elementos que no admiten ni la integración de Git ni los *Pipelines* de despliegue. Deben crearse y configurarse manualmente en cada workspace. | Varía a medida que Microsoft amplía la compatibilidad; conviene consultar siempre las listas oficiales de elementos compatibles |
 
 > **Importante:** ambas listas de elementos compatibles evolucionan a medida que Microsoft añade capacidades. Debe verificarse siempre la documentación oficial antes de dar por hecho que un elemento pertenece a una categoría concreta.
@@ -92,7 +92,7 @@ Esta categorización afecta directamente a la estrategia de CI/CD. La [Guía de 
 
 ### *Variable Libraries*: metadatos dinámicos frente a estáticos
 
-Algunos elementos de Fabric resuelven los valores específicos de cada entorno **en tiempo de ejecución** mediante [*Variable Libraries*](https://learn.microsoft.com/es-es/fabric/cicd/variable-library/variable-library-cicd), mientras que otros tienen los identificadores específicos del entorno **definidos directamente en el propio elemento**.
+Algunos elementos de Fabric resuelven los valores específicos de cada entorno **en tiempo de ejecución** mediante [*Variable Libraries*](https://learn.microsoft.com/en-us/fabric/cicd/variable-library/variable-library-cicd), mientras que otros tienen los identificadores específicos del entorno **definidos directamente en el propio elemento**.
 
 | Tipo | Cómo funciona | Ejemplos |
 |---|---|---|
@@ -111,7 +111,7 @@ Al diseñar los procesos de desarrollo y de CI/CD conviene identificar qué elem
 2. **Tres workspaces de Fabric** — Dev (conectada a Git), Test y Prod
 3. **Service principal** (*service principal*) — Con el rol de colaborador en los workspaces de Test y Prod
 4. **Entornos de GitHub** — `Test` y `Prod` con secretos de ámbito de entorno
-5. **Configuración de administración de Fabric** — Acceso de service principals a las API de Fabric habilitado en el portal de administración de Fabric, en la configuración de desarrollador (véase la [configuración de inquilino para desarrolladores](https://learn.microsoft.com/es-es/fabric/admin/service-admin-portal-developer))
+5. **Configuración de administración de Fabric** — Acceso de service principals a las API de Fabric habilitado en el portal de administración de Fabric, en la configuración de desarrollador (véase la [configuración de inquilino para desarrolladores](https://learn.microsoft.com/en-us/fabric/admin/service-admin-portal-developer))
 
 ### Configuración
 
@@ -141,8 +141,8 @@ Las instrucciones detalladas de configuración están en la [Guía de implementa
 ## Referencias
 
 - [Biblioteca de Python fabric-cicd](https://microsoft.github.io/fabric-cicd) — Documentación, primeros pasos y tipos de elemento compatibles *(solo en inglés)*
-- [Integración de Git de Fabric](https://learn.microsoft.com/es-es/fabric/cicd/git-integration/intro-to-git-integration) — Documentación oficial
-- [Flujos de trabajo reutilizables de GitHub Actions](https://docs.github.com/es/actions/sharing-automations/reusing-workflows) — `workflow_call`, entradas y secretos
+- [Integración de Git de Fabric](https://learn.microsoft.com/en-us/fabric/cicd/git-integration/intro-to-git-integration) — Documentación oficial
+- [Flujos de trabajo reutilizables de GitHub Actions](https://docs.github.com/en/actions/sharing-automations/reusing-workflows) — `workflow_call`, entradas y secretos
 
 ---
 
@@ -152,6 +152,14 @@ Este documento es una traducción de [README.md](../../README.md). La versión e
 
 **Revisión lingüística:** Ana Franco y Marlon Ramos. La terminología de este repositorio refleja sus correcciones: véase [`GLOSARIO.md`](GLOSARIO.md), donde las entradas marcadas 👤 Revisión son decisiones suyas que prevalecen sobre la terminología oficial de Microsoft.
 
-La terminología sigue [`GLOSARIO.md`](GLOSARIO.md) y [`GUIA-DE-ESTILO.md`](GUIA-DE-ESTILO.md). Para revisar esta traducción, véase [`REVISION.md`](REVISION.md). Los enlaces a `learn.microsoft.com` apuntan a la versión en español, que Microsoft traduce automáticamente; ante cualquier duda técnica conviene consultar la versión en inglés.
+La terminología sigue [`GLOSARIO.md`](GLOSARIO.md) y [`GUIA-DE-ESTILO.md`](GUIA-DE-ESTILO.md). Para revisar esta traducción, véase [`REVISION.md`](REVISION.md).
+
+**Los enlaces a documentación externa apuntan a la versión en inglés.** Los motivos:
+
+- La documentación en inglés es la **versión de referencia** de Microsoft y de GitHub: es la primera en publicarse y en actualizarse.
+- La terminología de este repositorio se ha fijado con revisión nativa (véase [`GLOSARIO.md`](GLOSARIO.md)) y **no siempre coincide** con la de las versiones traducidas, lo que puede generar confusión al saltar de un documento a otro.
+- Quien trabaja con Fabric suele tener el portal y las herramientas **en inglés**, de modo que los términos de la documentación en inglés coinciden con lo que ve en pantalla.
+
+Si prefieres leer la documentación de Microsoft en español, basta con cambiar `/en-us/` por `/es-es/` en la URL.
 
 Los errores pueden comunicarse abriendo una incidencia e indicando el idioma. Si el error existe también en el original en inglés, **debe corregirse primero allí**: véase [`TRANSLATION.md`](../../TRANSLATION.md).

@@ -1,3 +1,5 @@
+**English** | [Español](translations/es/README.md)
+
 # Microsoft Fabric SDLC Patterns
 
 A reference implementation and solution accelerator for the developer workflow and CI/CD pipeline in Microsoft Fabric, demonstrating how to choose a release strategy, implement deployments, work day-to-day on feature branches, and govern the pipeline for dev, test, and production using GitHub Actions and the [fabric-cicd](https://microsoft.github.io/fabric-cicd) Python library. Both the developer workflow and the deployment pipeline are fully implemented end-to-end so the repo runs as a complete reference, not isolated examples.

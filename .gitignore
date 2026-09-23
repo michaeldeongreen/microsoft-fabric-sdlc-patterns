@@ -7,3 +7,7 @@ venv/
 
 # Local developer config (copied from .env.sample)
 .env
+
+# Local scratch space — planning notes, drafts, working files.
+# Contents are never committed; anything durable belongs in the repo proper.
+.scratch/

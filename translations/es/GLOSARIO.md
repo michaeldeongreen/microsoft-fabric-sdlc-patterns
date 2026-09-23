@@ -125,6 +125,8 @@ Errores detectados en la revisión de la primera traducción. **Conviene revisar
 | **codificado** | «GUID **codificados** en sus definiciones» | «GUID **definidos directamente** en el elemento» | «Codificado» sugiere *encoded* o *cifrado*, no *hardcoded*. |
 | **conmutar** | «**conmuta** el contexto del entorno» | «**alterna** el contexto del entorno» | «Conmutar» es innecesariamente técnico; *alternar* es lo natural. |
 | **orden de la subordinada** | «cómo **gestiona este repositorio** ambos casos» | «cómo **este repositorio gestiona** ambos casos» | Correcto pero suena raro: el español prefiere sujeto antes del verbo en subordinadas. |
+| **concordancia de género tras un cambio de término** | «de un **workspace** a otr**a**» | «de un **workspace** a otr**o**» | ⚠️ **Riesgo alto en búsqueda y reemplazo.** Al sustituir «área de trabajo» (femenino) por «workspace» (masculino), los artículos, pronombres y adjetivos cercanos **no** se actualizan solos. Tras cualquier cambio de terminología, hay que revisar la concordancia en todo el párrafo. |
+| **citas textuales** | Reemplazar términos dentro de una cita de Microsoft Learn | Dejar la cita intacta | Las citas literales no se tocan, aunque usen terminología que este repositorio ha descartado. |
 | **librería** | «la **librería** de Python» | «la **biblioteca** de Python» | *Library* es «biblioteca»; «librería» es *bookshop*. |
 | **soportar** | «Fabric **soporta** estos elementos» | «Fabric **admite** estos elementos» | *Support* es «admitir» o «ser compatible con»; «soportar» es *to endure*. |
 

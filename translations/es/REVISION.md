@@ -53,7 +53,7 @@ Estos elementos están sin traducir **a propósito**. Señalarlos consume atenci
 - Nombres de rama (`dev`, `test`, `main`, `feature/*`)
 - Variables y secretos (`FABRIC_WORKSPACE_ID`, `DEPLOY_METHOD` y sus valores)
 - Tipos de elemento de Fabric (*Lakehouse*, *Notebook*, *Semantic Model*, *Variable Library*, *Data Pipeline*, *Data Agent*, *Ontology*)
-- Funciones del portal (*Branch Out*, *workspace*, *Fabric capacity*)
+- Funciones del portal (*Branch Out*, *workspace*, *Fabric Capacity*)
 - Nombres de producto (Microsoft Fabric, fabric-cicd, GitHub Actions)
 - Salida literal de herramientas y mensajes de error
 - Las marcas *(solo en inglés)*, que son deliberadas
@@ -72,7 +72,7 @@ Se corrige primero el inglés y después se replica la corrección. Véase [`TRA
 
 ## Decisiones ya tomadas
 
-> Resueltas en revisión con **Ana Franco** y **Marlon Ramos** (22-09-2026). Se documentan aquí para no reabrirlas en cada PR.
+> Resueltas en revisión con **Ana Franco** y **Marlon Ramos** (22-09-2026), con la confirmación terminológica de **Michelle** (23-09-2026). Se documentan aquí para no reabrirlas en cada PR.
 
 | Decisión | Resultado |
 |---|---|
@@ -87,6 +87,7 @@ Se corrige primero el inglés y después se replica la corrección. Véase [`TRA
 | **Merge del PR** | Preferido sobre «PR fusionado» o «Fusión de PR». |
 | **Update from Git** | **Se traduce** («Actualización desde Git»), tanto el botón como la API, para que el diagrama sea coherente. |
 | **equipo** | No se usa para *laptop* — colisiona con «equipos de ingeniería». Se usa «laptop». |
+| **Fabric Capacity** | En inglés. Confirmado por Michelle: «capacidad» resulta confuso porque el término se usa para demasiadas cosas. |
 | **Enlaces externos** | Apuntan **siempre al inglés** (`/en-us/`), no a `/es-es/`. Véase el apartado «Sobre esta traducción» del README para los motivos. |
 | **Autoridad terminológica** | La revisión nativa **prevalece sobre Microsoft Terminology**. El término oficial no siempre es el que se usa. |
 
@@ -108,15 +109,15 @@ Tras aplicar *workspace* y *Service principal* en inglés, estos siguen en espa�
 | repository | repositorio | |
 | workflow *(GitHub Actions)* | flujo de trabajo | |
 
-### B. Fabric capacity
+### B. Fabric Capacity ✅ *Resuelto*
 
-Se ha cambiado «Capacidad de Fabric» por «Fabric capacity», pendiente de confirmar con Michelle. ¿Es correcto?
+Confirmado por Michelle (23-09-2026): se usa **Fabric Capacity** en inglés, porque «capacidad» resulta confuso para el cliente — el mismo término se usa para demasiadas cosas. Ya aplicado.
 
 ---
 
 ## Revisión final
 
-> Una vez resueltas las preguntas A y B, y aplicados los cambios que impliquen.
+> Una vez resuelta la pregunta A y aplicados los cambios que implique.
 
 ### C. Naturalidad del resultado
 

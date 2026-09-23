@@ -58,17 +58,11 @@ Items fall into two categories based on how they reference environment resources
 
 ## Translations
 
-Spanish translations live in `translations/es/`, mirroring root filenames exactly (`fabric-hybrid-cicd-guide.md` → `translations/es/fabric-hybrid-cicd-guide.md`). English is canonical — fix the English source first, then mirror the fix.
+Translated documentation lives in `translations/<lang>/`, mirroring root filenames exactly (`fabric-hybrid-cicd-guide.md` → `translations/es/fabric-hybrid-cicd-guide.md`). English is canonical — fix the English source first, then mirror the fix.
 
-- **Never translate** code fences, CLI commands, YAML/JSON keys, Python identifiers, file paths, workflow filenames, branch names (`dev`, `test`, `main`, `feature/*`), environment variables, `DEPLOY_METHOD` values, product names, or verbatim tool output. Code *comments* may be translated.
-- **Default technical terms to English.** Fabric item types and portal feature names stay in English even in prose — *Lakehouse*, *Notebook*, *Semantic Model*, *Variable Library*, *Data Pipeline*, *Data Agent*, *Ontology*, *Branch Out*, *workspace*, *Service principal*, *pipeline*, *Trigger*. A literally translated technical term is usually less recognizable than the original. Translate only firmly established equivalents (*branch* → rama, *repository* → repositorio).
-- **Native review outranks Microsoft Terminology.** The official term is the starting point, not the final answer; where a reviewer says practitioners use something else, follow the reviewer and mark the glossary entry accordingly.
-- **Register is impersonal**, with the formal form (*usted*) where direct address is unavoidable. Never the familiar *tú*.
 - **Never translate** anything under `.github/`, `scripts/`, `tests/`, or `data/`. Files in `.github/` are model input, not documentation.
 - **Do not auto-translate** when editing an English doc. Translations are updated as separate reviewed work; a stale translation is a tracked task, not a merge blocker.
-- Translated headings change GitHub anchors — regenerate tables of contents and cross-references against the translated headings.
-- Links within `translations/es/` use bare relative filenames (resolve to Spanish siblings); shared assets use `../../`.
-- Follow `translations/es/GLOSARIO.md` and `translations/es/GUIA-DE-ESTILO.md` for terminology, and `TRANSLATION.md` for the full contract. Before translating a document, check the glossary's "Falsos amigos y trampas recurrentes" table — those errors recur in every document.
+- When working in `translations/**`, `.github/instructions/translations.instructions.md` applies and carries the detailed rules. `TRANSLATION.md` is the full contract; each language's `GLOSARIO.md` and `GUIA-DE-ESTILO.md` hold its terminology and style decisions.
 
 ## Documentation
 

@@ -195,10 +195,21 @@ When the English source changes, its translations become stale. That is expected
 
 1. **One language per pull request.** Reviewing a PR that changes several languages at once is impractical, and reviewers usually only read one of them.
 2. **One document per pull request**, including that document's diagrams and its English-side switcher line. Very long documents may be split by section.
-3. **Read [`translations/es/GLOSARIO.md`](translations/es/GLOSARIO.md) and [`translations/es/GUIA-DE-ESTILO.md`](translations/es/GUIA-DE-ESTILO.md) first.** Consistency with existing translations matters more than individual preference.
+3. **Read that language's glossary and style guide first** — for Spanish, [`translations/es/GLOSARIO.md`](translations/es/GLOSARIO.md) and [`translations/es/GUIA-DE-ESTILO.md`](translations/es/GUIA-DE-ESTILO.md). Start with the glossary's "false friends and recurring traps" table: those are mistakes already caught once, and they recur. Consistency with existing translations matters more than individual preference.
 4. **Machine translation is a starting point, never the final result.** Every translation is reviewed by a fluent speaker before merge. Reviewers should follow [`translations/es/REVISION.md`](translations/es/REVISION.md).
 5. **Update the source stamp** to the commit your translation is based on.
-6. If you improve terminology, **update the glossary in the same PR** so the next translator inherits the decision.
+6. If you improve terminology, **update the glossary in the same PR** so the next translator inherits the decision. A correction that isn't written down will be made again.
+
+## Starting a new language
+
+Each language keeps its own glossary and style guide, but the following was learned from the Spanish pilot and applies to any language. Establish each of these *before* translating the second document, not after.
+
+1. **Default technical terms to English**, then justify each exception. Readers work in an English-language product interface; a literally translated technical term is usually less recognizable than the original. Spanish rejected the official translations of *workspace*, *service principal*, and *pipeline* on exactly these grounds.
+2. **Decide the register once and write it down.** Professional documentation is impersonal, using the formal form where direct address is unavoidable. The real risk is not picking wrong — it is mixing forms within a document.
+3. **Name a reviewer before starting.** A translation nobody maintains is worse than no translation, because readers assume an official-looking page is current.
+4. **Record a false-friends table from the first review.** These recur in every document, and are the highest-value thing a reviewer produces. Watch especially for a target-language word that is correct in isolation but collides with another use in the same sentence — Spanish "equipo" meant both *team* and *laptop* two clauses apart.
+5. **Watch for one English word covering two senses.** English uses *implementation* and *deployment* almost interchangeably; Spanish needs "implementación" and "despliegue" kept apart or the meaning blurs. Check for this pair, and for any other near-synonym the source language treats loosely.
+6. **Vendor terminology is a starting point, not an authority** — see the note under "Product UI strings and technical terms" above.
 
 ### Translated file skeleton
 

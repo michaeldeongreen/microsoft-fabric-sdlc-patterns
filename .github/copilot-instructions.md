@@ -68,7 +68,7 @@ Spanish translations live in `translations/es/`, mirroring root filenames exactl
 - **Do not auto-translate** when editing an English doc. Translations are updated as separate reviewed work; a stale translation is a tracked task, not a merge blocker.
 - Translated headings change GitHub anchors — regenerate tables of contents and cross-references against the translated headings.
 - Links within `translations/es/` use bare relative filenames (resolve to Spanish siblings); shared assets use `../../`.
-- Follow `translations/es/GLOSARIO.md` and `translations/es/GUIA-DE-ESTILO.md` for terminology, and `TRANSLATION.md` for the full contract.
+- Follow `translations/es/GLOSARIO.md` and `translations/es/GUIA-DE-ESTILO.md` for terminology, and `TRANSLATION.md` for the full contract. Before translating a document, check the glossary's "Falsos amigos y trampas recurrentes" table — those errors recur in every document.
 
 ## Documentation
 

@@ -121,16 +121,16 @@ Al diseñar los procesos de desarrollo y de CI/CD conviene identificar qué elem
 4. Cree las ramas `dev`, `test` y `main`
 5. Desarrolle en `dev`, fusione en `test` (activa el despliegue en Test) y fusione en `main` (activa el despliegue en Prod)
 
-### Selección del método de implementación
+### Selección del método de despliegue
 
-Este repositorio incluye tres métodos de implementación. La variable de repositorio `DEPLOY_METHOD` (Settings → Secrets and variables → Actions → Variables) determina cuál se ejecuta:
+Este repositorio incluye tres métodos de despliegue. La variable de repositorio `DEPLOY_METHOD` (Settings → Secrets and variables → Actions → Variables) determina cuál se ejecuta:
 
 | Valor de `DEPLOY_METHOD` | Comportamiento |
 |---|---|
 | `fabric-cicd` *(o sin definir)* | Se ejecutan los flujos de trabajo de fabric-cicd existentes: la ruta predeterminada y recomendada |
 | `fabric-cicd-bulk` | Los flujos de trabajo de fabric-cicd se ejecutan con la publicación masiva habilitada. En este repositorio siempre recurre a la publicación estándar elemento por elemento, porque `parameter.yml` usa las variables `$items` y `$workspace`; se incluye para demostrar el modo masivo experimental de la biblioteca |
 | `bulk` | Se ejecutan en su lugar los flujos de trabajo de la API de importación masiva (versión preliminar) |
-| cualquier otro valor | Se omiten todos los flujos de trabajo de implementación (valor seguro por defecto) |
+| cualquier otro valor | Se omiten todos los flujos de trabajo de despliegue (valor seguro por defecto) |
 
 Sea cual sea el método que se ejecute, el flujo de trabajo de ETL se encadena después mediante `workflow_run`. Véase [Opciones de publicación de CI/CD](../../fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) *(solo en inglés)* para las ventajas e inconvenientes entre fabric-cicd y las API masivas.
 

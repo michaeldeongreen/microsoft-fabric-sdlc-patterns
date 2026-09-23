@@ -173,7 +173,7 @@ Rules:
 
 1. **Label each language in its own language** — `Español`, not `Spanish`; `English`, not `Inglés`. A reader stranded on a page they cannot read must be able to recognize the way out.
 2. **No flags.** Languages are not countries. Spanish is official in 21 nations and this project uses neutral Spanish specifically to avoid privileging any one of them.
-3. **Add the English-side switcher only when its translation merges.** A switcher pointing at a file that doesn't exist yet is a broken link and will fail the link-check workflow.
+3. **Add the English-side switcher only when its translation merges.** A switcher pointing at a file that doesn't exist yet is a broken link.
 
 ---
 
@@ -248,13 +248,15 @@ SVG diagrams are translated into `assets/es/` using **identical filenames**. Spa
 
 ## Validation
 
-A link-check workflow runs on every pull request and catches the most common translation defect: a copied file whose `../` depth is now wrong.
+The most common translation defect is a copied file whose `../` depth is now wrong, producing links that point nowhere. There is no CI check for this, so **verify links before opening a pull request**.
 
-Run it locally before pushing, if you have [lychee](https://github.com/lycheeverse/lychee) installed:
+If you have [lychee](https://github.com/lycheeverse/lychee) installed:
 
 ```bash
 lychee --offline './**/*.md'
 ```
+
+Otherwise, check by hand that every relative link in the file you changed resolves — particularly `../../` links to shared assets, and any anchor link, since translated headings change their anchors.
 
 ---
 

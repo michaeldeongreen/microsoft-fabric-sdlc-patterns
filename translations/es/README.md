@@ -92,11 +92,11 @@ Esta categorización afecta directamente a la estrategia de CI/CD. La [Guía de 
 
 ### *Variable Libraries*: metadatos dinámicos frente a estáticos
 
-Algunos elementos de Fabric resuelven los valores específicos de cada entorno **en tiempo de ejecución** mediante [*Variable Libraries*](https://learn.microsoft.com/en-us/fabric/cicd/variable-library/variable-library-cicd), mientras que otros tienen los identificadores específicos del entorno **definidos directamente en el propio elemento**.
+Algunos elementos de Fabric resuelven los valores específicos de cada entorno **en tiempo de ejecución** mediante [*Variable Libraries*](https://learn.microsoft.com/en-us/fabric/cicd/variable-library/variable-library-cicd), mientras que otros tienen los IDs específicos del entorno **definidos directamente en el propio elemento**.
 
 | Tipo | Cómo funciona | Ejemplos |
 |---|---|---|
-| **Dinámico (*Variable Library*)** | El elemento lee los identificadores de la *Variable Library* en tiempo de ejecución. Cambiar el conjunto de valores activo alterna automáticamente el contexto del entorno, sin modificar archivos. | *Notebooks* que usan `notebookutils.variableLibrary.getLibrary()` |
+| **Dinámico (*Variable Library*)** | El elemento lee los IDs de la *Variable Library* en tiempo de ejecución. Cambiar el conjunto de valores activo alterna automáticamente el contexto del entorno, sin modificar archivos. | *Notebooks* que usan `notebookutils.variableLibrary.getLibrary()` |
 | **Estático (definido directamente)** | La definición del elemento contiene GUID literales de workspace o de *Lakehouse* que deben reescribirse en cada entorno, ya sea en el momento del despliegue (mediante `parameter.yml`) o mediante script (`workspace_swap.py`). | URL de Direct Lake del *Semantic Model* (`expressions.tmdl`), bloques META de dependencias del *Notebook* (`default_lakehouse`, `default_lakehouse_workspace_id`) |
 
 Al diseñar los procesos de desarrollo y de CI/CD conviene identificar qué elementos del workspace son dinámicos y cuáles estáticos. Los estáticos necesitan parametrización en el momento del despliegue (`parameter.yml` para CI/CD) o reescritura mediante script (`workspace_swap.py` para *feature branches*). El documento [Proceso de desarrollo](../../fabric-development-process.md) *(solo en inglés)* explica cómo este repositorio gestiona ambos casos.

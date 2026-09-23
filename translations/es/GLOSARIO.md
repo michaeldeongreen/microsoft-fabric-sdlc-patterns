@@ -72,6 +72,14 @@ El segundo motivo es importante y va más allá del reconocimiento: **traducir p
 | report | **informe** | ✅ MS | Como tipo de elemento de la API se mantiene `Report`. |
 | dataflow | **flujo de datos** | ✅ MS | |
 | item | **elemento** | ✅ MS | *Elemento de Fabric* — nunca «artículo». |
+| ID / IDs | **ID / IDs** | 📘 Convención | Se usa la forma inglesa, no «identificador». Es la habitual en documentación técnica y coincide con los nombres de variable (`FABRIC_WORKSPACE_ID`). |
+| feature | ***feature*** | 📘 Convención | Se mantiene en inglés por coherencia con *feature branch*. **No se alterna con «característica»** dentro de un mismo documento. |
+| feature workspace | **workspace de feature** | 📘 Convención | Construcción española con los dos términos ingleses del glosario. |
+| value set | **conjunto de valores** | 📘 Convención | Elemento de una *Variable Library*. |
+| Git Sync | **Git Sync** | 📘 Convención | Nombre de la función de Fabric; no se traduce. |
+| workspace drift | **desviación del workspace** (*workspace drift*) | 📘 Convención | Se glosa el término inglés en la primera aparición. |
+| slash command | **comando de barra** | 📘 Convención | Transparente; se refiere a los comandos `/...` de Copilot Chat. |
+| hardcoded | **definido directamente** | 👤 Revisión | Nunca «codificado». Véase «Falsos amigos». |
 
 
 ---
@@ -137,6 +145,8 @@ Errores detectados en la revisión de la primera traducción. **Conviene revisar
 | **citas textuales** | Reemplazar términos dentro de una cita de Microsoft Learn | Dejar la cita intacta | Las citas literales no se tocan, aunque usen terminología que este repositorio ha descartado. |
 | **librería** | «la **librería** de Python» | «la **biblioteca** de Python» | *Library* es «biblioteca»; «librería» es *bookshop*. |
 | **soportar** | «Fabric **soporta** estos elementos» | «Fabric **admite** estos elementos» | *Support* es «admitir» o «ser compatible con»; «soportar» es *to endure*. |
+| **mezclar *feature* y «característica»** | «desarrollo de **características**» junto a «***feature branch***» | «desarrollo de ***features***» | Si *feature branch* se mantiene en inglés, alternar con «característica» en la misma página resulta incoherente. Elige una forma por documento. |
+| **registro impersonal a medias** | «**La persona desarrolladora** crea una rama» en una lista cuyos demás pasos dicen «**Se crea**…» | «**Se crea** una rama» | Dentro de una misma lista o procedimiento, todos los pasos deben usar la misma construcción. |
 
 ---
 

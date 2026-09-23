@@ -1,6 +1,6 @@
 [English](../../README.md) | **Español**
 
-<!-- source: README.md @ d8e27be | translated: 2026-09-22 | revisado: 2026-09-22 -->
+<!-- source: README.md @ d8e27be | translated: 2026-09-22 | revisado: 2026-09-23 -->
 
 > 📄 **La versión en inglés de este documento es la autoritativa.** En caso de discrepancia, [el original en inglés](../../README.md) tiene precedencia.
 
@@ -88,7 +88,7 @@ No todos los elementos de Fabric se pueden gestionar igual. Desde el punto de vi
 
 > **Importante:** ambas listas de elementos compatibles evolucionan a medida que Microsoft añade capacidades. Debe verificarse siempre la documentación oficial antes de dar por hecho que un elemento pertenece a una categoría concreta.
 
-Esta categorización afecta directamente a la estrategia de CI/CD. La [Guía de implementación híbrida de CI/CD](../../fabric-hybrid-cicd-guide.md) *(solo en inglés)* describe cómo abordar la diferencia entre los elementos con seguimiento en Git y los que solo admiten *Pipelines* de despliegue, cuando el workspace incluye tipos no compatibles. Actualmente, todos los elementos de este repositorio se implementan mediante fabric-cicd.
+Esta categorización afecta directamente a la estrategia de CI/CD. La [Guía de implementación híbrida de CI/CD](../../fabric-hybrid-cicd-guide.md) *(solo en inglés)* describe cómo abordar la diferencia entre los elementos con seguimiento en Git y los que solo admiten *Pipelines* de despliegue, cuando el workspace incluye tipos no compatibles. Actualmente, todos los elementos de este repositorio se despliegan mediante fabric-cicd.
 
 ### *Variable Libraries*: metadatos dinámicos frente a estáticos
 
@@ -108,14 +108,14 @@ Al diseñar los procesos de desarrollo y de CI/CD conviene identificar qué elem
 ### Requisitos previos
 
 1. **Fabric Capacity** — Una *Fabric Capacity* o una capacidad de Power BI Premium para todos los workspaces
-2. **Tres workspaces de Fabric** — Dev (conectada a Git), Test y Prod
-3. **Service principal** (*service principal*) — Con el rol de colaborador en los workspaces de Test y Prod
+2. **Tres workspaces de Fabric** — Dev (conectado a Git), Test y Prod
+3. **Service principal** — Con el rol de colaborador en los workspaces de Test y Prod
 4. **Entornos de GitHub** — `Test` y `Prod` con secretos de ámbito de entorno
 5. **Configuración de administración de Fabric** — Acceso de service principals a las API de Fabric habilitado en el portal de administración de Fabric, en la configuración de desarrollador (véase la [configuración de inquilino para desarrolladores](https://learn.microsoft.com/en-us/fabric/admin/service-admin-portal-developer))
 
 ### Configuración
 
-1. Cree un service principal y añádala como colaborador en los workspaces de Test y Prod
+1. Cree un service principal y añádalo como colaborador en los workspaces de Test y Prod
 2. Cree los entornos de GitHub (`Test`, `Prod`) con los secretos `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` y `FABRIC_WORKSPACE_ID` *(esta demostración usa un secreto de cliente por simplicidad; para producción conviene evaluar la [federación OIDC de GitHub](../../fabric-cicd-governance-considerations.md#identity-model--pick-the-right-identity-for-the-job) para eliminar el secreto almacenado)*
 3. Conecte el workspace de Dev a la rama `dev` mediante la integración de Git de Fabric (carpeta: `data/fabric/`)
 4. Cree las ramas `dev`, `test` y `main`

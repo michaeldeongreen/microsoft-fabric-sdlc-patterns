@@ -104,7 +104,7 @@
   <!-- ==================== DEPLOYMENT PIPELINE (conceptual) ==================== -->
   <rect x="545" y="385" width="525" height="50" rx="6" fill="none" stroke="#6f42c1" stroke-width="2" stroke-dasharray="6,3"/>
   <text x="807" y="408" text-anchor="middle" font-size="11" fill="#6f42c1" font-weight="bold">Pipeline de despliegue de Fabric (disponible para elementos no compatibles)</text>
-  <text x="807" y="425" text-anchor="middle" font-size="9" fill="#6f42c1">No se usa — todos los elementos de este repositorio se implementan con fabric-cicd</text>
+  <text x="807" y="425" text-anchor="middle" font-size="9" fill="#6f42c1">No se usa — todos los elementos de este repositorio se despliegan con fabric-cicd</text>
 
   <!-- ==================== CONFIGURATION ==================== -->
   <rect x="30" y="460" width="520" height="120" rx="8" fill="#e8f0fe" stroke="#0078d4" stroke-width="1"/>
@@ -126,7 +126,7 @@
   <rect x="580" y="460" width="490" height="120" rx="8" fill="#e8f5e9" stroke="#28a745" stroke-width="1"/>
   <text x="825" y="485" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e7e34">Estado actual</text>
   <text x="825" y="510" text-anchor="middle" font-size="10" fill="#333">Todos los elementos de este repositorio se</text>
-  <text x="825" y="528" text-anchor="middle" font-size="10" fill="#333">implementan con fabric-cicd (incluidos Ontology y Data Agent).</text>
+  <text x="825" y="528" text-anchor="middle" font-size="10" fill="#333">despliegan con fabric-cicd (incluidos Ontology y Data Agent).</text>
   <text x="825" y="552" text-anchor="middle" font-size="10" fill="#28a745" font-weight="bold">→ Un trabajo de despliegue por entorno</text>
   <text x="825" y="570" text-anchor="middle" font-size="10" fill="#28a745" font-weight="bold">→ fabric-cicd gestiona todos los elementos</text>
 
@@ -143,7 +143,7 @@
   <rect x="550" y="645" width="14" height="14" rx="2" fill="none" stroke="#6f42c1" stroke-width="1.5" stroke-dasharray="3,2"/>
   <text x="572" y="657" font-size="10" fill="#333">Pipeline de despliegue (elementos no compatibles)</text>
 
-  <text x="50" y="685" font-size="10" fill="#555">Dev = conectado a Git (Actualización desde el API de Git) | Test y Prod = fabric-cicd implementa todo</text>
+  <text x="50" y="685" font-size="10" fill="#555">Dev = conectado a Git (Actualización desde el API de Git) | Test y Prod = fabric-cicd despliega todo</text>
 
   <!-- Arrow markers -->
   <defs>

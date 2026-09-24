@@ -150,7 +150,7 @@ Las instrucciones detalladas de configuración están en la [Guía de implementa
 
 Este documento es una traducción de [README.md](../../README.md). La versión en inglés es la fuente autorizada y puede estar más actualizada.
 
-**Revisión lingüística:** Ana Franco y Marlon Ramos, con la confirmación terminológica de Michelle. La terminología de este repositorio refleja sus correcciones: véase [`GLOSARIO.md`](GLOSARIO.md), donde las entradas marcadas 👤 Revisión son decisiones suyas que prevalecen sobre la terminología oficial de Microsoft.
+**Revisión lingüística:** hablantes nativos del equipo. La terminología de este repositorio refleja sus correcciones: véase [`GLOSARIO.md`](GLOSARIO.md), donde las entradas marcadas 👤 Revisión prevalecen sobre la terminología oficial de Microsoft.
 
 La terminología sigue [`GLOSARIO.md`](GLOSARIO.md) y [`GUIA-DE-ESTILO.md`](GUIA-DE-ESTILO.md). Para revisar esta traducción, véase [`REVISION.md`](REVISION.md).
 

@@ -4,8 +4,8 @@
 
 Terminología acordada para la traducción al español de este repositorio. Es la referencia obligatoria antes de traducir cualquier documento: **la coherencia entre documentos importa más que la preferencia individual**.
 
-> 👥 **Revisión lingüística:** [Ana Franco](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns/pull/61) y [Marlon Ramos](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns/pull/62), con la confirmación terminológica de **Michelle** para los términos de producto de Fabric.
-> Las entradas marcadas 👤 Revisión son decisiones suyas y **prevalecen sobre la terminología oficial de Microsoft**.
+> 👥 **Revisión lingüística:** hablantes nativos del equipo, con confirmación terminológica adicional para los términos de producto de Fabric.
+> Las entradas marcadas 👤 Revisión proceden de esa revisión y **prevalecen sobre la terminología oficial de Microsoft**.
 
 ## Antes de traducir un documento nuevo
 
@@ -39,11 +39,13 @@ Quien lee esta documentación trabaja a diario con Fabric, Git y GitHub, casi si
 
 Por tanto, los **tipos de elemento de Fabric y los nombres de objetos del portal se mantienen en inglés**, también en prosa corrida. Solo se traduce cuando el equivalente español está plenamente asentado y resulta transparente (*branch* → rama, *repository* → repositorio).
 
-Este principio lo confirmaron de forma independiente dos revisoras nativas:
+Este principio se confirmó de forma independiente en dos revisiones nativas. La primera, sobre el reconocimiento del término:
 
-> «La traducción literal de un término técnico suele ser *menos* reconocible que el original. **Pipeline** es «tubería» y nadie diría «tubería» para hablar de CI/CD.» — Ana Franco
+> «La traducción literal de un término técnico suele ser *menos* reconocible que el original. **Pipeline** es «tubería» y nadie diría «tubería» para hablar de CI/CD.»
 
-> «Normalmente en español usamos los términos en inglés (la mayoría de las veces). Y como dijo Ana, en Fabric nos referimos a **Fabric Capacity** porque resulta confuso para el cliente, ya que usamos el mismo término para muchas cosas.» — Michelle
+La segunda, sobre la ambigüedad que introduce traducir:
+
+> «Normalmente en español usamos los términos en inglés (la mayoría de las veces). En Fabric nos referimos a **Fabric Capacity** porque resulta confuso para el cliente, ya que usamos el mismo término para muchas cosas.»
 
 El segundo motivo es importante y va más allá del reconocimiento: **traducir puede introducir ambigüedad donde el inglés no la tiene.** «Capacidad» se usa en español para demasiadas cosas; *Fabric Capacity* designa una sola.
 
@@ -65,7 +67,7 @@ El segundo motivo es importante y va más allá del reconocimiento: **traducir p
 | Branch Out | **Branch Out** | 📘 Convención | Función del portal de Fabric; no se traduce. |
 | Update from Git | **Actualización desde Git** | 👤 Revisión | Se traduce, tanto si designa el botón del portal como la API. Al hablar de la API: «Actualización desde el API de Git». |
 | Git integration | **integración de Git** | 📘 Convención | Transparente y de uso general; sí se traduce. |
-| Fabric Capacity | **Fabric Capacity** | 👤 Revisión | **No se traduce.** Confirmado por Michelle: en Fabric se usa «Fabric Capacity» en inglés porque «capacidad» resulta confuso para el cliente — el mismo término se usa para muchas cosas distintas. |
+| Fabric Capacity | **Fabric Capacity** | 👤 Revisión | **No se traduce.** Confirmado en revisión terminológica: en Fabric se usa «Fabric Capacity» en inglés porque «capacidad» resulta confuso para el cliente — el mismo término se usa para muchas cosas distintas. |
 | capacity | **capacidad** | ✅ MS | Solo en uso genérico, fuera del nombre del producto. |
 | tenant | **inquilino** | ✅ MS | Forma habitual en Azure y Entra. |
 | dataset | **conjunto de datos** | ✅ MS | |

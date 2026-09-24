@@ -72,7 +72,7 @@ Se corrige primero el inglés y después se replica la corrección. Véase [`TRA
 
 ## Decisiones ya tomadas
 
-> Resueltas en revisión con **Ana Franco** y **Marlon Ramos** (22-09-2026), con la confirmación terminológica de **Michelle** (23-09-2026). Se documentan aquí para no reabrirlas en cada PR.
+> Resueltas en revisión nativa (22-09-2026), con confirmación terminológica adicional (23-09-2026). Se documentan aquí para no reabrirlas en cada PR.
 
 | Decisión | Resultado |
 |---|---|
@@ -87,7 +87,7 @@ Se corrige primero el inglés y después se replica la corrección. Véase [`TRA
 | **Merge del PR** | Preferido sobre «PR fusionado» o «Fusión de PR». |
 | **Update from Git** | **Se traduce** («Actualización desde Git»), tanto el botón como la API, para que el diagrama sea coherente. |
 | **equipo** | No se usa para *laptop* — colisiona con «equipos de ingeniería». Se usa «laptop». |
-| **Fabric Capacity** | En inglés. Confirmado por Michelle: «capacidad» resulta confuso porque el término se usa para demasiadas cosas. |
+| **Fabric Capacity** | En inglés. Confirmado en revisión terminológica: «capacidad» resulta confuso porque el término se usa para demasiadas cosas. |
 | **Enlaces externos** | Apuntan **siempre al inglés** (`/en-us/`), no a `/es-es/`. Véase el apartado «Sobre esta traducción» del README para los motivos. |
 | **Autoridad terminológica** | La revisión nativa **prevalece sobre Microsoft Terminology**. El término oficial no siempre es el que se usa. |
 
@@ -111,7 +111,7 @@ Tras aplicar *workspace* y *Service principal* en inglés, estos siguen en espa�
 
 ### B. Fabric Capacity ✅ *Resuelto*
 
-Confirmado por Michelle (23-09-2026): se usa **Fabric Capacity** en inglés, porque «capacidad» resulta confuso para el cliente — el mismo término se usa para demasiadas cosas. Ya aplicado.
+Confirmado en revisión terminológica (23-09-2026): se usa **Fabric Capacity** en inglés, porque «capacidad» resulta confuso para el cliente — el mismo término se usa para demasiadas cosas. Ya aplicado.
 
 ---
 

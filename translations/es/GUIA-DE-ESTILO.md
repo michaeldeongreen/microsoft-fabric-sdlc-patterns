@@ -40,10 +40,10 @@ Esta es también la práctica de la documentación en español de Microsoft. En 
 Para describir comportamiento, procesos o reglas se emplea la pasiva refleja o una construcción impersonal:
 
 ```
-✅ Los identificadores del workspace se revierten automáticamente.
-✅ El script revierte los identificadores del workspace.
+✅ Los IDs del workspace se revierten automáticamente.
+✅ El script revierte los IDs del workspace.
 ✅ La terminología procede de Microsoft Terminology.
-❌ Tú revertirás los identificadores del workspace.
+❌ Tú revertirás los IDs del workspace.
 ```
 
 ### 2. Usted cuando hay instrucción directa

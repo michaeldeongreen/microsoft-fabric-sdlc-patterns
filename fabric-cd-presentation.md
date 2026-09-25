@@ -12,7 +12,7 @@ October 2026
 
 <br/>
 
-[Reference implementation](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns) · [Begin](#section-1-why-fabric-cd-matters)
+[Reference implementation](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns) · [Begin](#section-1-content)
 
 </div>
 
@@ -29,6 +29,7 @@ October 2026
 <summary id="section-1-why-fabric-cd-matters"><strong>1. Why continuous delivery matters in Fabric</strong></summary>
 
 <br/>
+<div id="section-1-content"></div>
 
 A Fabric workspace is both a development surface and a live environment. Notebooks, pipelines, semantic models, reports, lakehouses, ontologies, and agents can all participate in one business solution—and many of them can be edited directly in the browser.
 
@@ -69,7 +70,7 @@ Approved definitions
 
 <div align="center">
 
-[Next: Why Fabric CD is challenging ↓](#section-2-fabric-cd-challenges)
+[Next: Why Fabric CD is challenging ↓](#section-2-content)
 
 </div>
 
@@ -79,6 +80,7 @@ Approved definitions
 <summary id="section-2-fabric-cd-challenges"><strong>2. Why continuous delivery in Fabric is challenging</strong></summary>
 
 <br/>
+<div id="section-2-content"></div>
 
 Fabric solutions do not behave like one compiled application artifact. Different item types participate in source control, dependency binding, deployment, and runtime configuration in different ways.
 
@@ -173,7 +175,7 @@ Use infrastructure tooling to create the environment. Use a Fabric delivery mech
 
 <div align="center">
 
-[Next: Fabric deployment options ↓](#section-3-fabric-deployment-options)
+[Next: Fabric deployment options ↓](#section-3-content)
 
 </div>
 
@@ -183,6 +185,7 @@ Use infrastructure tooling to create the environment. Use a Fabric delivery mech
 <summary id="section-3-fabric-deployment-options"><strong>3. Continuous delivery options in Fabric</strong></summary>
 
 <br/>
+<div id="section-3-content"></div>
 
 Fabric provides three practical release models. Each puts source-of-truth, configuration, operational ownership, and deployment evidence in a different place.
 
@@ -302,7 +305,7 @@ The advantage is broader automation. The cost is a release whose ordering, audit
 
 <div align="center">
 
-[Next: `fabric-cicd` and Bulk APIs ↓](#section-4-fabric-cicd-and-bulk)
+[Next: `fabric-cicd` and Bulk APIs ↓](#section-4-content)
 
 </div>
 
@@ -312,6 +315,7 @@ The advantage is broader automation. The cost is a release whose ordering, audit
 <summary id="section-4-fabric-cicd-and-bulk"><strong>4. Inside Option 3 — `fabric-cicd` and the Bulk APIs</strong></summary>
 
 <br/>
+<div id="section-4-content"></div>
 
 The tooling decision inside Option 3 is not only about transport speed. It determines how much environment configuration, reconciliation, and operational behavior the caller must implement.
 
@@ -371,7 +375,7 @@ Consider **direct Bulk APIs** when the solution is already portable through logi
 
 <div align="center">
 
-[Next: What this repository implements ↓](#section-5-repository-implementation)
+[Next: What this repository implements ↓](#section-5-content)
 
 </div>
 
@@ -381,6 +385,7 @@ Consider **direct Bulk APIs** when the solution is already portable through logi
 <summary id="section-5-repository-implementation"><strong>5. What this repository implements</strong></summary>
 
 <br/>
+<div id="section-5-content"></div>
 
 This repository chooses Option 3 for Test and Prod while keeping Dev connected to Git.
 
@@ -467,7 +472,7 @@ Subsequent releases are automated, but a production plan must distinguish repeat
 
 <div align="center">
 
-[Next: Live GitHub walkthrough ↓](#section-6-live-github-walkthrough)
+[Next: Live GitHub walkthrough ↓](#section-6-content)
 
 </div>
 
@@ -481,6 +486,7 @@ Subsequent releases are automated, but a production plan must distinguish repeat
 <summary id="section-6-live-github-walkthrough"><strong>6. Live walkthrough — follow one release through GitHub and Fabric</strong></summary>
 
 <br/>
+<div id="section-6-content"></div>
 
 ```text
 PR: test → main
@@ -664,7 +670,7 @@ The workflow structure supports these controls, but repository settings determin
 
 <div align="center">
 
-[Next: Rollback and recovery ↓](#section-7-rollback-and-recovery)
+[Next: Rollback and recovery ↓](#section-7-content)
 
 </div>
 
@@ -674,6 +680,7 @@ The workflow structure supports these controls, but repository settings determin
 <summary id="section-7-rollback-and-recovery"><strong>7. Rollback and recovery</strong></summary>
 
 <br/>
+<div id="section-7-content"></div>
 
 There is no separate rollback deployment model.
 
@@ -715,7 +722,7 @@ For this presentation, rollback is a design discussion—not a separate Action d
 
 <div align="center">
 
-[Next: Closing perspective ↓](#section-8-closing)
+[Next: Closing perspective ↓](#section-8-content)
 
 </div>
 
@@ -725,6 +732,7 @@ For this presentation, rollback is a design discussion—not a separate Action d
 <summary id="section-8-closing"><strong>8. Closing perspective</strong></summary>
 
 <br/>
+<div id="section-8-content"></div>
 
 ### The Fabric CD problem
 
@@ -763,7 +771,7 @@ The difficult part is not uploading files. It is reproducing a working solution 
 
 **Questions**
 
-[Back to the beginning](#section-1-why-fabric-cd-matters) · [Repository](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns)
+[Back to the beginning](#section-1-content) · [Repository](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns)
 
 </div>
 

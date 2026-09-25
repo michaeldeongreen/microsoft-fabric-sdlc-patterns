@@ -1,0 +1,51 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Marp: Preview Fabric SDLC CD",
+      "type": "shell",
+      "command": "npx",
+      "args": [
+        "--yes",
+        "@marp-team/marp-cli@4.5.1",
+        "presentations/fabric-sdlc-cd.md",
+        "--preview",
+        "--allow-local-files"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "runOptions": {
+        "instanceLimit": 1
+      }
+    },
+    {
+      "label": "Marp: Export Fabric SDLC CD to HTML",
+      "type": "shell",
+      "command": "npx",
+      "args": [
+        "--yes",
+        "@marp-team/marp-cli@4.5.1",
+        "presentations/fabric-sdlc-cd.md",
+        "--output",
+        "presentations/fabric-sdlc-cd.html",
+        "--allow-local-files"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    }
+  ]
+}

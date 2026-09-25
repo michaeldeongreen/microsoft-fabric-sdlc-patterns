@@ -95,7 +95,7 @@ Some items resolve environment‑specific values **at runtime**; others have IDs
 | Type | How it works | Examples |
 |---|---|---|
 | **Dynamic (Variable Library)** | The item reads IDs from a Variable Library at runtime. Switch the active value set → the environment context switches. No file changes. | Notebooks using `notebookutils.variableLibrary.getLibrary()` |
-| **Static (hardcoded)** | The definition contains literal workspace/lakehouse GUIDs that must be rewritten per environment. | Semantic Model Direct Lake URL ([`expressions.tmdl`](data/fabric/Patterns_Semantic_Model.SemanticModel/definition/expressions.tmdl)), Notebook META blocks ([`default_lakehouse`](data/fabric/Import_Patterns_Data.Notebook/notebook-content.py)) — both hardcode the [`PatternsLakehouse`](data/fabric/PatternsLakehouse.Lakehouse/lakehouse.metadata.json) GUID |
+| **Static (hardcoded)** | The definition contains literal workspace/lakehouse GUIDs that must be rewritten per environment. | Semantic Model Direct Lake URL ([`expressions.tmdl`](../data/fabric/Patterns_Semantic_Model.SemanticModel/definition/expressions.tmdl)), Notebook META blocks ([`default_lakehouse`](../data/fabric/Import_Patterns_Data.Notebook/notebook-content.py)) — both hardcode the [`PatternsLakehouse`](../data/fabric/PatternsLakehouse.Lakehouse/lakehouse.metadata.json) GUID |
 
 <details>
 <summary><b>▸ Deep dive: Actual IDs vs Logical IDs</b></summary>
@@ -183,11 +183,11 @@ When you branch out from `dev`, several items arrive carrying **hardcoded dev ID
 
 **Swap to a feature workspace** (after branching out):
 
-<p align="center"><img src="assets/development-swap-to-feature-flow.svg" alt="Swap to Feature Flow"></p>
+<p align="center"><img src="../assets/development-swap-to-feature-flow.svg" alt="Swap to Feature Flow"></p>
 
 **Swap back to dev** (before opening a PR):
 
-<p align="center"><img src="assets/development-swap-to-dev-flow.svg" alt="Swap to Dev Flow"></p>
+<p align="center"><img src="../assets/development-swap-to-dev-flow.svg" alt="Swap to Dev Flow"></p>
 
 - **Swap to feature:** reads dev IDs from `variables.json`, reads feature IDs from a gitignored `.env`, creates a feature value set, and rewrites the Semantic Model + Notebook metadata to point at the feature workspace.
 - **Swap to dev:** reverts everything — restoring dev IDs and deleting the feature value set — **before** you open a PR.
@@ -229,7 +229,7 @@ The script uses an **item‑type registry** — each registered type declares it
 
 Git is connected only to **Dev**. Promotion happens **workspace‑to‑workspace** (Dev → Test → Prod) using Fabric's built‑in Deployment Pipelines.
 
-<p align="center"><img src="assets/fabric-deployment-pipelines-flow.svg" alt="Fabric Deployment Pipelines Flow"></p>
+<p align="center"><img src="../assets/fabric-deployment-pipelines-flow.svg" alt="Fabric Deployment Pipelines Flow"></p>
 
 **Good for:** teams that want Fabric‑native tooling with minimal setup — visual change comparison and deployment history out of the box.
 
@@ -248,7 +248,7 @@ Git is connected only to **Dev**. Promotion happens **workspace‑to‑workspace
 
 Every stage has its own branch, and **each branch is Git‑connected to its workspace**. Promotion is PR‑between‑branches, then *Update from Git*.
 
-<p align="center"><img src="assets/git-based-deployments-flow.svg" alt="Fabric Git Integration Deployments Flow"></p>
+<p align="center"><img src="../assets/git-based-deployments-flow.svg" alt="Fabric Git Integration Deployments Flow"></p>
 
 **Good for:** teams that want Git as the **single source of truth** for every stage and follow Gitflow.
 
@@ -266,7 +266,7 @@ Every stage has its own branch, and **each branch is Git‑connected to its work
 
 Every stage has its own branch, and each stage's pipeline spins up a **build environment** that runs tests and applies environment‑specific configuration **before** deploying via REST APIs.
 
-<p align="center"><img src="assets/git-build-deployments-flow.svg" alt="Git-based with Build Environments Flow"></p>
+<p align="center"><img src="../assets/git-build-deployments-flow.svg" alt="Git-based with Build Environments Flow"></p>
 
 **Good for:** teams that want Git as source of truth **and** the power to transform config per stage (rewrite connection strings, lakehouse IDs) before deploy. With **`fabric-cicd`**, this is declarative via `parameter.yml` — not custom scripts.
 
@@ -325,7 +325,7 @@ Yes, it needs a build/release pipeline per stage. But `fabric-cicd`'s declarativ
 
 The recommendation is a **hybrid**: `fabric-cicd` for all supported items, Deployment Pipelines to fill any gap. This keeps Git as the single source of truth for the majority of items with a clean path to simplify further.
 
-<p align="center"><img src="assets/hybrid-recommendation-flow.svg" alt="Hybrid Recommendation Flow"></p>
+<p align="center"><img src="../assets/hybrid-recommendation-flow.svg" alt="Hybrid Recommendation Flow"></p>
 
 - **Three branches:** `dev`, `test`, `main` (production).
 - **Three workspaces:** Dev, Test, Prod.

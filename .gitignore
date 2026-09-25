@@ -11,3 +11,6 @@ venv/
 # Local scratch space — planning notes, drafts, working files.
 # Contents are never committed; anything durable belongs in the repo proper.
 .scratch/
+
+# Generated Marp presentation exports
+presentations/*.html

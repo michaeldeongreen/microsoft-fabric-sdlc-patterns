@@ -12,10 +12,11 @@ style: |
     font-family: "Segoe UI", Arial, sans-serif;
     font-size: 27px;
     padding: 52px 64px;
-    color: #1f1f1f;
+    color: #201f1e;
+    background: #ffffff;
   }
   h1 {
-    color: #3f368b;
+    color: #004578;
     font-size: 1.65em;
     margin-bottom: 0.45em;
   }
@@ -23,18 +24,18 @@ style: |
     color: #0078d4;
   }
   h3 {
-    color: #5b5fc7;
+    color: #004578;
     margin-bottom: 0.3em;
   }
   strong {
-    color: #3f368b;
+    color: #004578;
   }
   a {
     color: #0067b8;
   }
   blockquote {
-    border-left: 8px solid #5b5fc7;
-    background: #f5f3ff;
+    border-left: 8px solid #0078d4;
+    background: #eff6fc;
     padding: 0.5em 0.8em;
     margin: 0.7em 0;
   }
@@ -43,20 +44,26 @@ style: |
     width: 100%;
   }
   th {
-    background: #e8e6f7;
-    color: #2f286f;
+    background: #e5f1fb;
+    color: #004578;
+  }
+  td,
+  th {
+    border-color: #d2d0ce;
   }
   code {
     background: #f3f2f1;
   }
   header, footer {
-    color: #666;
+    color: #605e5c;
     font-size: 0.55em;
   }
   section.title {
     text-align: center;
     justify-content: center;
-    background: linear-gradient(135deg, #f7f5ff 0%, #eaf4ff 100%);
+    background: linear-gradient(135deg, #ffffff 0%, #eff6fc 100%);
+    border-top: 10px solid #0078d4;
+    box-shadow: inset 0 -7px 0 #ffb900;
   }
   section.title h1 {
     font-size: 2.25em;
@@ -65,7 +72,8 @@ style: |
     text-align: center;
     justify-content: center;
     color: white;
-    background: linear-gradient(135deg, #3f368b 0%, #0078d4 100%);
+    background: linear-gradient(135deg, #004578 0%, #0078d4 100%);
+    box-shadow: inset 0 -7px 0 #ffb900;
   }
   section.divider h1,
   section.divider h2,
@@ -94,6 +102,55 @@ style: |
   section.diagram ul {
     margin-top: 0.35em;
     margin-bottom: 0.35em;
+  }
+  section.customer-challenges {
+    background: #faf9f8;
+  }
+  section.customer-challenges table {
+    border-collapse: separate;
+    border-spacing: 12px;
+    font-size: 0.73em;
+  }
+  section.customer-challenges thead {
+    display: none;
+  }
+  section.customer-challenges td {
+    width: 50%;
+    vertical-align: top;
+    padding: 12px 14px;
+    background: #ffffff;
+    border: 1px solid #d2d0ce;
+    border-top: 5px solid #0078d4;
+    border-radius: 5px;
+  }
+  section.customer-challenges tbody tr:nth-child(2) td {
+    border-top-color: #ffb900;
+  }
+  section.customer-challenges tbody tr:nth-child(3) td {
+    border-top-color: #d83b01;
+  }
+  section.ownership table {
+    font-size: 0.7em;
+  }
+  section.ownership th,
+  section.ownership td {
+    vertical-align: top;
+    padding: 12px;
+  }
+  section.ownership th:nth-child(1) {
+    background: #e5f1fb;
+  }
+  section.ownership th:nth-child(2) {
+    background: #e8ebfa;
+  }
+  section.ownership th:nth-child(3) {
+    background: #e7f5e7;
+  }
+  section.dependency-contract table {
+    font-size: 0.67em;
+  }
+  section.dependency-contract td {
+    vertical-align: top;
   }
 ---
 
@@ -141,40 +198,56 @@ Direct browser editing is powerful, but it makes a disciplined promotion path im
 
 ---
 
-<!-- _class: compact -->
+<!-- _class: customer-challenges compact -->
 
-# Why Fabric CD is challenging
+# What customers are running into with Fabric CD
 
-| Fabric reality | Delivery consequence |
+| | |
 |---|---|
-| Support differs by item type | Git, Deployment Pipelines, `fabric-cicd`, and APIs do not always support the same items |
-| References are not uniform | Some dependencies are logical; others embed physical workspace or item IDs |
-| Clean targets have no item IDs | Foundational items may need to be created before dependent items can be parameterized |
-| Configuration lives in several places | Runtime variables, metadata, connections, rules, and secrets solve different problems |
-| Git stores definitions—not all state | Data, credentials, permissions, schedules, and some bindings need separate treatment |
-| Workspaces can have competing writers | Mixing Git sync, API deployment, and direct edits creates drift |
-| Automation support varies | Service-principal coverage can differ by item type and API |
+| **Uneven lifecycle support**<br>Git, Deployment Pipelines, `fabric-cicd`, and APIs support different item sets. | **Dependencies become deployment logic**<br>Foundational items must exist before target IDs and dependent definitions can resolve. |
+| **Configuration is fragmented**<br>Runtime variables, metadata, connections, rules, and secrets have different owners and timing. | **Definitions are not the whole environment**<br>Data, credentials, permissions, schedules, and first-deploy bindings need separate plans. |
+| **Multiple writers create drift**<br>Direct edits, Git sync, and API deployment should not compete for the same workspace. | **Delivery ownership is split**<br>Pipeline operators may not own—or deeply understand—Fabric workload behavior. |
 
 <!--
-This is the central expert slide. Fabric CD is hard because the workspace is heterogeneous, not because YAML is difficult.
+This is the central customer-problem slide. Fabric CD is hard because the workspace is heterogeneous, not because YAML is difficult.
 -->
 
 ---
 
-<!-- _class: compact -->
+<!-- _class: ownership compact -->
 
-# Definitions are not equally portable
+# The delivery ownership gap
 
-- The Report uses a relative `byPath` reference in [`definition.pbir`](../data/fabric/Patterns_Report.Report/definition.pbir).
-- The Ontology uses the Lakehouse logical ID in its [data binding](../data/fabric/Patterns_Ontology.Ontology/EntityTypes/2525121373138/DataBindings/6e4524f9-ea6d-4535-ab49-a72f73fc08a0.json).
-- The Data Agent uses the Ontology logical ID in [`datasource.json`](../data/fabric/Patterns_Data_Agent.DataAgent/Files/Config/draft/ontology-Patterns_Ontology/datasource.json).
-- The Direct Lake model contains physical workspace/lakehouse IDs in [`expressions.tmdl`](../data/fabric/Patterns_Semantic_Model.SemanticModel/definition/expressions.tmdl).
-- Notebook metadata contains physical default workspace/lakehouse IDs in [`notebook-content.py`](../data/fabric/Import_Patterns_Data.Notebook/notebook-content.py).
+| Fabric solution owners know | DevOps / DevSecOps know | The shared delivery contract must encode |
+|---|---|---|
+| Item definitions<br>Workload behavior<br>Dependencies<br>Runtime configuration<br>Data validation | Git and pipelines<br>Identities and secrets<br>Approvals and policy<br>Observability<br>Release operations | Supported item types<br>Dependency order<br>Parameterization<br>Environment ownership<br>Health checks and rollback |
 
-> Portable references can travel. Physical IDs must be rebound or replaced.
+> **DevOps should not need to become expert in every Fabric workload.** Fabric-specific knowledge should be encoded in source, configuration, deployment phases, validation, and runbooks.
 
 <!--
-Open the linked files if useful. Show that the repository contains both logical and physical dependency styles.
+Keep the audience broad. This is a common operating-model challenge, not a statement that DevOps is the only audience.
+-->
+
+---
+
+<!-- _class: dependency-contract compact -->
+
+# Dependencies are part of the deployment contract
+
+| Portable / logical references | Physical references requiring replacement |
+|---|---|
+| Report → Semantic Model via [`definition.pbir`](../data/fabric/Patterns_Report.Report/definition.pbir)<br><br>Ontology → Lakehouse logical ID via its [data binding](../data/fabric/Patterns_Ontology.Ontology/EntityTypes/2525121373138/DataBindings/6e4524f9-ea6d-4535-ab49-a72f73fc08a0.json)<br><br>Data Agent → Ontology logical ID via [`datasource.json`](../data/fabric/Patterns_Data_Agent.DataAgent/Files/Config/draft/ontology-Patterns_Ontology/datasource.json) | Direct Lake Semantic Model → physical OneLake path in [`expressions.tmdl`](../data/fabric/Patterns_Semantic_Model.SemanticModel/definition/expressions.tmdl)<br><br>Notebook → physical default workspace/lakehouse IDs in [`notebook-content.py`](../data/fabric/Import_Patterns_Data.Notebook/notebook-content.py) |
+
+```text
+Phase 1:  Lakehouse ──▶ Variable Library / Notebooks / Semantic Model
+          Ontology  ──▶ Data Agent
+
+Phase 2:  Deploy dependent items after target IDs and logical items exist
+```
+
+<!--
+Open the linked files if useful. The Data Agent directly references the Ontology—not the Lakehouse.
+Lakehouse and Ontology are Phase 1 foundations for different dependency chains.
 -->
 
 ---
@@ -232,12 +305,17 @@ Open the linked files if useful. Show that the repository contains both logical 
 
 **Trade-offs**
 
-- Every workspace—including Prod—is Git-connected
-- More long-lived branch and hotfix complexity
-- Less build-time transformation
-- Drift and competing writers require discipline
+- Fabric Git sync becomes part of the production deployment path
+- Every target workspace must be Git-connected and governed
+- Some customers report platform-generated or semantically insignificant definition churn (“ghost commits”)
+- Long-lived branches, drift, and competing writers increase operational complexity
 
 **Best fit:** teams comfortable operating all stages through Git integration.
+
+<!--
+Frame “ghost commits” as a customer/field concern, not a universal official platform claim:
+some customers report semantically insignificant or platform-generated definition churn in source control.
+-->
 
 ---
 
@@ -245,15 +323,15 @@ Open the linked files if useful. Show that the repository contains both logical 
 
 # Option 3
 
-## Git + build environment + APIs
+## Common hybrid pattern: Dev Git sync + APIs for Test and Prod
 
-![bg right:46% contain](../assets/git-build-deployments-flow.svg)
+![bg right:48% contain](../assets/fabric-git-actions-deployments-flow.svg)
 
 **Strengths**
 
-- Git remains the definition source
+- Dev can remain Git-synced for Fabric development
+- Test and Prod deploy from stage branches through APIs
 - Build-time parameterization
-- Test and Prod do not need Git integration
 - CI/CD-platform approvals, secrets, and logs
 - Deployment, ETL, and validation can be chained
 
@@ -265,6 +343,11 @@ Open the linked files if useful. Show that the repository contains both logical 
 - Full-state deployment can be slower than a small diff
 
 **Best fit:** teams needing repeatability and configuration control.
+
+<!--
+Option 3 can use a build environment for every stage. This repository uses a common hybrid variant:
+Dev is Git-synced; Test and Prod are deployed through APIs.
+-->
 
 ---
 
@@ -279,10 +362,12 @@ Open the linked files if useful. Show that the repository contains both logical 
 | Build-time transformation | Limited rules | No | **Yes** |
 | Test/Prod Git connection | No | **Yes** | No |
 | Engineering effort | Low | Medium | High |
-| Primary operator | Fabric admin | Git/Fabric team | Platform/CI/CD team |
+| Who operates the release | Fabric workspace/release operators | Fabric solution owners + repo maintainers | DevOps/DevSecOps + Fabric solution owners |
 | Audit center | Fabric pipeline | Git history | Git + CI/CD runs |
 
 **Choose based on source-of-truth, configuration, supported items, governance, and how much deployment code the team wants to own.**
+
+> No option removes Fabric knowledge. Option 3 makes it explicit in definitions, parameterization, deployment phases, validation, and runbooks.
 
 ---
 
@@ -323,9 +408,9 @@ Avoid a timeless Preview/GA claim; tell the audience to verify the current REST 
 
 <!-- _class: diagram -->
 
-# Branches select the version
+# Dev uses Git sync; Test and Prod use APIs
 
-![bg right:46% contain](../assets/git-build-deployments-flow.svg)
+![bg right:52% contain](../assets/fabric-git-actions-deployments-flow.svg)
 
 | Branch | Workspace | Delivery |
 |---|---|---|
@@ -333,43 +418,17 @@ Avoid a timeless Preview/GA claim; tell the audience to verify the current REST 
 | `test` | Test | GitHub Actions |
 | `main` | Prod | GitHub Actions |
 
-```text
-feature/* → dev → test → main
-                    │      │
-                    │      └─ deploy → Prod → ETL
-                    └──────── deploy → Test → ETL
-```
+**One writer per workspace**
 
-Test and Prod are not Git-connected. The pipeline is the writer for their deployable definitions.
-
----
-
-<!-- _class: dense -->
-
-# The hard cases are deliberate
-
-| Item | Delivery characteristic |
-|---|---|
-| Lakehouse | Must exist before its target ID can be used elsewhere |
-| Variable Library | Runtime values and environment-specific value sets |
-| Notebooks | ETL plus physical default-lakehouse metadata |
-| Semantic Model | Physical Direct Lake workspace/lakehouse path |
-| Report | Portable relative Semantic Model reference |
-| Ontology | Logical item reference plus operational data binding |
-| Data Agent | Depends on the deployed Ontology |
-
-This is not a toy “hello world.” The item mix exercises:
-
-- logical and physical references;
-- runtime and deployment-time configuration;
-- dependency ordering;
-- item deployment followed by data population.
+- Dev is Git-managed.
+- Test and Prod are pipeline-managed.
+- Successful deployment is followed by ETL and validation.
 
 ---
 
 <!-- _class: compact -->
 
-# Configuration has two moments
+# Fabric knowledge is encoded in the delivery contract
 
 | | Variable Libraries | `parameter.yml` |
 |---|---|---|
@@ -377,19 +436,17 @@ This is not a toy “hello world.” The item mix exercises:
 | Handles | Values workloads can resolve dynamically | Physical IDs and metadata that cannot be deferred |
 | Examples | Workspace/lakehouse values read by notebooks | Notebook META IDs and Direct Lake paths |
 
-## Dependency-aware deployment
-
 ```text
-Phase 1: Lakehouse + Ontology
-          ↓ target IDs and logical dependencies now exist
-Phase 2: Variable Library + Notebooks + Semantic Model + Report + Data Agent
-          ↓
-        orphan cleanup
-          ↓
-        ETL / data population
+Phase 1 foundations: Lakehouse + Ontology
+          ↓ target IDs and logical items now exist
+Phase 2 dependents: Variable Library + Notebooks + Semantic Model + Report + Data Agent
+          ↓ orphan cleanup
+Post-deploy: ETL + validation
 ```
 
-This is a **full-state deployment**, not a commit-diff deployment.
+**Also encoded:** explicit item scope, environment names, ETL notebook lookup, orphan reconciliation, and failure behavior.
+
+> The pipeline does not need tribal Fabric knowledge when that knowledge is made explicit and testable in the repository.
 
 ---
 

@@ -6,7 +6,7 @@ theme: default
 paginate: true
 size: 16:9
 header: "Continuous Delivery in Microsoft Fabric"
-footer: "michaeldeongreen/microsoft-fabric-sdlc-patterns"
+footer: "[Michael D. Green - Fabric SDLC Patterns](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns)"
 style: |
   section {
     font-family: "Segoe UI", Arial, sans-serif;
@@ -57,6 +57,10 @@ style: |
   header, footer {
     color: #605e5c;
     font-size: 0.55em;
+  }
+  footer a {
+    color: inherit;
+    text-decoration: none;
   }
   section.title {
     text-align: center;
@@ -198,41 +202,58 @@ Direct browser editing is powerful, but it makes a disciplined promotion path im
 
 ---
 
-<!-- _class: customer-challenges compact -->
+<!-- _class: customer-challenges dense -->
 
-# What customers are running into with Fabric CD
+# Why Fabric CI/CD is hard
+
+**For customers and partners:** Data & AI delivery spans infrastructure, platform items, data and state, bindings, identities, and operations—not just code. That coupling makes platform choice consequential: switching later is usually a migration program, not a tool swap.
 
 | | |
 |---|---|
 | **Uneven lifecycle support**<br>Git, Deployment Pipelines, `fabric-cicd`, and APIs support different item sets. | **Dependencies become deployment logic**<br>Foundational items must exist before target IDs and dependent definitions can resolve. |
 | **Configuration is fragmented**<br>Runtime variables, metadata, connections, rules, and secrets have different owners and timing. | **Definitions are not the whole environment**<br>Data, credentials, permissions, schedules, and first-deploy bindings need separate plans. |
-| **Multiple writers create drift**<br>Direct edits, Git sync, and API deployment should not compete for the same workspace. | **Delivery ownership is split**<br>Pipeline operators may not own—or deeply understand—Fabric workload behavior. |
+| **Multiple writers create drift**<br>Direct edits, Fabric Git sync, and API deployment should not compete for the same workspace. | **Security and governance span systems**<br>Fabric roles and tenant settings must align with Entra identity, GitHub controls, approvals, audit, and enterprise data governance. |
 
 <!--
 This is the central customer-problem slide. Fabric CD is hard because the workspace is heterogeneous, not because YAML is difficult.
+The challenge is not simply whether Fabric is secure. It must fit the customer's existing enterprise control model without creating a parallel process.
+Use “vendor lock-in” carefully: every Data & AI platform creates coupling through data gravity, proprietary metadata, security/governance configuration, operational skills, and ecosystem integration.
+The point is not that teams cannot move; it is that migration is a strategic program rather than a deployment-tool change.
 -->
 
 ---
 
-<!-- _class: ownership compact -->
+<!-- _class: dense -->
 
-# The delivery ownership gap
+# Before choosing CI/CD tooling, define the delivery surface
 
-| Fabric solution owners know | DevOps / DevSecOps know | The shared delivery contract must encode |
-|---|---|---|
-| Item definitions<br>Workload behavior<br>Dependencies<br>Runtime configuration<br>Data validation | Git and pipelines<br>Identities and secrets<br>Approvals and policy<br>Observability<br>Release operations | Supported item types<br>Dependency order<br>Parameterization<br>Environment ownership<br>Health checks and rollback |
+**Start with the solution—not the deployment tool.**
 
-> **DevOps should not need to become expert in every Fabric workload.** Fabric-specific knowledge should be encoded in source, configuration, deployment phases, validation, and runbooks.
+| Question | Decide |
+|---|---|
+| **What is part of the solution?** | Inventory the Fabric items and the surrounding configuration or state required to run. |
+| **What can each mechanism move?** | Classify items as Fabric Git-tracked, supported by another deployment/API path, or manual. |
+| **How portable are the references?** | Distinguish runtime values, logical IDs, and physical IDs that require replacement. |
+| **What must be provisioned?** | Map capacities, workspaces, private links, shortcuts/connections, roles, and tenant settings; select Bicep, Terraform, or APIs by coverage. |
+| **What moves beyond definitions?** | Plan for data, credentials, permissions, connections, schedules, bindings, and target settings. |
+| **Who owns the target and outcome?** | Establish one writer, post-deploy ETL or refresh, validation, and release evidence. |
+
+> **Supported does not mean complete:** item definitions are only one part of a usable environment.
 
 <!--
-Keep the audience broad. This is a common operating-model challenge, not a statement that DevOps is the only audience.
+This checklist distills the README Key Concepts: Item Tracking Categories and Variable Libraries: Dynamic vs Static Metadata.
+Supported-item lists evolve, so link to the official lists rather than freezing a detailed matrix in the deck.
+Bicep/ARM primarily covers the Azure control plane, including Fabric capacity. The Microsoft Fabric Terraform provider has broader Fabric-plane coverage, but support evolves.
+Shortcuts, connections, and private networking may cross content, workspace, Fabric admin, and Azure networking surfaces; verify current provider/API coverage before selecting the IaC path.
 -->
 
 ---
 
 <!-- _class: dependency-contract compact -->
 
-# Dependencies are part of the deployment contract
+# One challenge in depth: dependencies become deployment logic
+
+From the broader CD problems, dependencies show why copying definitions is not enough. References determine deployment order and parameterization.
 
 | Portable / logical references | Physical references requiring replacement |
 |---|---|
@@ -248,6 +269,7 @@ Phase 2:  Deploy dependent items after target IDs and logical items exist
 <!--
 Open the linked files if useful. The Data Agent directly references the Ontology—not the Lakehouse.
 Lakehouse and Ontology are Phase 1 foundations for different dependency chains.
+This is one concrete example of the broader challenges on the earlier slide, not a new topic.
 -->
 
 ---
@@ -273,7 +295,7 @@ Lakehouse and Ontology are Phase 1 foundations for different dependency chains.
 
 **Strengths**
 
-- Fabric-native comparison and history
+- Portal UX, REST API automation, comparison, and history
 - Lowest setup cost
 - Full or selective deployment
 - Deployment rules and autobinding
@@ -287,30 +309,35 @@ Lakehouse and Ontology are Phase 1 foundations for different dependency chains.
 
 **Best fit:** Fabric-native operations with minimal custom automation.
 
+<!--
+Deployment Pipelines are available through the Fabric portal and REST APIs. The APIs can create/manage pipelines, assign workspaces to stages, deploy stage content, and inspect operations.
+Treat the APIs as the automation surface of this option—not as a separate fourth delivery option.
+-->
+
 ---
 
 <!-- _class: diagram -->
 
 # Option 2
 
-## Git integration for every stage
+## Fabric Git integration for every stage
 
 ![bg right:46% contain](../assets/git-based-deployments-flow.svg)
 
 **Strengths**
 
-- Git directly represents every stage
+- Fabric Git directly represents every stage
 - One branch/PR model for development and promotion
 - No separate deployment library
 
 **Trade-offs**
 
 - Fabric Git sync becomes part of the production deployment path
-- Every target workspace must be Git-connected and governed
+- Every target workspace must be Fabric Git-connected and governed
 - Some customers report platform-generated or semantically insignificant definition churn (“ghost commits”)
 - Long-lived branches, drift, and competing writers increase operational complexity
 
-**Best fit:** teams comfortable operating all stages through Git integration.
+**Best fit:** teams comfortable operating all stages through Fabric Git integration.
 
 <!--
 Frame “ghost commits” as a customer/field concern, not a universal official platform claim:
@@ -323,13 +350,13 @@ some customers report semantically insignificant or platform-generated definitio
 
 # Option 3
 
-## Common hybrid pattern: Dev Git sync + APIs for Test and Prod
+## Common hybrid pattern: Dev Fabric Git sync + APIs for Test and Prod
 
 ![bg right:48% contain](../assets/fabric-git-actions-deployments-flow.svg)
 
 **Strengths**
 
-- Dev can remain Git-synced for Fabric development
+- Dev can remain Fabric Git-synced for development
 - Test and Prod deploy from stage branches through APIs
 - Build-time parameterization
 - CI/CD-platform approvals, secrets, and logs
@@ -346,51 +373,59 @@ some customers report semantically insignificant or platform-generated definitio
 
 <!--
 Option 3 can use a build environment for every stage. This repository uses a common hybrid variant:
-Dev is Git-synced; Test and Prod are deployed through APIs.
+Dev is Fabric Git-synced; Test and Prod are deployed through APIs.
 -->
 
 ---
 
-<!-- _class: compact -->
+<!-- _class: dense -->
 
 # Compare the operating models
 
-| | Deployment Pipelines | Git per stage | Build environment / APIs |
+| | Deployment Pipelines | Fabric Git per stage | Build environment / APIs |
 |---|---|---|---|
 | Test/Prod source | Prior workspace stage | Stage branch | Stage branch + deployment config |
-| Native Fabric comparison | **Yes** | No | No |
+| Built-in comparison | Adjacent Fabric stages | Workspace ↔ connected branch | None |
 | Build-time transformation | Limited rules | No | **Yes** |
-| Test/Prod Git connection | No | **Yes** | No |
+| Test/Prod Fabric Git connection | No | **Yes** | No |
 | Engineering effort | Low | Medium | High |
 | Who operates the release | Fabric workspace/release operators | Fabric solution owners + repo maintainers | DevOps/DevSecOps + Fabric solution owners |
-| Audit center | Fabric pipeline | Git history | Git + CI/CD runs |
+| Deployment evidence | Fabric deployment history; Git if used | Git history + workspace Fabric Git status | Git history + CI/CD run logs |
 
 **Choose based on source-of-truth, configuration, supported items, governance, and how much deployment code the team wants to own.**
 
-> No option removes Fabric knowledge. Option 3 makes it explicit in definitions, parameterization, deployment phases, validation, and runbooks.
+> Automation does not eliminate Fabric expertise—it changes where that knowledge is encoded and who maintains it.
+
+<!--
+Deployment Pipelines: Fabric rules, bindings, and operator knowledge.
+Fabric Git: definitions, branches, and workspace Git state.
+Build/APIs: parameterization, deployment phases, validation, and runbooks.
+Built-in comparison is not the same across columns: Deployment Pipelines compares adjacent stages, while Fabric Git compares a workspace with its connected branch.
+Git history can support every Git-backed option; the evidence row highlights the additional proof that a revision reached its target.
+-->
 
 ---
 
-<!-- _class: compact -->
+<!-- _class: dense -->
 
-# Inside Option 3: `fabric-cicd` vs Bulk
+# Inside Option 3: `fabric-cicd` vs Bulk APIs
 
-| Concern | Standard `fabric-cicd` | `fabric-cicd` bulk requested | Direct Bulk API |
+| Concern | Standard `fabric-cicd` | `fabric-cicd` bulk publish | Direct Bulk APIs |
 |---|---|---|---|
-| Abstraction | Deployment library | Library optimization | REST API |
-| Parameterization | Full `parameter.yml` | Same; dynamic values can force fallback | Caller preprocessing |
-| Orphan cleanup | Built in | Built in | Caller responsibility |
-| Long-running operations | Hidden | Hidden | Caller polls |
-| Custom code | Low | Low | High |
-| Result in this repo | Per-item | Per-item fallback | Two bulk imports |
+| Transport | Ordered per-item API calls | Bulk Import when compatible; **per-item fallback here (v1.3.0)** | One or more caller-managed Bulk Import calls |
+| Environment binding / parameterization | Full `parameter.yml` feature set | Same `parameter.yml`; this repo's dynamic values trigger the v1.3.0 fallback | None built in; caller rewrites definitions and configures after import |
+| Dependency handling | Library order + caller phases | Bulk API graph when bulk runs; standard order after fallback | Bulk API resolves logical IDs in one request; caller preprocesses physical target IDs |
+| Orphan cleanup / deletion | `unpublish_all_orphan_items()` | Same separate cleanup; Bulk Import is publish-only | Separate Delete Item calls |
+| Repository behavior | Two caller phases, ordered per item | Two-phase per-item fallback here (v1.3.0) | Two Bulk calls here: foundations, then rewritten dependents |
 
 **Repository recommendation:** standard `fabric-cicd`.
 
-**Why Bulk still matters:** it is a valuable lower-level workspace import/export primitive when the solution is already portable or the team intentionally owns the orchestration.
+**Binding ≠ deletion:** binding fixes target references; orphan cleanup removes source-absent items.
 
 <!--
-The current repository code calls the beta-qualified direct endpoint, but official documentation is in transition.
-Avoid a timeless Preview/GA claim; tell the audience to verify the current REST reference.
+The repository installs published fabric-cicd 1.3.0. In that version, contains_param_vars is true when parameter.yml contains dynamic $items/$workspace values, and bulk publish falls back to standard per-item calls.
+The unversioned latest documentation already describes dependency batches for supported dynamic values. Re-check this result after upgrading; do not present the 1.3.0 fallback as permanent behavior.
+The Repository behavior row is specific to this implementation. Its direct Bulk script uses two calls because bulk-parameter.yml needs the target Lakehouse ID before rewriting dependent definitions. The service itself handles logical-ID dependencies in one bulk request.
 -->
 
 ---
@@ -402,13 +437,13 @@ Avoid a timeless Preview/GA claim; tell the audience to verify the current REST 
 
 # What this repository implements
 
-## Dev through Git; Test and Prod through GitHub Actions
+## Dev through Fabric Git; Test and Prod through GitHub Actions
 
 ---
 
 <!-- _class: diagram -->
 
-# Dev uses Git sync; Test and Prod use APIs
+# Dev uses Fabric Git sync; Test and Prod use APIs
 
 ![bg right:52% contain](../assets/fabric-git-actions-deployments-flow.svg)
 
@@ -420,7 +455,7 @@ Avoid a timeless Preview/GA claim; tell the audience to verify the current REST 
 
 **One writer per workspace**
 
-- Dev is Git-managed.
+- Dev is Fabric Git-managed.
 - Test and Prod are pipeline-managed.
 - Successful deployment is followed by ETL and validation.
 
@@ -486,7 +521,7 @@ Switch from the deck to GitHub after the next flow slide.
 
 ---
 
-<!-- _class: compact -->
+<!-- _class: dense -->
 
 # From pull request to usable workspace
 
@@ -496,7 +531,8 @@ PR: test → main
 merge creates push to main
   ↓ DEPLOY_METHOD selects one orchestrator
 Prod GitHub Environment supplies identity + workspace
-  ↓ reusable workflow deploys definitions
+  ↓ reusable workflow checks out the revision + authenticates
+deploy script + parameter.yml → Fabric APIs
 Phase 1 → Phase 2 → orphan cleanup
   ↓ successful deployment
 Prod ETL runs and validates data readiness
@@ -504,11 +540,12 @@ Prod ETL runs and validates data readiness
 
 ### Files to follow
 
-1. [`enforce-promotion-path.yml`](../.github/workflows/enforce-promotion-path.yml)
-2. [`deploy-prod.yml`](../.github/workflows/deploy-prod.yml)
-3. [`reusable-deploy-fabric-cicd.yml`](../.github/workflows/reusable-deploy-fabric-cicd.yml)
-4. [`deploy_fabric_cicd.py`](../scripts/deploy_fabric_cicd.py)
-5. [`etl-prod.yml`](../.github/workflows/etl-prod.yml)
+1. [`enforce-promotion-path.yml`](../.github/workflows/enforce-promotion-path.yml) — permits only `test → main`
+2. [`deploy-prod.yml`](../.github/workflows/deploy-prod.yml) — selects the deploy method and Prod environment
+3. [`reusable-deploy-fabric-cicd.yml`](../.github/workflows/reusable-deploy-fabric-cicd.yml) — authenticates and runs the standard deployment
+4. [`deploy_fabric_cicd.py`](../scripts/deploy_fabric_cicd.py) — controls phases and orphan cleanup
+   - [`parameter.yml`](../data/fabric/parameter.yml) — rewrites target workspace/item IDs before upload
+5. [`etl-prod.yml`](../.github/workflows/etl-prod.yml) — starts ETL only after deployment succeeds
 
 ---
 
@@ -543,7 +580,7 @@ Be explicit about current versus recommended controls when showing Settings.
 
 ---
 
-<!-- _class: compact -->
+<!-- _class: dense -->
 
 # Deployment is not the end
 
@@ -619,8 +656,6 @@ Git cannot reverse lakehouse mutations, refresh state, downstream side effects, 
 
 Plan for reprocessing, snapshots, retention, point-in-time capabilities, or workload-specific backout procedures.
 
-**No separate rollback Action is needed for this demo.**
-
 ---
 
 <!-- _class: title compact -->
@@ -635,7 +670,7 @@ It is reproducing a working Fabric solution across item types whose definitions,
 ## Choose deliberately
 
 - Fabric-native stages: **Deployment Pipelines**
-- Git-connected stages: **Git per workspace**
+- Fabric Git-connected stages: **Fabric Git per workspace**
 - Build-time control: **Git + APIs**
 
 ## Then make the release easy to prove—and safe to repeat
@@ -643,3 +678,23 @@ It is reproducing a working Fabric solution across item types whose definitions,
 **Questions?**
 
 [Repository](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns)
+
+---
+
+<!-- _class: dense -->
+
+# Appendix — best practices and references
+
+### Practices to carry forward
+
+- Establish one source of truth and one deployment writer per workspace.
+- Prefer full, repeatable deployments; use selective deployment only with dependency awareness.
+- Separate item delivery, environment binding, identity and permissions, and data validation.
+- Use environment-scoped identities, approval gates, and the commit SHA as the release thread.
+
+**New from the Fabric product group:** [CI/CD resource hub](https://learn.microsoft.com/en-us/fabric/cicd/cicd-overview) · [resource announcement](https://community.fabric.microsoft.com/blog/fbc_fabricupdatesblogs/new-cicd-resources-for-microsoft-fabric-from-concepts-to-end-to-end-automation/5358502)
+
+| Official guidance | This repository |
+|---|---|
+| [Plan CI/CD for Fabric solutions](https://learn.microsoft.com/en-us/fabric/fundamentals/understand-best-practices-fabric-cicd)<br>[Choose a Fabric CI/CD workflow](https://learn.microsoft.com/en-us/fabric/cicd/manage-deployment)<br>[End-to-end automation tutorial](https://learn.microsoft.com/en-us/fabric/cicd/tutorial-end-to-end-automation) | [Release options](../fabric-cicd-release-options.md)<br>[Hybrid implementation guide](../fabric-hybrid-cicd-guide.md)<br>[Governance considerations](../fabric-cicd-governance-considerations.md) |
+| [`fabric-cicd` parameterization](https://microsoft.github.io/fabric-cicd/1.3.0/how_to/parameterization/)<br>[Optional and selective features](https://microsoft.github.io/fabric-cicd/1.3.0/how_to/optional_feature/)<br>[Code reference](https://microsoft.github.io/fabric-cicd/1.3.0/reference/code_reference/) | [Direct Bulk API implementation](../fabric-bulk-cicd-guide.md)<br>[Development process](../fabric-development-process.md)<br>[Reference implementation](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns) |

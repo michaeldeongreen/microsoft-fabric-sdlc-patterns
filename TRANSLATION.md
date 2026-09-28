@@ -43,7 +43,7 @@ Translated files **mirror the English path exactly**, subdirectories included �
 
 Mirroring the path, rather than flattening it, is what keeps sibling-relative links resolving to the translated sibling instead of the English original.
 
-> ⚠️ **Nesting changes link depth.** A file in `translations/es/` reaches shared assets with `../../`; one in `translations/es/presentations/` needs `../../../`. Getting this wrong produces links that appear fine in the diff and break when rendered. There is no CI link check — verify by hand. See [Links](#links).
+> ⚠️ **Nesting changes link depth.** A file in `translations/es/` reaches shared assets with `../../`; one in `translations/es/presentations/` needs `../../../`. Getting this wrong produces links that appear fine in the diff and break when rendered. Run `python scripts/verify_translations.py` to catch it. See [Links](#links).
 
 Adding a language means adding one directory (`translations/pt-BR/`). Nothing else moves.
 
@@ -303,15 +303,32 @@ npx --yes @marp-team/marp-cli@4.5.1 \
 
 ## Validation
 
-The most common translation defect is a copied file whose `../` depth is now wrong, producing links that point nowhere. There is no CI check for this, so **verify links before opening a pull request**.
+Run the verification sweep before opening a pull request:
 
-If you have [lychee](https://github.com/lycheeverse/lychee) installed:
+```bash
+python scripts/verify_translations.py
+```
+
+It checks the defects that human review reliably skims past, and exits non-zero on failure:
+
+| Check | Catches |
+|---|---|
+| Relative links | A copied file whose `../` depth is now wrong — the most common defect by far |
+| In-page anchors | Links pointing at English anchors after the heading was translated |
+| Code fence parity | Translation that leaked inside a code block, including altered GUIDs |
+| Rejected terminology | Terms the native review ruled out, in prose and in diagram labels |
+| Register | `tú` forms, where the agreed register is impersonal and *usted* |
+| Gender agreement | A feminine article stranded by a masculine English replacement |
+
+ASCII-art blocks are exempt from code parity, because their labels are meant to be translated. Ambiguous verb forms — identical as a `tú` imperative and as third-person indicative — are listed for human judgement rather than failed.
+
+This is not wired into CI. It has to be run deliberately.
+
+For external links as well, [lychee](https://github.com/lycheeverse/lychee) covers what the script does not:
 
 ```bash
 lychee --offline './**/*.md'
 ```
-
-Otherwise, check by hand that every relative link in the file you changed resolves — particularly `../../` links to shared assets, and any anchor link, since translated headings change their anchors.
 
 ---
 

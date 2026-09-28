@@ -28,7 +28,7 @@ Impersonal by default; the formal form (*usted* in Spanish) where direct address
 
 - **Source stamp:** every translated file opens with `<!-- source: <file> @ <short-sha> | translated: <date> -->`. Update it to the English commit the translation is based on; a stale stamp makes the staleness check fire a false positive.
 - **Path mirroring:** translations mirror the English **path**, subdirectories included. `presentations/fabric-sdlc-cd.md` becomes `translations/es/presentations/fabric-sdlc-cd.md`, never a flattened or `-es`-suffixed name.
-- **Link depth follows nesting.** From `translations/es/` shared assets are `../../`; from `translations/es/presentations/` they are `../../../`. A wrong depth renders as a broken link and **no CI catches it** — verify every `../` path by hand.
+- **Link depth follows nesting.** From `translations/es/` shared assets are `../../`; from `translations/es/presentations/` they are `../../../`. A wrong depth renders as a broken link that looks fine in the diff — run `python scripts/verify_translations.py` to catch it.
 - **Anchors:** GitHub derives anchors from heading text, so translating a heading changes its anchor. Regenerate every table of contents and cross-reference against the *translated* headings. Never copy anchors from the English source.
 - **Links between translated documents:** bare relative filenames (`fabric-hybrid-cicd-guide.md`), which resolve to the translated sibling automatically.
 - **Links to shared files:** reach the repo root with the depth matching the file's own nesting — `../../` from `translations/es/`, `../../../` from `translations/es/presentations/`. Never root-anchored `/path`.
@@ -47,8 +47,7 @@ Bulk replacement has caused real defects in this repository. After any terminolo
 
 ## Before finishing
 
-- Verify every relative link in changed files resolves, paying particular attention to `../` depth in nested directories.
-- Verify anchors match translated headings.
-- If a diagram changed, render it and check for overflow.
-- If a Marp deck changed, rebuild its HTML.
-- If terminology changed, update `GLOSARIO.md` in the same change so the next translator inherits the decision.
+- Run `python scripts/verify_translations.py` from the repository root. It checks links, anchors, code-fence parity, rejected terminology, register and gender agreement, and exits non-zero on failure. It is not wired into CI, so it has to be run deliberately.
+- If a diagram changed, render it and check for overflow — the script does not measure geometry.
+- If a Marp deck changed, rebuild its HTML and check for slide overflow. Wait for fonts to load before measuring; a measurement taken too early reports a few pixels of phantom overflow.
+- If terminology changed, update `GLOSARIO.md` in the same change so the next translator inherits the decision, and add the rejected term to `REJECTED` in the script.

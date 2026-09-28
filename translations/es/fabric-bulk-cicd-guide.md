@@ -213,7 +213,7 @@ El archivo incluido en `data/fabric/bulk-parameter.yml` tiene este aspecto:
 
 ```yaml
 substitutions:
-  - find: "c185283c-9dd9-4e40-a17c-aa6303e6f0e5"          # dev lakehouse ID
+  - find: "c185283c-9dd9-4e40-a17c-aa6303e3a2e9"            # dev lakehouse ID
     replace_with: "$items.Lakehouse.PatternsLakehouse.$id"
     item_types: [VariableLibrary, SemanticModel, Notebook]
 
@@ -461,7 +461,7 @@ El script incluye `bulk-parameter.yml`, `parameter.yml` y `.gitkeep` en `EXCLUDE
 
 ### Peculiaridad de `workflow_run`: las reejecuciones usan el archivo congelado
 
-Al reejecutar un ETL desencadenado por `workflow_run` se usa el archivo del flujo de trabajo congelado en el momento en que se disparó el desencadenador, no el de la rama predeterminada actual. Si una corrección del archivo llega a `main` después de ese momento, ni el reintento automático ni `gh run rerun` la recogen. Para recuperarse de un fallo transitorio o de una corrección del archivo, conviene usar el desencadenador manual `workflow_dispatch` añadido a `etl-test.yml` y `etl-prod.yml`.
+Al reejecutar un ETL desencadenado por `workflow_run` se usa el archivo del flujo de trabajo congelado en el momento en que se disparó el Trigger, no el de la rama predeterminada actual. Si una corrección del archivo llega a `main` después de ese momento, ni el reintento automático ni `gh run rerun` la recogen. Para recuperarse de un fallo transitorio o de una corrección del archivo, conviene usar el Trigger manual `workflow_dispatch` añadido a `etl-test.yml` y `etl-prod.yml`.
 
 ### `?beta=true` es necesario hoy
 

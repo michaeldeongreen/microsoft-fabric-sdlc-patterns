@@ -1,8 +1,8 @@
-[English](../../fabric-development-process.md) | **Español**
+[English](fabric-development-process.md) | **Español**
 
 <!-- source: fabric-development-process.md @ c4ee255 | translated: 2026-09-23 -->
 
-> 📄 **La versión en inglés de este documento es la autoritativa.** En caso de discrepancia, [el original en inglés](../../fabric-development-process.md) tiene precedencia.
+> 📄 **La versión en inglés de este documento es la autoritativa.** En caso de discrepancia, [el original en inglés](fabric-development-process.md) tiene precedencia.
 
 # Proceso de desarrollo
 
@@ -238,7 +238,7 @@ No todos los tipos de elemento necesitan reescritura. Los elementos de Fabric se
 
 ## Sobre esta traducción
 
-Este documento es una traducción de [fabric-development-process.md](../../fabric-development-process.md). La versión en inglés es la fuente autorizada y puede estar más actualizada.
+Este documento es una traducción de [fabric-development-process.md](fabric-development-process.md). La versión en inglés es la fuente autorizada y puede estar más actualizada.
 
 La terminología sigue [`GLOSARIO.md`](GLOSARIO.md) y [`GUIA-DE-ESTILO.md`](GUIA-DE-ESTILO.md). Para revisar esta traducción, véase [`REVISION.md`](REVISION.md).
 

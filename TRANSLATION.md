@@ -284,9 +284,9 @@ SVG diagrams are translated into `assets/es/` using **identical filenames**. Spa
 
 **Do translate:** the `header:` and `footer:` strings, which are display text shown on every slide.
 
-**Slides have hard space limits**, exactly like diagram boxes. Spanish runs 15–25% longer, so a slide that fits in English may overflow. Render the deck and check before committing.
+**Slides have hard space limits**, exactly like diagram boxes. Spanish runs 15–25% longer, so a slide that fits in English may overflow. Render the deck and check before committing. The deck defines `compact` and `dense` body classes — moving a slide to a smaller class is usually the fix.
 
-**The compiled HTML is committed, and must be rebuilt when the Markdown changes.** Unlike prose, there is no source stamp to make staleness visible — an out-of-date HTML build looks perfectly healthy in a diff. Rebuild with the same pinned version used for the English deck:
+**The compiled HTML is a build artifact and is not committed.** `.gitignore` excludes `presentations/*.html` and `translations/*/presentations/*.html`. Build it locally to preview:
 
 ```bash
 npx --yes @marp-team/marp-cli@4.5.1 \
@@ -295,7 +295,9 @@ npx --yes @marp-team/marp-cli@4.5.1 \
   --allow-local-files
 ```
 
-`.vscode/tasks.json` defines this as a task for both languages.
+`.vscode/tasks.json` defines preview and export tasks for both languages using the same pinned version.
+
+**Decks get no language switcher.** Everything in a deck's body renders onto a slide, so a switcher line would appear as visible text on the title slide. Decks are discovered through the documents that link them, not through a switcher of their own.
 
 ---
 

@@ -163,8 +163,6 @@ style: |
 <!-- _header: "" -->
 <!-- _footer: "" -->
 
-**English** | [Español](../translations/es/presentations/fabric-sdlc-cd.md)
-
 # Continuous Delivery in Microsoft Fabric
 
 ## Why it is difficult, the options available, and a working GitHub implementation

@@ -35,7 +35,7 @@ Impersonal by default; the formal form (*usted* in Spanish) where direct address
 - **Links to untranslated documents:** point at the English original and label it, e.g. `*(solo en inglés)*`.
 - **External documentation links stay English** (`/en-us/`), never the localized locale.
 - **Diagrams:** translate `<text>` content only, into `assets/<lang>/` with identical filenames. Keep script names, git commands, workflow filenames and branch names untranslated. Never convert text to curves. Leave geometry untouched. Measure rather than estimate — render and compare text width against box width.
-- **Marp decks in `presentations/`:** never translate YAML frontmatter or the `style:` CSS block; do translate `header:` and `footer:`. Slides have hard space limits, so render and check for overflow. The compiled HTML is committed and **must be rebuilt** with the pinned `marp-cli` version whenever the Markdown changes — nothing makes a stale build visible.
+- **Marp decks in `presentations/`:** never translate YAML frontmatter or the `style:` CSS block; do translate `header:` and the slide content. Copy the frontmatter from the source rather than retyping it. Slides have hard space limits, so render and check for overflow. The compiled HTML is a gitignored build artifact — rebuild it locally to check, but do not commit it. Decks get **no language switcher**: anything in the body renders onto a slide.
 
 ## Find-and-replace hazards
 

@@ -8,6 +8,24 @@ La regla general: **importa la naturalidad, no la literalidad**. Una traducción
 
 ---
 
+## Qué hay en esta revisión
+
+La primera traducción (`README.md`) se revisó documento a documento. A partir de ahí se ha traducido **el resto del repositorio de una sola vez**: seis documentos más, dos presentaciones y siete diagramas, unas 35.000 palabras.
+
+El cambio de método es deliberado. Revisar un archivo cada vez obligaba a volver sobre el mismo material en cada entrega; entregarlo completo permite decidir la terminología una vez y aplicarla en bloque.
+
+**No se espera una lectura completa.** El volumen no lo justifica y la revisión exhaustiva no es el objetivo. Lo que se pide son **comprobaciones puntuales**:
+
+1. **Abrir dos o tres documentos al azar** y leer unos párrafos de cada uno. Lo que se busca es si *suena* a español escrito por una persona.
+2. **Revisar los diagramas** ([`assets/es/`](../../assets/es)), que son rápidos de ver y donde un texto desbordado o una etiqueta a medio traducir se detecta de inmediato.
+3. **Responder la pregunta abierta** del apartado siguiente, que es lo único que bloquea el cierre.
+
+Todo lo mecánico —enlaces, anclas, bloques de código, términos rechazados, tuteo, concordancia de género— ya está comprobado de forma automática. No hace falta dedicarle atención.
+
+Si aparece un problema de terminología, basta con señalarlo **una vez**: la corrección se aplica después a todos los documentos a la vez.
+
+---
+
 ## Qué revisar
 
 ### 1. Terminología (lo más importante)
@@ -95,11 +113,9 @@ Se corrige primero el inglés y después se replica la corrección. Véase [`TRA
 
 ## Preguntas abiertas
 
-> Específicas de la primera traducción (`README.md`). Una vez resueltas, esta sección puede eliminarse.
-
 ### A. Alcance del principio «ante la duda, en inglés»
 
-Tras aplicar *workspace* y *Service principal* en inglés, estos siguen en español. ¿Son correctos, o también deberían ir en inglés?
+Es la única pregunta que bloquea el cierre de esta entrega. Tras aplicar *workspace* y *Service principal* en inglés, estos cinco siguen en español en todos los documentos. ¿Son correctos, o también deberían ir en inglés?
 
 | Término | Traducción actual | ¿Correcto? |
 |---|---|---|
@@ -109,26 +125,28 @@ Tras aplicar *workspace* y *Service principal* en inglés, estos siguen en espa�
 | repository | repositorio | |
 | workflow *(GitHub Actions)* | flujo de trabajo | |
 
-### B. Fabric Capacity ✅ *Resuelto*
+Una respuesta de una línea basta. Si alguno debe cambiar, el cambio se aplica en bloque a los once documentos, no archivo por archivo.
+
+> Indicio a favor de dejarlos en español: en la revisión del `README.md` se editaron frases que contenían *despliegue*, *rama* y *repositorio* sin tocar esos términos. No es una confirmación explícita, pero apunta a que no chirrían.
+
+### B. Citas textuales en inglés
+
+Hay **cuatro citas literales** de documentación de Microsoft y de `fabric-cicd`, en dos documentos ([`fabric-development-process.md`](fabric-development-process.md) y [`fabric-hybrid-cicd-guide.md`](fabric-hybrid-cicd-guide.md)). Se han dejado **en inglés y sin alterar**, con la traducción justo debajo precedida de «Traducción:», porque una cita traducida deja de poder contrastarse con la fuente que se enlaza.
+
+¿Es la decisión correcta, o resulta más incómodo de leer que útil?
+
+### C. Fabric Capacity ✅ *Resuelto*
 
 Confirmado en revisión terminológica (23-09-2026): se usa **Fabric Capacity** en inglés, porque «capacidad» resulta confuso para el cliente — el mismo término se usa para demasiadas cosas. Ya aplicado.
 
----
+### D. Registro y cursiva ✅ *Resuelto*
 
-## Revisión final
-
-> Una vez resuelta la pregunta A y aplicados los cambios que implique.
-
-### C. Naturalidad del resultado
-
-La conversión de tuteo a impersonal y usted se ha hecho en todo el documento. ¿Suena natural, o ha quedado algún punto forzado o telegráfico?
-
-### D. Cursiva en los anglicismos
-
-El uso de cursiva en *commit*, *pull request* y *pipeline* sigue la norma de la RAE para extranjerismos crudos. ¿Resulta natural, o excesivo para quien trabaja a diario con estas herramientas?
+La conversión a impersonal y **usted** y el uso de cursiva en los anglicismos crudos se validaron en la revisión del `README.md` y se han aplicado de forma sistemática al resto. No es necesario volver sobre ello salvo que algún punto concreto suene forzado.
 
 ---
 
 ## Cómo dejar constancia
 
-Los comentarios pueden dejarse directamente en el *pull request*. Para las decisiones de terminología conviene indicar si la corrección debe aplicarse solo a este documento o a todas las traducciones futuras: en el segundo caso se actualiza [`GLOSARIO.md`](GLOSARIO.md) antes de continuar con el resto de documentos.
+Los comentarios pueden dejarse directamente en el *pull request*. Al tratarse de una entrega en bloque, conviene indicar en cada observación de terminología si la corrección afecta **solo al documento donde se detectó** o **a todas las traducciones**: en el segundo caso se actualiza [`GLOSARIO.md`](GLOSARIO.md) y el cambio se aplica a los once documentos de una vez.
+
+Si el acceso al *pull request* está restringido, el mismo comentario por cualquier otro medio sirve igual: lo que importa es la observación, no dónde quede registrada.

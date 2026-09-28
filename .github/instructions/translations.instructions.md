@@ -27,12 +27,15 @@ Impersonal by default; the formal form (*usted* in Spanish) where direct address
 ## Mechanics
 
 - **Source stamp:** every translated file opens with `<!-- source: <file> @ <short-sha> | translated: <date> -->`. Update it to the English commit the translation is based on; a stale stamp makes the staleness check fire a false positive.
+- **Path mirroring:** translations mirror the English **path**, subdirectories included. `presentations/fabric-sdlc-cd.md` becomes `translations/es/presentations/fabric-sdlc-cd.md`, never a flattened or `-es`-suffixed name.
+- **Link depth follows nesting.** From `translations/es/` shared assets are `../../`; from `translations/es/presentations/` they are `../../../`. A wrong depth renders as a broken link and **no CI catches it** — verify every `../` path by hand.
 - **Anchors:** GitHub derives anchors from heading text, so translating a heading changes its anchor. Regenerate every table of contents and cross-reference against the *translated* headings. Never copy anchors from the English source.
 - **Links between translated documents:** bare relative filenames (`fabric-hybrid-cicd-guide.md`), which resolve to the translated sibling automatically.
-- **Links to shared files:** `../../scripts/...`, `../../assets/es/...`. Never root-anchored `/path`.
+- **Links to shared files:** reach the repo root with the depth matching the file's own nesting — `../../` from `translations/es/`, `../../../` from `translations/es/presentations/`. Never root-anchored `/path`.
 - **Links to untranslated documents:** point at the English original and label it, e.g. `*(solo en inglés)*`.
 - **External documentation links stay English** (`/en-us/`), never the localized locale.
-- **Diagrams:** translate `<text>` content only, into `assets/<lang>/` with identical filenames. Keep script names, git commands, workflow filenames and branch names untranslated. Never convert text to curves. Verify no label overflows its box — translated text often runs longer than English.
+- **Diagrams:** translate `<text>` content only, into `assets/<lang>/` with identical filenames. Keep script names, git commands, workflow filenames and branch names untranslated. Never convert text to curves. Leave geometry untouched. Measure rather than estimate — render and compare text width against box width.
+- **Marp decks in `presentations/`:** never translate YAML frontmatter or the `style:` CSS block; do translate `header:` and `footer:`. Slides have hard space limits, so render and check for overflow. The compiled HTML is committed and **must be rebuilt** with the pinned `marp-cli` version whenever the Markdown changes — nothing makes a stale build visible.
 
 ## Find-and-replace hazards
 
@@ -44,7 +47,8 @@ Bulk replacement has caused real defects in this repository. After any terminolo
 
 ## Before finishing
 
-- Verify every relative link in changed files resolves.
+- Verify every relative link in changed files resolves, paying particular attention to `../` depth in nested directories.
 - Verify anchors match translated headings.
 - If a diagram changed, render it and check for overflow.
+- If a Marp deck changed, rebuild its HTML.
 - If terminology changed, update `GLOSARIO.md` in the same change so the next translator inherits the decision.

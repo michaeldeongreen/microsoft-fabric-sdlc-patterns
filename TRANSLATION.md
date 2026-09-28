@@ -21,18 +21,29 @@ If a translation and the English source disagree, **the English source is correc
 ```
 README.md                          English, canonical
 fabric-*.md                        English, canonical
+presentations/*.md                 English, canonical
 assets/*.svg                       English diagrams
 assets/es/*.svg                    Spanish diagrams (same filenames)
 
 translations/
   es/
-    README.md                      mirrors the root filename exactly
+    README.md                      mirrors the source path exactly
     fabric-*.md
+    presentations/*.md             subdirectories are preserved
     GLOSARIO.md                    terminology decisions
     GUIA-DE-ESTILO.md              variant, register, anglicisms
 ```
 
-Translated files **mirror the English filename exactly**. `fabric-hybrid-cicd-guide.md` at the root becomes `translations/es/fabric-hybrid-cicd-guide.md` — never a renamed or `-es`-suffixed variant.
+Translated files **mirror the English path exactly**, subdirectories included — never a renamed or `-es`-suffixed variant:
+
+| English source | Spanish translation |
+|---|---|
+| `fabric-hybrid-cicd-guide.md` | `translations/es/fabric-hybrid-cicd-guide.md` |
+| `presentations/fabric-sdlc-cd.md` | `translations/es/presentations/fabric-sdlc-cd.md` |
+
+Mirroring the path, rather than flattening it, is what keeps sibling-relative links resolving to the translated sibling instead of the English original.
+
+> ⚠️ **Nesting changes link depth.** A file in `translations/es/` reaches shared assets with `../../`; one in `translations/es/presentations/` needs `../../../`. Getting this wrong produces links that appear fine in the diff and break when rendered. There is no CI link check — verify by hand. See [Links](#links).
 
 Adding a language means adding one directory (`translations/pt-BR/`). Nothing else moves.
 
@@ -122,12 +133,21 @@ GitHub resolves relative links against the current file, so this automatically l
 
 ### To shared files
 
-Reach up two levels — never use a root-anchored `/path`, which works on github.com but breaks in local clones and editors:
+Reach up to the repository root — never use a root-anchored `/path`, which works on github.com but breaks in local clones and editors.
+
+**The number of `../` depends on how deeply the translated file is nested:**
+
+| Translated file lives in | Depth to repo root | Example |
+|---|---|---|
+| `translations/es/` | `../../` | `![Flujo](../../assets/es/hybrid-recommendation-flow.svg)` |
+| `translations/es/presentations/` | `../../../` | `![Flujo](../../../assets/es/git-based-deployments-flow.svg)` |
 
 ```markdown
 [workspace_swap.py](../../scripts/workspace_swap.py)
 ![Flujo recomendado](../../assets/es/hybrid-recommendation-flow.svg)
 ```
+
+A wrong depth is the single most common defect when copying a translated file between directories. It renders as a broken image or a dead link, and nothing in CI catches it — check every `../` path after moving or creating a nested translation.
 
 ### To documents not yet translated
 
@@ -242,13 +262,40 @@ autorizada. Los errores pueden comunicarse abriendo una incidencia e indicando e
 
 ## Diagrams
 
-SVG diagrams are translated into `assets/es/` using **identical filenames**. Spanish documents reference `../../assets/es/<name>.svg`.
+SVG diagrams are translated into `assets/es/` using **identical filenames**. Spanish documents reference them with the `../` depth appropriate to their own nesting — `../../assets/es/<name>.svg` from `translations/es/`, `../../../assets/es/<name>.svg` from a subdirectory.
 
 - The SVGs are hand-authored XML — translate the `<text>` node contents directly.
 - Keep script names, git commands, workflow filenames, and branch names untranslated inside diagrams.
 - Fonts are `Segoe UI, Arial, sans-serif` and the files already contain non-ASCII characters, so accented Spanish renders without any encoding changes.
 - **Do not convert text to curves.** It would make the diagrams non-editable and unmaintainable.
-- Spanish runs roughly 15–25% longer than English. Labels sit in fixed-width boxes, so widen the box or shorten the label rather than letting text overflow.
+- Spanish runs roughly 15–25% longer than English. Labels sit in fixed-width boxes, so widen the box or shorten the label rather than letting text overflow. **Measure rather than estimate** — render the SVG and compare text width against box width.
+- Leave the geometry alone. Only `<text>` content changes; every `<rect>`, `<line>` and `<path>` should be identical to the English source.
+
+---
+
+## Slide decks
+
+`presentations/` contains [Marp](https://marp.app) decks — Markdown that compiles to HTML. They translate like other documents, with three additions:
+
+**Never translate:**
+
+- The YAML frontmatter keys and values (`marp:`, `theme:`, `paginate:`, `size:`)
+- Anything inside the `style:` block — that is CSS
+
+**Do translate:** the `header:` and `footer:` strings, which are display text shown on every slide.
+
+**Slides have hard space limits**, exactly like diagram boxes. Spanish runs 15–25% longer, so a slide that fits in English may overflow. Render the deck and check before committing.
+
+**The compiled HTML is committed, and must be rebuilt when the Markdown changes.** Unlike prose, there is no source stamp to make staleness visible — an out-of-date HTML build looks perfectly healthy in a diff. Rebuild with the same pinned version used for the English deck:
+
+```bash
+npx --yes @marp-team/marp-cli@4.5.1 \
+  translations/es/presentations/fabric-sdlc-cd.md \
+  --output translations/es/presentations/fabric-sdlc-cd.html \
+  --allow-local-files
+```
+
+`.vscode/tasks.json` defines this as a task for both languages.
 
 ---
 

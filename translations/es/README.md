@@ -50,7 +50,7 @@ Repositorio Git (rama dev)
 └──────────────────────────────────────────────┘
 ```
 
-La protección de ramas (PR obligatorio, restricciones de rama de origen, comprobaciones de estado) se aplica mediante los *rulesets* de ramas de GitHub y el flujo de trabajo [enforce-promotion-path.yml](../../.github/workflows/enforce-promotion-path.yml); consulta las [Consideraciones de gobernanza](../../fabric-cicd-governance-considerations.md) *(solo en inglés)*.
+La protección de ramas (PR obligatorio, restricciones de rama de origen, comprobaciones de estado) se aplica mediante los *rulesets* de ramas de GitHub y el flujo de trabajo [enforce-promotion-path.yml](../../.github/workflows/enforce-promotion-path.yml); véanse las [Consideraciones de gobernanza](../../fabric-cicd-governance-considerations.md) *(solo en inglés)*.
 
 ![Flujo recomendado del enfoque híbrido](../../assets/es/hybrid-recommendation-flow.svg)
 

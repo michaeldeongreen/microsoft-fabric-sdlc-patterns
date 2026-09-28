@@ -56,6 +56,14 @@ Items fall into two categories based on how they reference environment resources
 | `check-pr-ready.yml` | PR to `dev` | Blocks merge if dev IDs not restored |
 | `run-tests.yml` | PR (any branch) | Runs pytest when scripts/tests change |
 
+## Translations
+
+Translated documentation lives in `translations/<lang>/`, mirroring root filenames exactly (`fabric-hybrid-cicd-guide.md` → `translations/es/fabric-hybrid-cicd-guide.md`). English is canonical — fix the English source first, then mirror the fix.
+
+- **Never translate** anything under `.github/`, `scripts/`, `tests/`, or `data/`. Files in `.github/` are model input, not documentation.
+- **Do not auto-translate** when editing an English doc. Translations are updated as separate reviewed work; a stale translation is a tracked task, not a merge blocker.
+- When working in `translations/**`, `.github/instructions/translations.instructions.md` applies and carries the detailed rules. `TRANSLATION.md` is the full contract; each language's `GLOSARIO.md` and `GUIA-DE-ESTILO.md` hold its terminology and style decisions.
+
 ## Documentation
 
 See `fabric-development-process.md` for the Branch Out workflow, item type reference table, and step-by-step swap-to-feature / swap-to-dev guides. See `fabric-hybrid-cicd-guide.md` for the deployment architecture.

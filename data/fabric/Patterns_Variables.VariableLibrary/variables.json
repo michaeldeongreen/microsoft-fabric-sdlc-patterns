@@ -29,13 +29,13 @@
       "name": "target_customer_name",
       "note": "",
       "type": "String",
-      "value": "Evertec-dev"
+      "value": "MCSA-dev"
     },
     {
       "name": "target_message",
       "note": "",
       "type": "String",
-      "value": "Hola equipo de Evertec! ¡Bienvenidos a Dev!"
+      "value": "Hola equipo de MCSA! ¡Bienvenidos a Dev!"
     }
   ]
 }

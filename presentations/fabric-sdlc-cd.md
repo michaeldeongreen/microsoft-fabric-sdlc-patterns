@@ -527,7 +527,7 @@ Switch from the deck to GitHub after the next flow slide.
 
 ```text
 PR: test → main
-  ↓ branch rules + promotion-path check
+  ↓ branch rules + promotion-path check + unit tests
 merge creates push to main
   ↓ DEPLOY_METHOD selects one orchestrator
 Prod GitHub Environment supplies identity + workspace
@@ -541,11 +541,12 @@ Prod ETL runs and validates data readiness
 ### Files to follow
 
 1. [`enforce-promotion-path.yml`](../.github/workflows/enforce-promotion-path.yml) — permits only `test → main`
-2. [`deploy-prod.yml`](../.github/workflows/deploy-prod.yml) — selects the deploy method and Prod environment
-3. [`reusable-deploy-fabric-cicd.yml`](../.github/workflows/reusable-deploy-fabric-cicd.yml) — authenticates and runs the standard deployment
-4. [`deploy_fabric_cicd.py`](../scripts/deploy_fabric_cicd.py) — controls phases and orphan cleanup
+2. [`run-tests.yml`](../.github/workflows/run-tests.yml) — installs dependencies and runs pytest for every PR
+3. [`deploy-prod.yml`](../.github/workflows/deploy-prod.yml) — selects the deploy method and Prod environment
+4. [`reusable-deploy-fabric-cicd.yml`](../.github/workflows/reusable-deploy-fabric-cicd.yml) — authenticates and runs the standard deployment
+5. [`deploy_fabric_cicd.py`](../scripts/deploy_fabric_cicd.py) — controls phases and orphan cleanup
    - [`parameter.yml`](../data/fabric/parameter.yml) — rewrites target workspace/item IDs before upload
-5. [`etl-prod.yml`](../.github/workflows/etl-prod.yml) — starts ETL only after deployment succeeds
+6. [`etl-prod.yml`](../.github/workflows/etl-prod.yml) — starts ETL only after deployment succeeds
 
 ---
 

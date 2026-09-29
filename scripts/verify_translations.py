@@ -50,6 +50,10 @@ REJECTED = (
     "canalización", "canalizaciones", "la *pipeline*", "las *pipelines*",
     "PR fusionado", "Capacidad de Fabric",
     "librería", "identificador", "identificadores", "ambiente", "soporta", "soportan",
+    # Inclusive-language variant that drifted in on two lines. The rest of the
+    # corpus uses "desarrollador(es)", including the reviewed README; mixing the
+    # two reads worse than either used consistently.
+    "personas desarrolladoras", "persona desarrolladora",
 )
 
 # Rejected only in specific senses; the same stem is fine elsewhere.
@@ -170,19 +174,44 @@ def check_links(root: Path) -> tuple[int, list[str]]:
 
 
 def check_anchors(root: Path, translations: Path) -> tuple[int, list[str]]:
-    """Verify in-page anchors point at headings that exist *after* translation."""
+    """Verify anchors point at headings that exist *after* translation.
+
+    Covers both same-file (``#anchor``) and cross-file (``guide.md#anchor``)
+    targets. The cross-file case matters most: a relative link from a Spanish
+    document resolves to its Spanish sibling, whose headings are translated, so
+    an anchor copied from the English source silently points at nothing. Five
+    such links survived two rounds of human review because only the same-file
+    case was checked and the link check discards the fragment.
+    """
     problems: list[str] = []
     count = 0
+    heading_cache: dict[Path, set[str]] = {}
+
+    def headings_of(path: Path) -> set[str]:
+        if path not in heading_cache:
+            heading_cache[path] = {
+                slug(m) for m in
+                re.findall(r"(?m)^#{1,6}\s+(.+)$", path.read_text(encoding="utf-8"))
+            }
+        return heading_cache[path]
+
     for path in walk_markdown(translations):
-        raw = path.read_text(encoding="utf-8")
-        content = strip_code(raw)
-        headings = {slug(m) for m in re.findall(r"(?m)^#{1,6}\s+(.+)$", raw)}
+        content = strip_code(path.read_text(encoding="utf-8"))
         for _text, raw_target in LINK.findall(content):
             target = raw_target.strip()
-            if not target.startswith("#"):
+            if target.startswith(("http://", "https://", "mailto:")) or "#" not in target:
                 continue
+            file_part, _, anchor = target.partition("#")
+            if not file_part:
+                dest = path
+            else:
+                if not file_part.endswith(".md"):
+                    continue
+                dest = (path.parent / file_part).resolve()
+                if not dest.exists():
+                    continue  # reported by the link check
             count += 1
-            if target[1:] not in headings:
+            if anchor not in headings_of(dest):
                 problems.append(f"{path.relative_to(root)} -> {target}")
     return count, problems
 

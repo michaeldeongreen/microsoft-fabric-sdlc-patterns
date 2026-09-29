@@ -60,7 +60,7 @@ Para la lista completa de elementos compatibles, véase la [documentación ofici
 
 El proceso de desarrollo es el mismo sea cual sea la opción de despliegue elegida. Conviene trabajar siempre de forma aislada, nunca directamente en el workspace compartido del equipo.
 
-En Fabric, el enfoque recomendado para la mayoría de las personas desarrolladoras es **hacer *Branch Out* a un workspace aparte**:
+En Fabric, el enfoque recomendado para la mayoría de los desarrolladores es **hacer *Branch Out* a un workspace aparte**:
 
 1. El **workspace de Dev** compartido está conectado a una rama compartida (por ejemplo, `main`) del repositorio Git.
 2. Se usa la función **Branch out** de la interfaz de Fabric para crear una *feature branch* y un workspace aislado nuevos a partir del workspace de Dev.

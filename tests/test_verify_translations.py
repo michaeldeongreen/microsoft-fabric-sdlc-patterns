@@ -85,6 +85,52 @@ def test_broken_relative_link_is_reported(repo: Path) -> None:
     assert any("no-existe.md" in p for p in problems)
 
 
+def test_same_file_anchor_is_checked(repo: Path) -> None:
+    (repo / "translations" / "es" / "guide.md").write_text(
+        "# Guía\n\n## Sección válida\n\nVéase [esto](#seccion-inexistente).\n", encoding="utf-8"
+    )
+    _count, problems = vt.check_anchors(repo, repo / "translations" / "es")
+    assert any("seccion-inexistente" in p for p in problems)
+
+
+def test_english_anchor_into_translated_sibling_is_reported(repo: Path) -> None:
+    """The defect that survived two human reviews: an anchor copied from English.
+
+    A relative link from a Spanish document resolves to its Spanish sibling,
+    whose headings are translated, so the English anchor points at nothing.
+    """
+    es = repo / "translations" / "es"
+    (es / "other.md").write_text("# Otro\n\n## Requisitos previos\n", encoding="utf-8")
+    (es / "guide.md").write_text(
+        "# Guía\n\nVéase [los requisitos](other.md#prerequisites).\n", encoding="utf-8"
+    )
+    _count, problems = vt.check_anchors(repo, es)
+    assert any("other.md#prerequisites" in p for p in problems)
+
+
+def test_correct_cross_file_anchor_passes(repo: Path) -> None:
+    es = repo / "translations" / "es"
+    (es / "other.md").write_text("# Otro\n\n## Requisitos previos\n", encoding="utf-8")
+    (es / "guide.md").write_text(
+        "# Guía\n\nVéase [los requisitos](other.md#requisitos-previos).\n", encoding="utf-8"
+    )
+    count, problems = vt.check_anchors(repo, es)
+    assert problems == []
+    assert count == 1
+
+
+def test_cross_file_anchor_to_missing_file_is_left_to_the_link_check(repo: Path) -> None:
+    """Avoid reporting the same defect twice under two different names."""
+    es = repo / "translations" / "es"
+    (es / "guide.md").write_text(
+        "# Guía\n\nVéase [esto](no-existe.md#algo).\n", encoding="utf-8"
+    )
+    count, problems = vt.check_anchors(repo, es)
+    assert problems == []
+    assert count == 0
+    assert vt.check_links(repo)[1] != []
+
+
 def test_altered_code_block_is_reported(repo: Path) -> None:
     """Translating inside a code fence is the defect that produced a wrong GUID."""
     (repo / "translations" / "es" / "guide.md").write_text(
@@ -173,6 +219,22 @@ def test_hardcoded_sense_only_flagged_near_an_id(repo: Path) -> None:
 
     doc.write_text("# Guía\n\nEl GUID queda codificado en el archivo.\n", encoding="utf-8")
     assert vt.check_terminology(repo, es, repo / "assets" / "es") != []
+
+
+def test_inclusive_variant_is_reported(repo: Path) -> None:
+    """The corpus settled on 'desarrollador(es)'; mixing the two forms is the defect."""
+    (repo / "translations" / "es" / "guide.md").write_text(
+        "# Guía\n\nPara la mayoría de las personas desarrolladoras.\n", encoding="utf-8"
+    )
+    problems = vt.check_terminology(repo, repo / "translations" / "es", repo / "assets" / "es")
+    assert any("personas desarrolladoras" in p for p in problems)
+
+
+def test_standard_form_is_accepted(repo: Path) -> None:
+    (repo / "translations" / "es" / "guide.md").write_text(
+        "# Guía\n\nPara la mayoría de los desarrolladores.\n", encoding="utf-8"
+    )
+    assert vt.check_terminology(repo, repo / "translations" / "es", repo / "assets" / "es") == []
 
 
 # ── Entry point ────────────────────────────────────────────────────────────

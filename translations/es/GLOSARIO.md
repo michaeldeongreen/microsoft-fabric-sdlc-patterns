@@ -49,6 +49,24 @@ La segunda, sobre la ambigüedad que introduce traducir:
 
 El segundo motivo es importante y va más allá del reconocimiento: **traducir puede introducir ambigüedad donde el inglés no la tiene.** «Capacidad» se usa en español para demasiadas cosas; *Fabric Capacity* designa una sola.
 
+### Dónde está el límite
+
+«Ante la duda, en inglés» aplica a **nombres propios de producto**, no al vocabulario técnico corriente. La prueba es si el término designa *una cosa concreta dentro de una interfaz* o *un concepto general del desarrollo de software*:
+
+| | Criterio | Decisión | Ejemplos |
+|---|---|---|---|
+| **Nombre de producto o función** | Designa un objeto concreto del portal; se busca por ese nombre en la interfaz | **Inglés** | *Lakehouse*, *Notebook*, *Semantic Model*, *Variable Library*, *Branch Out*, *workspace*, *Fabric Capacity*, *Service principal*, *Trigger*, *pipeline* |
+| **Vocabulario técnico general** | Concepto del desarrollo de software, no propiedad de ningún producto | **Español** | despliegue, entorno, rama, repositorio, flujo de trabajo |
+| **Texto literal de la interfaz** | Cadena exacta sobre la que hay que hacer clic | **Inglés, sin alterar** | `Settings → Environments`, `Settings → Secrets and variables → Actions → Variables` |
+
+La tercera fila es la que concilia las dos primeras. El concepto va en español y la ruta que hay que pulsar va en inglés, en la misma frase:
+
+> «Cree dos entornos de GitHub en la configuración del repositorio (`Settings → Environments`)»
+
+Así se entiende la idea en español y se encuentra el botón en la interfaz.
+
+> **Resuelto en revisión (28-09-2026).** Los cinco términos de la fila central se mantienen en español. La evidencia es directa: aparecen 57 veces en el `README.md` que revisaron dos hablantes nativos, y quien editó el texto reescribió las dos frases que los contienen —cambió «implementar despliegues» por «despliegues» y corrigió el género de *pipeline*— **sin tocar ninguno de los cinco**. En esa misma revisión sí se corrigieron «área de trabajo», «entidad de servicio», «canalización» y el tuteo, de modo que no fue falta de atención: se estaba revisando terminología activamente. Coincide además con la documentación en español de GitHub, que usa «flujo de trabajo» para los *workflows* de Actions.
+
 ---
 
 ## Fabric y Power BI

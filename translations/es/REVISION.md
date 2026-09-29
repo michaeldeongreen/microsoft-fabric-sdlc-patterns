@@ -18,7 +18,7 @@ El cambio de método es deliberado. Revisar un archivo cada vez obligaba a volve
 
 1. **Abrir dos o tres documentos al azar** y leer unos párrafos de cada uno. Lo que se busca es si *suena* a español escrito por una persona.
 2. **Revisar los diagramas** ([`assets/es/`](../../assets/es)), que son rápidos de ver y donde un texto desbordado o una etiqueta a medio traducir se detecta de inmediato.
-3. **Responder la pregunta abierta** del apartado siguiente, que es lo único que bloquea el cierre.
+3. **Responder la pregunta del apartado «Preguntas abiertas»**, que es lo único que sigue sin decidir.
 
 Todo lo mecánico —enlaces, anclas, bloques de código, términos rechazados, tuteo, concordancia de género— ya está comprobado de forma automática. No hace falta dedicarle atención.
 
@@ -108,32 +108,29 @@ Se corrige primero el inglés y después se replica la corrección. Véase [`TRA
 | **Fabric Capacity** | En inglés. Confirmado en revisión terminológica: «capacidad» resulta confuso porque el término se usa para demasiadas cosas. |
 | **Enlaces externos** | Apuntan **siempre al inglés** (`/en-us/`), no a `/es-es/`. Véase el apartado «Sobre esta traducción» del README para los motivos. |
 | **Autoridad terminológica** | La revisión nativa **prevalece sobre Microsoft Terminology**. El término oficial no siempre es el que se usa. |
+| **Vocabulario técnico general** | *despliegue, entorno, rama, repositorio, flujo de trabajo* **en español**. «Ante la duda, en inglés» aplica a nombres de producto, no al vocabulario corriente del desarrollo de software. |
+| **Texto literal de la interfaz** | En inglés y sin alterar, aunque la frase que lo rodea vaya en español: «los entornos de GitHub (`Settings → Environments`)». Es la cadena sobre la que hay que hacer clic. |
+| **Branch out / Branch Out** | Se respeta la distinción del original: ***Branch out*** cuando se nombra el botón de la interfaz de Fabric, ***Branch Out*** cuando se nombra el patrón. |
 
 ---
 
 ## Preguntas abiertas
 
-### A. Alcance del principio «ante la duda, en inglés»
+### A. Alcance del principio «ante la duda, en inglés» ✅ *Resuelto*
 
-Es la única pregunta que bloquea el cierre de esta entrega. Tras aplicar *workspace* y *Service principal* en inglés, estos cinco siguen en español en todos los documentos. ¿Son correctos, o también deberían ir en inglés?
+*Despliegue, entorno, rama, repositorio* y *flujo de trabajo* **se mantienen en español**. Son vocabulario técnico general, no nombres de producto; el principio «ante la duda, en inglés» se aplica a lo segundo.
 
-| Término | Traducción actual | ¿Correcto? |
-|---|---|---|
-| deployment | despliegue | |
-| environment | entorno | |
-| branch | rama | |
-| repository | repositorio | |
-| workflow *(GitHub Actions)* | flujo de trabajo | |
+La evidencia está en el `README.md` ya revisado: los cinco términos aparecen 57 veces en él, y quien lo editó reescribió las dos frases que los contienen —sustituyó «implementar despliegues» por «despliegues» y corrigió el género de *pipeline*— sin tocar ninguno de los cinco. En esa misma revisión sí se corrigieron «área de trabajo», «entidad de servicio», «canalización» y el tuteo, así que no fue un descuido.
 
-Una respuesta de una línea basta. Si alguno debe cambiar, el cambio se aplica en bloque a los once documentos, no archivo por archivo.
+El límite y sus tres casos están en [`GLOSARIO.md`](GLOSARIO.md#dónde-está-el-límite). El caso que los concilia es el texto literal de la interfaz, que sí va en inglés dentro de una frase en español:
 
-> Indicio a favor de dejarlos en español: en la revisión del `README.md` se editaron frases que contenían *despliegue*, *rama* y *repositorio* sin tocar esos términos. No es una confirmación explícita, pero apunta a que no chirrían.
+> «Cree dos entornos de GitHub en la configuración del repositorio (`Settings → Environments`)»
 
 ### B. Citas textuales en inglés
 
 Hay **cuatro citas literales** de documentación de Microsoft y de `fabric-cicd`, en dos documentos ([`fabric-development-process.md`](fabric-development-process.md) y [`fabric-hybrid-cicd-guide.md`](fabric-hybrid-cicd-guide.md)). Se han dejado **en inglés y sin alterar**, con la traducción justo debajo precedida de «Traducción:», porque una cita traducida deja de poder contrastarse con la fuente que se enlaza.
 
-¿Es la decisión correcta, o resulta más incómodo de leer que útil?
+¿Es la decisión correcta, o resulta más incómodo de leer que útil? Es la única pregunta que sigue abierta.
 
 ### C. Fabric Capacity ✅ *Resuelto*
 

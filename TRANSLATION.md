@@ -314,7 +314,7 @@ It checks the defects that human review reliably skims past, and exits non-zero 
 | Check | Catches |
 |---|---|
 | Relative links | A copied file whose `../` depth is now wrong — the most common defect by far |
-| In-page anchors | Links pointing at English anchors after the heading was translated |
+| In-page anchors | Links pointing at English anchors after the heading was translated, including `guide.md#anchor` links into a translated sibling |
 | Code fence parity | Translation that leaked inside a code block, including altered GUIDs |
 | Rejected terminology | Terms the native review ruled out, in prose and in diagram labels |
 | Register | `tú` forms, where the agreed register is impersonal and *usted* |

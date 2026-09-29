@@ -54,7 +54,7 @@ La protección de ramas (PR obligatorio, restricciones de rama de origen, compro
 
 ![Flujo recomendado del enfoque híbrido](../../assets/es/hybrid-recommendation-flow.svg)
 
-> Este repositorio demuestra fabric-cicd (la biblioteca de Python GA recomendada por defecto) junto con un conjunto paralelo de flujos de trabajo basados en las API de importación y exportación masiva (*Bulk Import / Export*, en versión preliminar) para su evaluación y comparación. La selección se controla con la variable de repositorio `DEPLOY_METHOD`; véase [Inicio rápido](#inicio-rápido) para todos los métodos y cómo alternar entre ellos, y [Opciones de publicación de CI/CD](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) para la comparación completa.
+> Este repositorio demuestra fabric-cicd (la biblioteca de Python GA recomendada por defecto) junto con un conjunto paralelo de flujos de trabajo basados en las API de importación y exportación masiva (*Bulk Import / Export*, en versión preliminar) para su evaluación y comparación. La selección se controla con la variable de repositorio `DEPLOY_METHOD`; véase [Inicio rápido](#inicio-rápido) para todos los métodos y cómo alternar entre ellos, y [Opciones de publicación de CI/CD](fabric-cicd-release-options.md#herramientas-dentro-de-la-opción-3-fabric-cicd-frente-a-las-api-masivas) para la comparación completa.
 
 ---
 
@@ -64,7 +64,7 @@ Los documentos siguientes todavía no están traducidos. Los enlaces apuntan al 
 
 | Documento | Descripción |
 |---|---|
-| [Opciones de publicación de CI/CD](fabric-cicd-release-options.md) | Evalúa todas las opciones de publicación de CI/CD para Fabric (*Pipelines* de despliegue, basadas en Git, basadas en compilación, híbrida) y recomienda el enfoque híbrido. Incluye una [comparación entre fabric-cicd y las nuevas API de importación y exportación masiva](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) (versión preliminar) dentro de la opción 3. **Punto de partida recomendado** para decidir una estrategia. |
+| [Opciones de publicación de CI/CD](fabric-cicd-release-options.md) | Evalúa todas las opciones de publicación de CI/CD para Fabric (*Pipelines* de despliegue, basadas en Git, basadas en compilación, híbrida) y recomienda el enfoque híbrido. Incluye una [comparación entre fabric-cicd y las nuevas API de importación y exportación masiva](fabric-cicd-release-options.md#herramientas-dentro-de-la-opción-3-fabric-cicd-frente-a-las-api-masivas) (versión preliminar) dentro de la opción 3. **Punto de partida recomendado** para decidir una estrategia. |
 | [Guía de implementación híbrida de CI/CD](fabric-hybrid-cicd-guide.md) | Análisis detallado de la implementación recomendada con fabric-cicd: estructura de los flujos de trabajo, estrategia de configuración, requisitos previos, pasos de configuración y problemas habituales. |
 | [Guía de implementación de CI/CD masivo](fabric-bulk-cicd-guide.md) | Guía de implementación de la ruta alternativa de despliegue con la API de importación masiva (versión preliminar). Cubre las soluciones alternativas que salvan las carencias (sustitución, activación de conjuntos de valores), la decisión de los dos despliegues, los patrones de extensión y las limitaciones que no se resuelven. |
 | [Proceso de desarrollo](fabric-development-process.md) | Cómo trabajan los desarrolladores día a día: flujo de trabajo de Branch Out, el script de cambio de workspace y la comprobación de preparación del PR. |
@@ -116,7 +116,7 @@ Al diseñar los procesos de desarrollo y de CI/CD conviene identificar qué elem
 ### Configuración
 
 1. Cree un service principal y añádalo como colaborador en los workspaces de Test y Prod
-2. Cree los entornos de GitHub (`Test`, `Prod`) con los secretos `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` y `FABRIC_WORKSPACE_ID` *(esta demostración usa un secreto de cliente por simplicidad; para producción conviene evaluar la [federación OIDC de GitHub](fabric-cicd-governance-considerations.md#identity-model--pick-the-right-identity-for-the-job) para eliminar el secreto almacenado)*
+2. Cree los entornos de GitHub (`Test`, `Prod`) con los secretos `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` y `FABRIC_WORKSPACE_ID` *(esta demostración usa un secreto de cliente por simplicidad; para producción conviene evaluar la [federación OIDC de GitHub](fabric-cicd-governance-considerations.md#modelo-de-identidad-elegir-la-identidad-adecuada-para-cada-función) para eliminar el secreto almacenado)*
 3. Conecte el workspace de Dev a la rama `dev` mediante la integración de Git de Fabric (carpeta: `data/fabric/`)
 4. Cree las ramas `dev`, `test` y `main`
 5. Desarrolle en `dev`, fusione en `test` (activa el despliegue en Test) y fusione en `main` (activa el despliegue en Prod)
@@ -132,9 +132,9 @@ Este repositorio incluye tres métodos de despliegue. La variable de repositorio
 | `bulk` | Se ejecutan en su lugar los flujos de trabajo de la API de importación masiva (versión preliminar) |
 | cualquier otro valor | Se omiten todos los flujos de trabajo de despliegue (valor seguro por defecto) |
 
-Sea cual sea el método que se ejecute, el flujo de trabajo de ETL se encadena después mediante `workflow_run`. Véase [Opciones de publicación de CI/CD](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) para las ventajas e inconvenientes entre fabric-cicd y las API masivas.
+Sea cual sea el método que se ejecute, el flujo de trabajo de ETL se encadena después mediante `workflow_run`. Véase [Opciones de publicación de CI/CD](fabric-cicd-release-options.md#herramientas-dentro-de-la-opción-3-fabric-cicd-frente-a-las-api-masivas) para las ventajas e inconvenientes entre fabric-cicd y las API masivas.
 
-Las instrucciones detalladas de configuración están en la [Guía de implementación](fabric-hybrid-cicd-guide.md#prerequisites--setup). Los *rulesets* de protección de ramas, las aprobaciones en el momento del despliegue y la ruta de promoción por rama de origen que aplica este repositorio se describen en las [Consideraciones de gobernanza](fabric-cicd-governance-considerations.md).
+Las instrucciones detalladas de configuración están en la [Guía de implementación](fabric-hybrid-cicd-guide.md#requisitos-previos-y-configuración). Los *rulesets* de protección de ramas, las aprobaciones en el momento del despliegue y la ruta de promoción por rama de origen que aplica este repositorio se describen en las [Consideraciones de gobernanza](fabric-cicd-governance-considerations.md).
 
 ---
 

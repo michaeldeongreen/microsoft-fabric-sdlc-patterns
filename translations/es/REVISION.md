@@ -8,6 +8,24 @@ La regla general: **importa la naturalidad, no la literalidad**. Una traducción
 
 ---
 
+## Qué hay en esta revisión
+
+La primera traducción (`README.md`) se revisó documento a documento. A partir de ahí se ha traducido **el resto del repositorio de una sola vez**: seis documentos más, dos presentaciones y siete diagramas, unas 35.000 palabras.
+
+El cambio de método es deliberado. Revisar un archivo cada vez obligaba a volver sobre el mismo material en cada entrega; entregarlo completo permite decidir la terminología una vez y aplicarla en bloque.
+
+**No se espera una lectura completa.** El volumen no lo justifica y la revisión exhaustiva no es el objetivo. Lo que se pide son **comprobaciones puntuales**:
+
+1. **Abrir dos o tres documentos al azar** y leer unos párrafos de cada uno. Lo que se busca es si *suena* a español escrito por una persona.
+2. **Revisar los diagramas** ([`assets/es/`](../../assets/es)), que son rápidos de ver y donde un texto desbordado o una etiqueta a medio traducir se detecta de inmediato.
+3. **Responder la pregunta del apartado «Preguntas abiertas»**, que es lo único que sigue sin decidir.
+
+Todo lo mecánico —enlaces, anclas, bloques de código, términos rechazados, tuteo, concordancia de género— ya está comprobado de forma automática. No hace falta dedicarle atención.
+
+Si aparece un problema de terminología, basta con señalarlo **una vez**: la corrección se aplica después a todos los documentos a la vez.
+
+---
+
 ## Qué revisar
 
 ### 1. Terminología (lo más importante)
@@ -72,7 +90,7 @@ Se corrige primero el inglés y después se replica la corrección. Véase [`TRA
 
 ## Decisiones ya tomadas
 
-> Resueltas en revisión con **Ana Franco** y **Marlon Ramos** (22-09-2026), con la confirmación terminológica de **Michelle** (23-09-2026). Se documentan aquí para no reabrirlas en cada PR.
+> Resueltas en revisión nativa (22-09-2026), con confirmación terminológica adicional (23-09-2026). Se documentan aquí para no reabrirlas en cada PR.
 
 | Decisión | Resultado |
 |---|---|
@@ -87,48 +105,45 @@ Se corrige primero el inglés y después se replica la corrección. Véase [`TRA
 | **Merge del PR** | Preferido sobre «PR fusionado» o «Fusión de PR». |
 | **Update from Git** | **Se traduce** («Actualización desde Git»), tanto el botón como la API, para que el diagrama sea coherente. |
 | **equipo** | No se usa para *laptop* — colisiona con «equipos de ingeniería». Se usa «laptop». |
-| **Fabric Capacity** | En inglés. Confirmado por Michelle: «capacidad» resulta confuso porque el término se usa para demasiadas cosas. |
+| **Fabric Capacity** | En inglés. Confirmado en revisión terminológica: «capacidad» resulta confuso porque el término se usa para demasiadas cosas. |
 | **Enlaces externos** | Apuntan **siempre al inglés** (`/en-us/`), no a `/es-es/`. Véase el apartado «Sobre esta traducción» del README para los motivos. |
 | **Autoridad terminológica** | La revisión nativa **prevalece sobre Microsoft Terminology**. El término oficial no siempre es el que se usa. |
+| **Vocabulario técnico general** | *despliegue, entorno, rama, repositorio, flujo de trabajo* **en español**. «Ante la duda, en inglés» aplica a nombres de producto, no al vocabulario corriente del desarrollo de software. |
+| **Texto literal de la interfaz** | En inglés y sin alterar, aunque la frase que lo rodea vaya en español: «los entornos de GitHub (`Settings → Environments`)». Es la cadena sobre la que hay que hacer clic. |
+| **Branch out / Branch Out** | Se respeta la distinción del original: ***Branch out*** cuando se nombra el botón de la interfaz de Fabric, ***Branch Out*** cuando se nombra el patrón. |
 
 ---
 
 ## Preguntas abiertas
 
-> Específicas de la primera traducción (`README.md`). Una vez resueltas, esta sección puede eliminarse.
+### A. Alcance del principio «ante la duda, en inglés» ✅ *Resuelto*
 
-### A. Alcance del principio «ante la duda, en inglés»
+*Despliegue, entorno, rama, repositorio* y *flujo de trabajo* **se mantienen en español**. Son vocabulario técnico general, no nombres de producto; el principio «ante la duda, en inglés» se aplica a lo segundo.
 
-Tras aplicar *workspace* y *Service principal* en inglés, estos siguen en español. ¿Son correctos, o también deberían ir en inglés?
+La evidencia está en el `README.md` ya revisado: los cinco términos aparecen 57 veces en él, y quien lo editó reescribió las dos frases que los contienen —sustituyó «implementar despliegues» por «despliegues» y corrigió el género de *pipeline*— sin tocar ninguno de los cinco. En esa misma revisión sí se corrigieron «área de trabajo», «entidad de servicio», «canalización» y el tuteo, así que no fue un descuido.
 
-| Término | Traducción actual | ¿Correcto? |
-|---|---|---|
-| deployment | despliegue | |
-| environment | entorno | |
-| branch | rama | |
-| repository | repositorio | |
-| workflow *(GitHub Actions)* | flujo de trabajo | |
+El límite y sus tres casos están en [`GLOSARIO.md`](GLOSARIO.md#dónde-está-el-límite). El caso que los concilia es el texto literal de la interfaz, que sí va en inglés dentro de una frase en español:
 
-### B. Fabric Capacity ✅ *Resuelto*
+> «Cree dos entornos de GitHub en la configuración del repositorio (`Settings → Environments`)»
 
-Confirmado por Michelle (23-09-2026): se usa **Fabric Capacity** en inglés, porque «capacidad» resulta confuso para el cliente — el mismo término se usa para demasiadas cosas. Ya aplicado.
+### B. Citas textuales en inglés
 
----
+Hay **cuatro citas literales** de documentación de Microsoft y de `fabric-cicd`, en dos documentos ([`fabric-development-process.md`](fabric-development-process.md) y [`fabric-hybrid-cicd-guide.md`](fabric-hybrid-cicd-guide.md)). Se han dejado **en inglés y sin alterar**, con la traducción justo debajo precedida de «Traducción:», porque una cita traducida deja de poder contrastarse con la fuente que se enlaza.
 
-## Revisión final
+¿Es la decisión correcta, o resulta más incómodo de leer que útil? Es la única pregunta que sigue abierta.
 
-> Una vez resuelta la pregunta A y aplicados los cambios que implique.
+### C. Fabric Capacity ✅ *Resuelto*
 
-### C. Naturalidad del resultado
+Confirmado en revisión terminológica (23-09-2026): se usa **Fabric Capacity** en inglés, porque «capacidad» resulta confuso para el cliente — el mismo término se usa para demasiadas cosas. Ya aplicado.
 
-La conversión de tuteo a impersonal y usted se ha hecho en todo el documento. ¿Suena natural, o ha quedado algún punto forzado o telegráfico?
+### D. Registro y cursiva ✅ *Resuelto*
 
-### D. Cursiva en los anglicismos
-
-El uso de cursiva en *commit*, *pull request* y *pipeline* sigue la norma de la RAE para extranjerismos crudos. ¿Resulta natural, o excesivo para quien trabaja a diario con estas herramientas?
+La conversión a impersonal y **usted** y el uso de cursiva en los anglicismos crudos se validaron en la revisión del `README.md` y se han aplicado de forma sistemática al resto. No es necesario volver sobre ello salvo que algún punto concreto suene forzado.
 
 ---
 
 ## Cómo dejar constancia
 
-Los comentarios pueden dejarse directamente en el *pull request*. Para las decisiones de terminología conviene indicar si la corrección debe aplicarse solo a este documento o a todas las traducciones futuras: en el segundo caso se actualiza [`GLOSARIO.md`](GLOSARIO.md) antes de continuar con el resto de documentos.
+Los comentarios pueden dejarse directamente en el *pull request*. Al tratarse de una entrega en bloque, conviene indicar en cada observación de terminología si la corrección afecta **solo al documento donde se detectó** o **a todas las traducciones**: en el segundo caso se actualiza [`GLOSARIO.md`](GLOSARIO.md) y el cambio se aplica a los once documentos de una vez.
+
+Si el acceso al *pull request* está restringido, el mismo comentario por cualquier otro medio sirve igual: lo que importa es la observación, no dónde quede registrada.

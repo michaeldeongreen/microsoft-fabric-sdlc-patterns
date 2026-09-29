@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 420" font-family="Segoe UI, Arial, sans-serif">
+  <!-- Background -->
+  <rect width="960" height="420" fill="#f9f9f9" rx="8"/>
+
+  <!-- Title -->
+  <text x="480" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#333">Opción 3 – Basada en Git con entornos de compilación</text>
+
+  <!-- Git Repository box (encompasses all 3 branches) -->
+  <rect x="30" y="55" width="130" height="330" rx="8" fill="#0078d4" stroke="#005a9e" stroke-width="1.5"/>
+  <text x="95" y="78" text-anchor="middle" font-size="13" fill="#fff" font-weight="bold">Repositorio Git</text>
+
+  <!-- dev branch -->
+  <rect x="42" y="92" width="106" height="32" rx="5" fill="#28a745" stroke="#1e7e34" stroke-width="1"/>
+  <text x="95" y="113" text-anchor="middle" font-size="11" fill="#fff" font-weight="bold">rama dev</text>
+
+  <!-- test branch -->
+  <rect x="42" y="212" width="106" height="32" rx="5" fill="#fd7e14" stroke="#e8590c" stroke-width="1"/>
+  <text x="95" y="233" text-anchor="middle" font-size="11" fill="#fff" font-weight="bold">rama test</text>
+
+  <!-- main branch -->
+  <rect x="42" y="332" width="106" height="32" rx="5" fill="#dc3545" stroke="#bd2130" stroke-width="1"/>
+  <text x="95" y="353" text-anchor="middle" font-size="11" fill="#fff" font-weight="bold">rama main</text>
+
+  <!-- Arrow: dev branch → Build Env Dev -->
+  <line x1="148" y1="108" x2="215" y2="108" stroke="#28a745" stroke-width="2" marker-end="url(#arrowGreen)"/>
+  <text x="181" y="100" text-anchor="middle" font-size="8" fill="#28a745">Merge del PR</text>
+
+  <!-- Dev Build Environment -->
+  <rect x="215" y="70" width="140" height="75" rx="8" fill="#6f42c1" stroke="#59359a" stroke-width="1.5"/>
+  <text x="285" y="92" text-anchor="middle" font-size="10" fill="#fff" font-weight="bold">Entorno compilación (Dev)</text>
+  <text x="285" y="108" text-anchor="middle" font-size="9" fill="#d4c5f9">Ejecuta pruebas unitarias</text>
+  <text x="285" y="122" text-anchor="middle" font-size="9" fill="#d4c5f9">Ajusta la config. para Dev</text>
+  <text x="285" y="136" text-anchor="middle" font-size="9" fill="#d4c5f9">fabric-cicd / API masiva</text>
+
+  <!-- Arrow: Build Dev → Dev Workspace -->
+  <line x1="355" y1="107" x2="410" y2="107" stroke="#28a745" stroke-width="2" marker-end="url(#arrowGreen)"/>
+  <text x="383" y="99" text-anchor="middle" font-size="8" fill="#28a745">despliega</text>
+
+  <!-- Dev Workspace -->
+  <rect x="415" y="80" width="130" height="55" rx="8" fill="#28a745" stroke="#1e7e34" stroke-width="1.5"/>
+  <text x="480" y="104" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Workspace Dev</text>
+  <text x="480" y="120" text-anchor="middle" font-size="10" fill="#c3e6cb">(Desarrollo)</text>
+
+  <!-- Vertical connector Dev → Test (PR dev → test) -->
+  <line x1="285" y1="145" x2="285" y2="190" stroke="#555" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <text x="300" y="170" font-size="8" fill="#555">PR dev → test</text>
+
+  <!-- Arrow: test branch → Build Env Test -->
+  <line x1="148" y1="228" x2="215" y2="228" stroke="#fd7e14" stroke-width="2" marker-end="url(#arrowOrange)"/>
+  <text x="181" y="220" text-anchor="middle" font-size="8" fill="#e8590c">Merge del PR</text>
+
+  <!-- Test Build Environment -->
+  <rect x="215" y="190" width="140" height="75" rx="8" fill="#6f42c1" stroke="#59359a" stroke-width="1.5"/>
+  <text x="285" y="212" text-anchor="middle" font-size="10" fill="#fff" font-weight="bold">Entorno compilación (Test)</text>
+  <text x="285" y="228" text-anchor="middle" font-size="9" fill="#d4c5f9">Ejecuta pruebas</text>
+  <text x="285" y="242" text-anchor="middle" font-size="9" fill="#d4c5f9">Ajusta la config. para Test</text>
+  <text x="285" y="256" text-anchor="middle" font-size="9" fill="#d4c5f9">fabric-cicd / API masiva</text>
+
+  <!-- Arrow: Build Test → Test Workspace -->
+  <line x1="355" y1="227" x2="410" y2="227" stroke="#fd7e14" stroke-width="2" marker-end="url(#arrowOrange)"/>
+  <text x="383" y="219" text-anchor="middle" font-size="8" fill="#e8590c">despliega</text>
+
+  <!-- Test Workspace -->
+  <rect x="415" y="200" width="130" height="55" rx="8" fill="#fd7e14" stroke="#e8590c" stroke-width="1.5"/>
+  <text x="480" y="224" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Workspace Test</text>
+  <text x="480" y="240" text-anchor="middle" font-size="10" fill="#ffe0b2">(Pruebas)</text>
+
+  <!-- Vertical connector Test → Prod (PR test → main) -->
+  <line x1="285" y1="265" x2="285" y2="310" stroke="#555" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <text x="300" y="290" font-size="8" fill="#555">PR test → main</text>
+
+  <!-- Arrow: main branch → Build Env Prod -->
+  <line x1="148" y1="348" x2="215" y2="348" stroke="#dc3545" stroke-width="2" marker-end="url(#arrowRed)"/>
+  <text x="181" y="340" text-anchor="middle" font-size="8" fill="#dc3545">Merge del PR</text>
+
+  <!-- Prod Build Environment -->
+  <rect x="215" y="310" width="140" height="75" rx="8" fill="#6f42c1" stroke="#59359a" stroke-width="1.5"/>
+  <text x="285" y="332" text-anchor="middle" font-size="10" fill="#fff" font-weight="bold">Entorno compilación (Prod)</text>
+  <text x="285" y="348" text-anchor="middle" font-size="9" fill="#d4c5f9">Ejecuta pruebas</text>
+  <text x="285" y="362" text-anchor="middle" font-size="9" fill="#d4c5f9">Ajusta la config. para Prod</text>
+  <text x="285" y="376" text-anchor="middle" font-size="9" fill="#d4c5f9">fabric-cicd / API masiva</text>
+
+  <!-- Arrow: Build Prod → Prod Workspace -->
+  <line x1="355" y1="347" x2="410" y2="347" stroke="#dc3545" stroke-width="2" marker-end="url(#arrowRed)"/>
+  <text x="383" y="339" text-anchor="middle" font-size="8" fill="#dc3545">despliega</text>
+
+  <!-- Prod Workspace -->
+  <rect x="415" y="320" width="130" height="55" rx="8" fill="#dc3545" stroke="#bd2130" stroke-width="1.5"/>
+  <text x="480" y="344" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Workspace Prod</text>
+  <text x="480" y="360" text-anchor="middle" font-size="10" fill="#f5c6cb">(Producción)</text>
+
+  <!-- Key difference callout -->
+  <rect x="580" y="80" width="350" height="130" rx="8" fill="#fff3cd" stroke="#f9a825" stroke-width="1.5"/>
+  <text x="755" y="105" text-anchor="middle" font-size="13" font-weight="bold" fill="#856404">Concepto clave</text>
+  <text x="755" y="125" text-anchor="middle" font-size="10" fill="#856404">Cada etapa tiene su rama (dev/test/main)</text>
+  <text x="755" y="143" text-anchor="middle" font-size="10" fill="#856404">que alimenta su entorno de compilación.</text>
+  <text x="755" y="161" text-anchor="middle" font-size="10" fill="#856404">Los entornos ajustan la config. propia del</text>
+  <text x="755" y="179" text-anchor="middle" font-size="10" fill="#856404">workspace (connectionId, lakehouseId) ANTES</text>
+  <text x="755" y="197" text-anchor="middle" font-size="10" fill="#856404">de desplegar. Usa fabric-cicd o API masivas.</text>
+
+  <!-- Tooling callout -->
+  <rect x="580" y="230" width="350" height="90" rx="8" fill="#e8f0fe" stroke="#0078d4" stroke-width="1"/>
+  <text x="755" y="255" text-anchor="middle" font-size="13" font-weight="bold" fill="#0078d4">Herramientas</text>
+  <text x="755" y="278" text-anchor="middle" font-size="10" fill="#333">• Biblioteca de Python fabric-cicd</text>
+  <text x="755" y="296" text-anchor="middle" font-size="10" fill="#333">• API de importación/exportación masiva</text>
+  <text x="755" y="314" text-anchor="middle" font-size="10" fill="#333">• API Update Item Definition</text>
+
+  <!-- Arrow markers -->
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#555"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#28a745"/>
+    </marker>
+    <marker id="arrowOrange" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#fd7e14"/>
+    </marker>
+    <marker id="arrowRed" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#dc3545"/>
+    </marker>
+  </defs>
+</svg>

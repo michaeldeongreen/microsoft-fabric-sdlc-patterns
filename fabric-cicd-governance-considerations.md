@@ -1,3 +1,5 @@
+**English** | [Español](translations/es/fabric-cicd-governance-considerations.md)
+
 # Fabric CI/CD Governance Considerations
 
 > Reference implementation: https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns

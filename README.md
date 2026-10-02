@@ -50,7 +50,7 @@ Branch protection (PR required, source-branch restrictions, status checks) is en
 
 ![Hybrid Recommendation Flow](assets/hybrid-recommendation-flow.svg)
 
-> This repository demonstrates fabric-cicd (the default, recommended GA Python library) alongside a parallel set of Bulk Import / Export API workflows (Preview) for evaluation and side-by-side comparison. Selection is controlled by the `DEPLOY_METHOD` repository variable — see [Quick Start](#quick-start) for all methods and how to switch, and [CI/CD Release Options](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the full comparison.
+> This repository demonstrates fabric-cicd (the default, recommended GA Python library) alongside a parallel set of Bulk Import / Export API workflows (Preview) for evaluation and side-by-side comparison. Selection is controlled by the `DEPLOY_METHOD` repository variable — see the [Setup Guide](SETUP.md) for initial configuration and [CI/CD Release Options](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the full comparison.
 
 ---
 
@@ -58,8 +58,9 @@ Branch protection (PR required, source-branch restrictions, status checks) is en
 
 | Document | Description |
 |---|---|
+| [Setup Guide](SETUP.md) | **Start here to run your own fork.** Covers required access, Fabric workspaces, reference-ID replacement, GitHub configuration, and first deployment. |
 | [CI/CD Release Options](fabric-cicd-release-options.md) | Evaluates all CI/CD release options for Fabric (Deployment Pipelines, Git-based, Build-based, Hybrid) and recommends the Hybrid approach. Includes a [comparison of fabric-cicd vs the new Bulk Import / Export APIs](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) (Preview) within Option 3. **Start here** if you're deciding on a strategy. |
-| [Hybrid CI/CD Implementation Guide](fabric-hybrid-cicd-guide.md) | Deep dive into the recommended fabric-cicd implementation: workflow structure, configuration strategy, prerequisites, setup steps, and gotchas. |
+| [Hybrid CI/CD Implementation Guide](fabric-hybrid-cicd-guide.md) | Deep dive into the recommended fabric-cicd implementation: workflow structure, configuration strategy, deployment flow, and gotchas. |
 | [Bulk CI/CD Implementation Guide](fabric-bulk-cicd-guide.md) | Implementation guide for the alternative Bulk Import API (Preview) deploy path. Covers the gap-bridging workarounds (substitution, value-set activation), the two-deploy decision, extension patterns, and limitations not bridged. |
 | [Development Process](fabric-development-process.md) | How developers work day-to-day: branch-out workflow, the workspace swap script, and PR readiness check. |
 | [CI/CD Governance Considerations](fabric-cicd-governance-considerations.md) | Considerations on identities, RBAC, branch protection, and approval gates for the CI/CD pipeline. Includes pointers to adjacent controls owned outside the pipeline (security/compliance topics). |
@@ -109,31 +110,11 @@ When designing your development and CI/CD processes, identify which items in you
 
 ### Setup
 
-1. Create a Service Principal and add it as Contributor on Test and Prod workspaces
-2. Create GitHub Environments (`Test`, `Prod`) with secrets: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `FABRIC_WORKSPACE_ID` *(this demo uses a client secret for simplicity; for production, evaluate [GitHub OIDC federation](fabric-cicd-governance-considerations.md#identity-model--pick-the-right-identity-for-the-job) to remove the stored secret)*
-3. Connect the Dev workspace to the `dev` branch via Fabric Git integration (folder: `data/fabric/`)
-4. Create `dev`, `test`, and `main` branches
-5. Develop on `dev`, merge to `test` (triggers Test deploy), merge to `main` (triggers Prod deploy)
+Fork owners should follow the [Setup Guide](SETUP.md). It provides one ordered
+path through required access, workspace creation, Git initialization, reference
+ID replacement, GitHub configuration, and first deployment.
 
-### Selecting the deployment method
-
+After setup, use the [Development Process](fabric-development-process.md) for
+day-to-day feature work and the [Governance Considerations](fabric-cicd-governance-considerations.md)
+for production control decisions.
 This repo ships three deploy methods. Set the `DEPLOY_METHOD` repository variable (Settings → Secrets and variables → Actions → Variables) to choose which one runs:
-
-| `DEPLOY_METHOD` value | Behavior |
-|---|---|
-| `fabric-cicd` *(or unset)* | Existing fabric-cicd workflows run — the default and recommended path |
-| `fabric-cicd-bulk` | fabric-cicd workflows run with bulk publish enabled. For this repo it always falls back to standard per-item publish, because `parameter.yml` uses `$items`/`$workspace` variables — included to demonstrate the library's experimental bulk mode |
-| `bulk` | Bulk Import API workflows run instead (Preview) |
-| any other value | All deploy workflows skip (safe default) |
-
-Whichever method runs, the ETL workflow chains afterward via `workflow_run`. See [CI/CD Release Options](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the trade-offs between fabric-cicd and the Bulk APIs.
-
-For detailed setup instructions, see the [Implementation Guide](fabric-hybrid-cicd-guide.md#prerequisites--setup). For branch-protection rulesets, deploy-time approvals, and the source-branch promotion path enforced in this repo, see the [Governance Considerations](fabric-cicd-governance-considerations.md).
-
----
-
-## References
-
-- [fabric-cicd Python Library](https://microsoft.github.io/fabric-cicd) — Docs, getting started, supported item types
-- [Fabric Git Integration](https://learn.microsoft.com/en-us/fabric/cicd/git-integration/intro-to-git-integration) — Official documentation
-- [GitHub Actions Reusable Workflows](https://docs.github.com/en/actions/sharing-automations/reusing-workflows) — `workflow_call`, inputs, secrets

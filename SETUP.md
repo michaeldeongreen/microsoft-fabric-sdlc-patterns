@@ -25,7 +25,7 @@ deployments after pull requests are merged through `dev -> test -> main`.
 
 - Permission to fork the repository and administer the fork.
 - A fine-grained personal access token (PAT) scoped to the fork with
-  **Contents: Read and write**. Fabric uses this user-specific token for Git
+  `Contents: Read and write`. Fabric uses this user-specific token for Git
   integration. Do not store it in the repository or as a GitHub Actions secret.
 - GitHub Actions enabled on the fork.
 
@@ -49,9 +49,7 @@ deployments after pull requests are merged through `dev -> test -> main`.
 2. Confirm that `dev`, `test`, and `main` exist. If the fork contains only
    `main`, create `test` and `dev` from the same commit.
 3. Enable GitHub Actions on the fork.
-4. Under **Settings > General > Pull Requests**, allow merge commits and disable
-   squash and rebase merges. Promotion pull requests must preserve ancestry.
-5. Do not protect the branches yet. Fabric must first commit the fork's Dev
+4. Do not protect the branches yet. Fabric must first commit the fork's Dev
    bindings to `dev`.
 
 ## 2. Create the Service Principal and Workspaces
@@ -75,23 +73,34 @@ recommended, not required:
 | `microsoft-fabric-sdlc-patterns-test` | No | Contributor |
 | `microsoft-fabric-sdlc-patterns-prod` | No | Contributor |
 
-Record each workspace ID from **Workspace settings > About**. Add the service
-principal as **Contributor** to Test and Production.
+Open each workspace and copy its ID from the browser URL. In a URL such as
+`https://app.fabric.microsoft.com/groups/<workspace-id>/...`, the GUID after
+`/groups/` is the workspace ID. See
+[Find your Microsoft Fabric workspace ID](https://learn.microsoft.com/fabric/data-factory/upgrade-pipelines-how-to-find-your-fabric-workspace-id).
+
+In the Test and Production workspaces, open `Manage access`, add the service
+principal by its name or application/client ID, and assign the `Contributor`
+role.
 
 ## 3. Initialize the Dev Workspace
 
 In the empty Dev workspace:
 
-1. Open **Workspace settings > Git integration** and select GitHub.
+1. Open `Workspace settings > Git integration` and select GitHub.
 2. Add your GitHub account using the fine-grained PAT.
 3. Select the fork, branch `dev`, and folder `data/fabric`.
-4. Select **Connect and sync**. Because the workspace is empty, update it from
+4. Select `Connect and sync`. Because the workspace is empty, update it from
    Git.
-5. Open `PatternsLakehouse` and record its Lakehouse ID from the URL or item
-   details.
+5. Open `PatternsLakehouse` and copy the two GUIDs from the browser URL:
+   `https://app.fabric.microsoft.com/groups/<workspace-id>/lakehouses/<lakehouse-id>`.
+   The GUID after `/groups/` is the Dev workspace ID, and the GUID after
+   `/lakehouses/` is the Lakehouse item ID. If your URL does not expose the
+   Lakehouse ID, list the workspace's Lakehouses with the
+   [Fabric REST API](https://learn.microsoft.com/rest/api/fabric/lakehouse/items/list-lakehouses)
+   and use the `id` of the item whose `displayName` is `PatternsLakehouse`.
 
 The initial import preserves the reference repository's definitions and makes
-the Variable Library's **Default** value set (the base variables stored in
+the Variable Library's `Default` value set (the base variables stored in
 `variables.json`) active. The next step replaces the reference environment with
 your Dev baseline.
 
@@ -102,25 +111,37 @@ your Dev baseline.
 
 Create one baseline commit with these changes:
 
-| Item | Required change |
-|---|---|
-| `Patterns_Variables` Default value set | Set your Dev workspace ID/name and Lakehouse ID/name |
-| `Patterns_Variables` Test value set | Set your Test workspace ID |
-| `Patterns_Variables` Prod value set | Set your Production workspace ID |
-| `Import_Patterns_Data` notebook | In the notebook UX, bind the default Lakehouse to the Dev `PatternsLakehouse` |
-| `Patterns_Semantic_Model` | In the Fabric UX, bind the Direct Lake source to the Dev `PatternsLakehouse` |
+1. Open `Patterns_Variables` and make the following changes:
 
-Save the Fabric items, then use the Dev workspace **Source control** pane to
+   | Value set | Variable | Value |
+   |---|---|---|
+   | `Default` | `target_workspace_id` | Dev workspace ID |
+   | `Default` | `target_workspace_name` | Dev workspace name |
+   | `Default` | `target_lakehouse_id` | Dev `PatternsLakehouse` item ID |
+   | `Default` | `target_lakehouse_name` | `PatternsLakehouse` |
+   | `Test` | `target_workspace_id` | Test workspace ID |
+   | `Prod` | `target_workspace_id` | Production workspace ID |
+
+   Keep `Default` active in the Dev workspace. The other sample variables can
+   retain their existing values or be customized for your organization.
+2. Open `Import_Patterns_Data`, select `Lakehouse` in the notebook toolbar, and
+   set the default Lakehouse to the Dev `PatternsLakehouse`.
+3. Open `Patterns_Semantic_Model`, edit its Direct Lake connection, and select
+   the Dev `PatternsLakehouse`.
+
+Save the Fabric items, then use the Dev workspace `Source control` pane to
 commit them to `dev`. Do not change any `.platform` `logicalId` values.
 
-Pull that commit locally and update `data/fabric/parameter.yml`: every
-`find_value` for the Dev workspace or Lakehouse must match the new Dev IDs now
-stored in the item definitions. If you intend to evaluate the raw Bulk API path,
-make the equivalent changes in `data/fabric/bulk-parameter.yml`.
+Pull that commit locally. In `data/fabric/parameter.yml`, replace every
+reference-environment `find_value` with the corresponding Dev ID you recorded:
+use the Dev Lakehouse ID for Lakehouse rules and the Dev workspace ID for
+workspace rules. If you intend to evaluate the raw Bulk API path, make the
+equivalent changes in `data/fabric/bulk-parameter.yml`.
 
 Commit and push the parameter-file changes to `dev`. Search `data/fabric` for
-the reference workspace and Lakehouse IDs and confirm that no unintended
-references remain.
+the original IDs from the current `find_value` entries and confirm that no
+unintended references remain. Do not replace `.platform` `logicalId` values;
+they are portable item references, not environment IDs.
 
 The Test and Production value sets do not define Lakehouse IDs. They inherit the
 Dev Lakehouse ID from the base variables as a placeholder. During deployment,
@@ -153,17 +174,19 @@ rulesets:
 | `main` | `test` | `Enforce promotion path`, `Run unit tests` |
 
 Require pull requests and block force pushes and deletions. Keep merge commits
-as the only merge method. The detailed control rationale is in
+as the only merge method only if that is your organization's preferred policy;
+the included promotion workflows do not require it. The detailed control
+rationale is in
 [CI/CD Governance Considerations](fabric-cicd-governance-considerations.md).
 
 ## 6. Deploy Test and Production
 
-1. Open a pull request from `dev` to `test` and merge it with **Create a merge
-   commit**. The Test deployment runs, followed by the ETL workflow.
+1. Open a pull request from `dev` to `test` and merge it. The Test deployment
+   runs, followed by the ETL workflow.
 2. Verify Test before continuing.
-3. Open a pull request from `test` to `main` and merge it with **Create a merge
-   commit**. The Production workflow then waits for a `Prod` environment
-   reviewer to approve the deployment.
+3. Open a pull request from `test` to `main` and merge it. The Production
+   workflow then waits for a `Prod` environment reviewer to approve the
+   deployment.
 
 On the first deployment, open the Ontology in each target workspace and bind its
 Graph Model to the local Lakehouse tables. See

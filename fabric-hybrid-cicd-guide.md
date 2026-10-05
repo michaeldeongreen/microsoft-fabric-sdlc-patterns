@@ -181,7 +181,7 @@ The `parameter.yml` file in `data/fabric/` uses fabric-cicd's `find_replace` wit
 
 ```yaml
 find_replace:
-    - find_value: "7694ebac-deb9-4a40-a846-0782b36b3bda"  # Dev lakehouse ID
+    - find_value: "<DEV_LAKEHOUSE_ID>"
       replace_value:
           _ALL_: "$items.Lakehouse.PatternsLakehouse.$id"  # Resolved at deploy time
       item_type: "VariableLibrary"
@@ -193,60 +193,9 @@ find_replace:
 
 ## Prerequisites & Setup
 
-### 1. Fabric Capacity
-
-A Fabric or Power BI Premium capacity is required for all workspaces.
-
-### 2. Fabric Workspaces
-
-Three workspaces are needed:
-- **microsoft-fabric-sdlc-patterns-dev** — connected to the `dev` branch via Fabric Git integration
-- **microsoft-fabric-sdlc-patterns-test** — not Git-connected, receives deployments via fabric-cicd
-- **microsoft-fabric-sdlc-patterns-prod** — not Git-connected, receives deployments via fabric-cicd
-
-### 3. Service Principal
-
-Create a Service Principal for CI/CD automation:
-
-```bash
-az ad sp create-for-rbac --name "SPN-Microsoft-Fabric-SDLC-Patterns" \
-  --query "{tenantId:tenant, clientId:appId, clientSecret:password}" -o json
-```
-
-- Add the SPN as **Contributor** on both Test and Prod workspaces (Workspace → Manage access → Add people or groups)
-- Contributor is the minimum required role per the [Fabric Create Item API](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/create-item) documentation
-
-> **Important:** A Fabric Admin must enable service principal access to Fabric APIs in the Fabric Admin portal under Developer settings, scoped to a security group containing only your CI/CD SPs. See [developer tenant settings](https://learn.microsoft.com/en-us/fabric/admin/service-admin-portal-developer) and the [Governance Considerations](fabric-cicd-governance-considerations.md) for details.
-
-### 4. GitHub Environments
-
-Create two GitHub Environments in the repository settings (Settings → Environments):
-
-| Environment | Protection Rules |
-|---|---|
-| `Test` | None (deploy flows automatically on merge) |
-| `Prod` | Required reviewers, deployment branch restriction to `main` only |
-
-> **Note:** GitHub Environment names are case-insensitive, but the names must match the Variable Library value set names (`Test`, `Prod`) because fabric-cicd uses the `environment` value to set the active value set.
-
-### 5. GitHub Environment Secrets
-
-Add these secrets to **both** `Test` and `Prod` environments:
-
-| Secret | Description |
-|---|---|
-| `AZURE_TENANT_ID` | Entra ID tenant ID |
-| `AZURE_CLIENT_ID` | Service Principal client/app ID |
-| `AZURE_CLIENT_SECRET` | Service Principal client secret |
-| `FABRIC_WORKSPACE_ID` | Target workspace ID (different per environment) |
-
-The first three secrets are identical across environments (single SPN). `FABRIC_WORKSPACE_ID` differs:
-- Test: the Test workspace ID
-- Prod: the Prod workspace ID
-
-### 6. Copilot Instructions
-
-The `.github/instructions/actions.instructions.md` file provides path-specific Copilot instructions for authoring GitHub Actions workflows. It applies automatically when editing any `.yml` file under `.github/workflows/` and covers security (pin actions to SHA, minimal permissions), performance (`timeout-minutes`), and fabric-cicd best practices.
+Follow the [Setup Guide](SETUP.md) to configure a fork, create the Fabric
+workspaces, replace the reference environment IDs, configure GitHub, and perform
+the first promotion. This implementation guide assumes that setup is complete.
 
 ---
 

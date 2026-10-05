@@ -1,6 +1,6 @@
 ---
 description: Swap the repo's IDs to your feature workspace and create the value set for the current branch.
-mode: agent
+agent: agent
 ---
 The script `scripts/workspace_swap.py` rewrites tracked Fabric files (semantic model, notebooks) so they point at your feature workspace instead of dev, creates a feature value set, and updates settings.json. It reads `FEATURE_WORKSPACE_ID` and `FEATURE_LAKEHOUSE_ID` from `.env` at the repo root and asks for a `YES` confirmation before applying. When invoked through this prompt, that confirmation must happen here in chat — never in the terminal — to avoid live-prompt handling problems.
 

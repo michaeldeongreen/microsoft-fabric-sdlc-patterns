@@ -1,6 +1,6 @@
 ---
 description: Run the CI-style readiness check locally — verifies dev IDs are restored and no stray feature value sets remain.
-mode: agent
+agent: agent
 ---
 Run `python scripts/workspace_swap.py --check-ready` from the repo root and report the output to me. This is the same check the `check-pr-ready.yml` GitHub Actions workflow runs on every PR to `dev`. It does not modify any files.
 

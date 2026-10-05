@@ -52,6 +52,10 @@ Branch protection (PR required, source-branch restrictions, status checks) is en
 
 > This repository demonstrates fabric-cicd (the default, recommended GA Python library) alongside a parallel set of Bulk Import / Export API workflows (Preview) for evaluation and side-by-side comparison. Selection is controlled by the `DEPLOY_METHOD` repository variable — see the [Setup Guide](SETUP.md) for initial configuration and [CI/CD Release Options](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the full comparison.
 
+An optional [Deployment Plan adapter](fabric-deployment-plan-guide.md) reads a
+committed plan to order standard fabric-cicd calls while retaining parameterization.
+It is an ordering-only accelerator, not native Deployment Plan execution.
+
 ---
 
 ## Documentation
@@ -62,6 +66,7 @@ Branch protection (PR required, source-branch restrictions, status checks) is en
 | [CI/CD Release Options](fabric-cicd-release-options.md) | Evaluates all CI/CD release options for Fabric (Deployment Pipelines, Git-based, Build-based, Hybrid) and recommends the Hybrid approach. Includes a [comparison of fabric-cicd vs the new Bulk Import / Export APIs](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) (Preview) within Option 3. **Start here** if you're deciding on a strategy. |
 | [Hybrid CI/CD Implementation Guide](fabric-hybrid-cicd-guide.md) | Deep dive into the recommended fabric-cicd implementation: workflow structure, configuration strategy, deployment flow, and gotchas. |
 | [Bulk CI/CD Implementation Guide](fabric-bulk-cicd-guide.md) | Implementation guide for the alternative Bulk Import API (Preview) deploy path. Covers the gap-bridging workarounds (substitution, value-set activation), the two-deploy decision, extension patterns, and limitations not bridged. |
+| [Deployment Plan CI/CD Guide](fabric-deployment-plan-guide.md) | Optional non-bulk fabric-cicd adapter: declared dependency ordering, automatic remaining-item discovery, configuration, and validation boundaries. |
 | [Development Process](fabric-development-process.md) | How developers work day-to-day: branch-out workflow, the workspace swap script, and PR readiness check. |
 | [CI/CD Governance Considerations](fabric-cicd-governance-considerations.md) | Considerations on identities, RBAC, branch protection, and approval gates for the CI/CD pipeline. Includes pointers to adjacent controls owned outside the pipeline (security/compliance topics). |
 
@@ -83,7 +88,7 @@ Not all Fabric items can be managed the same way. From a lifecycle management pe
 
 > **Important:** Both supported items lists evolve as Microsoft adds capabilities. Always verify against the official documentation before assuming an item falls into a particular category.
 
-This categorization directly impacts your CI/CD strategy. The [Hybrid CI/CD Implementation Guide](fabric-hybrid-cicd-guide.md) describes how to handle the gap between git-tracked and deployment-pipeline-only items if your workspace includes unsupported types. Currently, all items in this repository are deployed via fabric-cicd.
+This categorization directly impacts your CI/CD strategy. The [Hybrid CI/CD Implementation Guide](fabric-hybrid-cicd-guide.md) describes how to handle the gap between git-tracked and deployment-pipeline-only items if your workspace includes unsupported types. Workload items in this repository are deployed via fabric-cicd; the optional DeploymentPlan item is read as ordering configuration, not published by the adapter.
 
 ### Variable Libraries: Dynamic vs Static Metadata
 
@@ -117,4 +122,11 @@ ID replacement, GitHub configuration, and first deployment.
 After setup, use the [Development Process](fabric-development-process.md) for
 day-to-day feature work and the [Governance Considerations](fabric-cicd-governance-considerations.md)
 for production control decisions.
-This repo ships three deploy methods. Set the `DEPLOY_METHOD` repository variable (Settings → Secrets and variables → Actions → Variables) to choose which one runs:
+This repo ships four deploy methods. Set the `DEPLOY_METHOD` repository variable (Settings → Secrets and variables → Actions → Variables) to choose which one runs:
+
+| Value | Method |
+|---|---|
+| `fabric-cicd` or unset | [Standard fabric-cicd](fabric-hybrid-cicd-guide.md), the default |
+| `bulk` | [Raw Bulk Import API](fabric-bulk-cicd-guide.md) |
+| `fabric-cicd-bulk` | Experimental library Bulk Publish, with the existing fallback behavior |
+| `fabric-cicd-plan` | [Plan-driven non-bulk fabric-cicd](fabric-deployment-plan-guide.md); also requires `DEPLOYMENT_PLAN_PATH` |

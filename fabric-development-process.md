@@ -196,6 +196,7 @@ Not all item types need rewriting. Fabric items fall into two categories based o
 | **Ontology** | `*.Ontology/**/DataBindings/*.json`, `*.Ontology/**/Contextualizations/*.json` | Lakehouse logicalId (`b36b3bda-...`) + zeroed workspaceId | No — logicalIds are portable | Yes — logicalId replaced with `$items.Lakehouse...` for CI/CD | Uses `.platform` logicalId, resolved by Fabric at runtime |
 | **DataAgent** | `*.DataAgent/**/datasource.json` | Ontology logicalId (`58a6c8ed-...`) + zeroed workspaceId | No — logicalIds are portable | No — references Ontology by logicalId | Cross-item logicalId reference, no environment-specific IDs |
 | **VariableLibrary** | `valueSets/*.json`, `settings.json` | Dev lakehouse ID in default value set | Managed (creates/deletes value sets) | Yes — default value set lakehouse ID replaced | Value set files are created/deleted, not rewritten |
+| DeploymentPlan | `*.DeploymentPlan/plan.yml` | Item logical IDs | No | No | Portable ordering configuration for the optional [plan-driven adapter](fabric-deployment-plan-guide.md) |
 
 ### Files Involved
 

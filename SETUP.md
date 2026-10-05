@@ -164,6 +164,10 @@ For `Prod`, require a deployment reviewer and restrict deployments to `main`.
 Set the repository variable `DEPLOY_METHOD` to `fabric-cicd`, or leave it unset
 to use the same default.
 
+To evaluate plan-driven ordering after the default path works, follow the
+[Deployment Plan CI/CD Guide](fabric-deployment-plan-guide.md). It documents the
+separate method and its `DEPLOYMENT_PLAN_PATH` repository variable.
+
 After the Dev baseline commits are complete, protect the branches with GitHub
 rulesets:
 

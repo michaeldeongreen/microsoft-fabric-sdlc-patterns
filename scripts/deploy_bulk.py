@@ -469,9 +469,18 @@ def acquire_token(tenant_id: str, client_id: str, client_secret: str) -> str:
 def build_definition_parts(repo_dir: pathlib.Path) -> list[DefinitionPart]:
     if not repo_dir.is_dir():
         sys.exit(f"::error::Repository directory not found: {repo_dir}")
+    plan_directories = {
+        platform.parent
+        for platform in repo_dir.rglob(".platform")
+        if platform.parent.name.endswith(".DeploymentPlan")
+    }
+    if plan_directories:
+        print(f"Excluding {len(plan_directories)} DeploymentPlan control item(s) from raw Bulk import.")
     parts: list[DefinitionPart] = []
     for f in sorted(repo_dir.rglob("*")):
         if not f.is_file():
+            continue
+        if any(directory in f.parents for directory in plan_directories):
             continue
         if f.name in EXCLUDED_FILES:
             continue

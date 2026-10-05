@@ -92,6 +92,19 @@ def test_build_definition_parts_excludes_root_level_files(tmp_path: pathlib.Path
     assert "/MyItem.Notebook/notebook-content.py" in paths
 
 
+def test_build_definition_parts_excludes_deployment_plan_control_items(
+    tmp_path: pathlib.Path,
+) -> None:
+    _make_item_file(tmp_path, "MyItem.Notebook/notebook-content.py")
+    _make_item_file(tmp_path, "Plan.DeploymentPlan/.platform", b"{}")
+    _make_item_file(tmp_path, "Plan.DeploymentPlan/plan.yml", b"groups: []")
+    _make_item_file(tmp_path, "Nested/Other.DeploymentPlan/.platform", b"{}")
+    _make_item_file(tmp_path, "Nested/Other.DeploymentPlan/plan.yml", b"groups: []")
+    assert [part["path"] for part in build_definition_parts(tmp_path)] == [
+        "/MyItem.Notebook/notebook-content.py"
+    ]
+
+
 def test_build_definition_parts_walks_recursively(tmp_path: pathlib.Path) -> None:
     _make_item_file(tmp_path, "Item.Notebook/.platform", b"{}")
     _make_item_file(tmp_path, "Item.Notebook/notebook-content.py", b"x")

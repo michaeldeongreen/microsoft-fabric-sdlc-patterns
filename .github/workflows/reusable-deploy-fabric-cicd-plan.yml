@@ -1,0 +1,63 @@
+# Reads the committed plan; does not invoke native Deployment Plan execution.
+name: "Reusable: Deploy via fabric-cicd Plan"
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "Target environment (Test, Prod)"
+        required: true
+        type: string
+      deployment_plan_path:
+        description: "Checkout-relative path to the committed plan.yml"
+        required: true
+        type: string
+      repository_directory:
+        description: "Path to the Fabric item definitions"
+        required: false
+        type: string
+        default: "data/fabric"
+      item_type_in_scope:
+        description: "JSON array of item types to deploy; omitting it selects repository types except DeploymentPlan"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy via fabric-cicd Plan (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ inputs.environment }}
+    env:
+      REPOSITORY_DIRECTORY: ${{ inputs.repository_directory }}
+      DEPLOYMENT_PLAN_PATH: ${{ inputs.deployment_plan_path }}
+      ENVIRONMENT: ${{ inputs.environment }}
+      ITEM_TYPE_IN_SCOPE: ${{ inputs.item_type_in_scope }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install "fabric-cicd>=1.3.0,<2.0.0" "azure-identity>=1.15" "PyYAML>=6.0"
+
+      - name: Preview and validate the deployment schedule
+        run: python scripts/deploy_fabric_cicd_plan.py --dry-run
+
+      - name: Deploy with fabric-cicd in plan order
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          FABRIC_WORKSPACE_ID: ${{ secrets.FABRIC_WORKSPACE_ID }}
+        run: python scripts/deploy_fabric_cicd_plan.py

@@ -1,0 +1,17 @@
+$schema: https://developer.microsoft.com/json-schemas/fabric/item/deploymentPlan/definition/plan/1.0.0/schema.json
+version: 1.0.0
+groups:
+  - name: Lakehouse_Group
+    logicalId: b36b3bda-0782-a846-4a40-deb97694ebac
+  - name: SemanticModel_Group
+    logicalId: a21bb471-7f10-923f-481f-2af1bbc0fb79
+    dependsOn:
+      - groupName: Lakehouse_Group
+  - name: Ontology_Group
+    logicalId: 58a6c8ed-d439-a7ba-4e80-99fc40aa27c4
+    dependsOn:
+      - groupName: Lakehouse_Group
+  - name: DataAgent_Group
+    logicalId: 4fe67736-9c39-b061-4d7d-6e544e49555c
+    dependsOn:
+      - groupName: Ontology_Group

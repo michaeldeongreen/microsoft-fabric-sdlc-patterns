@@ -49,6 +49,10 @@ The same pattern applies to Prod (`deploy-prod.yml` → `etl-prod.yml`), trigger
 
 > Alternative deploy paths exist alongside this standard fabric-cicd path — a raw Bulk Import API path and a `fabric-cicd-bulk` variant that runs fabric-cicd with bulk publish enabled — all selected by the `DEPLOY_METHOD` repo variable. The standard fabric-cicd path shown here is the recommended one — see [fabric-cicd vs Bulk APIs](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the comparison and [Bulk CI/CD Implementation Guide](fabric-bulk-cicd-guide.md) for the bulk path's implementation walkthrough.
 
+For configurable ordering without changing this default path, see the
+[Deployment Plan CI/CD Guide](fabric-deployment-plan-guide.md). Its separate
+`fabric-cicd-plan` method uses the committed plan instead of fixed phases.
+
 ### Branches & Workspaces
 
 | Branch | Workspace | Deployment Method |

@@ -140,6 +140,7 @@ The `DEPLOY_METHOD` repository variable (Settings → Secrets and variables → 
 | `fabric-cicd` *(or unset)* | fabric-cicd workflows run; other deploy workflows skip |
 | `fabric-cicd-bulk` | fabric-cicd workflows run with bulk publish enabled (falls back to standard for this repo); other deploy workflows skip |
 | `bulk` | Bulk workflows run; other deploy workflows skip |
+| `fabric-cicd-plan` | [Plan-driven non-bulk fabric-cicd](fabric-deployment-plan-guide.md) runs; other deploy workflows skip |
 | any other value | All deploy workflows skip (safe default) |
 
 ### The Bulk Deploy Job
@@ -452,6 +453,10 @@ An earlier version of the script emitted `::add-mask::<token>` to register a wor
 ### `bulk-parameter.yml` Is Excluded from the Request Payload
 
 The script lists `bulk-parameter.yml`, `parameter.yml`, and `.gitkeep` in `EXCLUDED_FILES` so they're never sent to Fabric as part of the bulk request. The structural rule "files at the root of `repository_directory` are not item definitions" already excludes them, but the explicit list documents intent.
+
+Git-synced `*.DeploymentPlan` item folders are also excluded. This raw Bulk
+example does not attach a native plan to its request; the
+[plan-driven adapter](fabric-deployment-plan-guide.md) is a separate method.
 
 ### `workflow_run` Quirk: Re-runs Use the Frozen Workflow File
 

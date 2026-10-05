@@ -1,0 +1,30 @@
+name: Deploy to Prod (fabric-cicd Plan)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "data/fabric/**"
+      - "deployment-plans/**"
+      - "scripts/deployment_plan.py"
+      - "scripts/deploy_fabric_cicd_plan.py"
+      - "requirements-dev.txt"
+      - ".github/workflows/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fabric-cicd-plan-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy-fabric-cicd-plan:
+    name: Deploy via fabric-cicd Plan
+    if: vars.DEPLOY_METHOD == 'fabric-cicd-plan'
+    uses: ./.github/workflows/reusable-deploy-fabric-cicd-plan.yml
+    with:
+      environment: Prod
+      deployment_plan_path: ${{ vars.DEPLOYMENT_PLAN_PATH }}
+      item_type_in_scope: '["Lakehouse", "Ontology", "VariableLibrary", "Notebook", "SemanticModel", "Report", "DataAgent"]'
+    secrets: inherit

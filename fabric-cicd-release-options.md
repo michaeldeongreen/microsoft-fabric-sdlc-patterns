@@ -282,13 +282,18 @@ Both implementations sit inside Option 3 — branch per stage, build environment
 
 **When to consider the Bulk APIs:**
 - Your repo is fully on logical IDs + Variable Library value sets, so you don't need `parameter.yml`-style substitution
-- You want a single atomic deployment instead of phased calls
+- You want a workspace-level import request instead of client-managed per-item calls; this does not guarantee rollback on failure
 - You're moving large numbers of items and want fewer round trips
 - You need a workspace-level export (e.g., for disaster-recovery snapshots) that the Bulk Export API provides
 
 Recommendation today: fabric-cicd. The Bulk APIs are still in Preview and have no parameterization or orphan-cleanup story at the API level — the caller must implement substitution, value-set activation, and any delete logic themselves. fabric-cicd already provides these capabilities, maintained by Microsoft. This repo's bulk path shows that bridging is feasible and what it costs (~600 lines of Python + a config file), but choosing bulk means you own that bridging code. Re-evaluate when (a) the APIs exit Preview and (b) Microsoft adds parameterization and orphan-cleanup at the API level, or when your repo's shape doesn't need those capabilities to begin with.
 
 > This repository demonstrates both. The fabric-cicd workflows are the recommended path; the Bulk API workflows are included alongside them for evaluation. The `DEPLOY_METHOD` repository variable selects the deploy method — including a `fabric-cicd-bulk` option that enables fabric-cicd's own experimental bulk publish, which falls back to standard per-item publish here because `parameter.yml` uses `$items`/`$workspace` variables. See the [README quick start](README.md#quick-start) for how to switch.
+
+The optional [Deployment Plan adapter](fabric-deployment-plan-guide.md) offers
+explicit ordering while retaining non-bulk fabric-cicd parameterization. It
+interprets the committed plan's ordering subset; it is not native plan execution
+or automatic lineage discovery.
 
 ---
 

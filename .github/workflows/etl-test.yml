@@ -13,7 +13,7 @@ on:
     # Triggered by any of the deployment workflows. The DEPLOY_METHOD repository
     # variable ensures only one of them actually runs per push, so ETL fires once.
     # The success conclusion gate below skips ETL when a deploy was skipped.
-    workflows: ["Deploy to Test (fabric-cicd)", "Deploy to Test (Bulk API)", "Deploy to Test (fabric-cicd Bulk)"]
+    workflows: ["Deploy to Test (fabric-cicd)", "Deploy to Test (Bulk API)", "Deploy to Test (fabric-cicd Bulk)", "Deploy to Test (fabric-cicd Plan)"]
     types: [completed]
   # Manual trigger so operators can re-run the ETL without having to fake a
   # deploy. Useful when a workflow_run-triggered run fails because of a

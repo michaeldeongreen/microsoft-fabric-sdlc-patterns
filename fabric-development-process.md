@@ -1,3 +1,5 @@
+**English** | [Español](translations/es/fabric-development-process.md)
+
 # Development Process
 
 This document describes the two primary approaches for feature branch development in Microsoft Fabric with Git integration, the tradeoffs of each, and how this repository implements the **Branch Out** pattern.

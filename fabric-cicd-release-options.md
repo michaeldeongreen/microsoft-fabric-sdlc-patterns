@@ -1,3 +1,5 @@
+**English** | [Español](translations/es/fabric-cicd-release-options.md)
+
 # Best Practices with Fabric CI/CD Overview
 
 ## Table of Contents

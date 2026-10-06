@@ -1,3 +1,5 @@
+**English** | [Español](translations/es/fabric-hybrid-cicd-guide.md)
+
 # Hybrid CI/CD Implementation Guide
 
 This repository implements the **Hybrid CI/CD recommendation** for Microsoft Fabric using **fabric-cicd**. It demonstrates how to deploy Fabric workspace items (Notebooks, Lakehouses, Variable Libraries, Semantic Models, Reports, Ontologies, Data Agents) across environments using GitHub Actions.
@@ -237,7 +239,7 @@ Confirm all items are functional in the target workspace:
 
 - **Lakehouse** — tables populated with data
 - **Ontology** — overview loads, entity types and relationships visible
-- **Semantic Model** — connected to the lakehouse (may require manual connection config on first deploy; see [Gotchas](#semantic-model-initial-connection))
+- **Semantic Model** — connected to the lakehouse (may require manual connection config on first deploy; see [Gotchas](#gotchas--key-decisions))
 - **Report** — renders with data from the Semantic Model
 - **Data Agent** — references the Ontology and responds to queries
 

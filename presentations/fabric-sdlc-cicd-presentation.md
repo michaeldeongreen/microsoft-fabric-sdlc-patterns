@@ -1,3 +1,5 @@
+**English** | [Español](../translations/es/presentations/fabric-sdlc-cicd-presentation.md)
+
 # Microsoft Fabric — SDLC & CI/CD
 
 <div align="center">

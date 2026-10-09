@@ -6,6 +6,8 @@ Considerations for partners and customers designing governance around CI/CD pipe
 
 This guide layers governance controls on top of the implementation pattern in the [Hybrid CI/CD Implementation Guide](fabric-hybrid-cicd-guide.md). Read that doc first if you don't already have a working pipeline.
 
+For practical validation, release evidence, staged approval, and rollback examples, see [Fabric CI/CD Quality Gates and Release Controls](fabric-cicd-quality-gates-and-release-controls.md). It complements the governance controls here rather than replacing them.
+
 ## Identity model — pick the right identity for the job
 
 Three distinct identities show up in a Fabric solution. Confusing them is a common source of over-permissioned deployments.

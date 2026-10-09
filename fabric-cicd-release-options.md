@@ -257,19 +257,19 @@ Option 3 has two viable tooling implementations today. Both deploy from a build 
 
 Both implementations sit inside Option 3 — branch per stage, build environment per stage, deploy from Git. The decision between them comes down to whether you want a library that solves the common CI/CD problems for you, or a lower-level API surface that you wrap yourself.
 
-| Dimension | fabric-cicd | Bulk Import / Export APIs |
+| Dimension | Standard fabric-cicd | Bulk Import / Export APIs |
 |---|---|---|
 | **Maturity** | GA | Preview (`?beta=true` query parameter required) |
 | **Environment-specific config** | `parameter.yml` (declarative `find_replace`, `key_value_replace`, `$items` resolution) | None at the API level — caller must preprocess files or rely entirely on Variable Libraries + logical IDs. *This repo demonstrates one way to bridge the gap in caller code (see note below the table).* |
 | **Orphan cleanup** | `unpublish_all_orphan_items()` built in | None — API only supports Create / Update; deletes are caller's responsibility |
-| **Dependency ordering** | Caller phases manually (e.g., Lakehouse + Ontology first, then everything else) | Service resolves automatically in a single call |
+| **Dependency ordering** | Library order plus this repo's caller phases, or its optional non-bulk plan adapter | Service resolves supported logical-ID relationships; explicit ordering and physical-ID substitutions can still require caller work |
 | **Long-running operations** | Hidden by the library | When the call returns `202 Accepted`, the caller polls `/operations/{id}` and then `/operations/{id}/result` explicitly. Sync `200 OK` returns the result body directly with no polling needed. |
-| **API call shape** | Many per-item REST calls | One POST for the entire workspace payload |
+| **API call shape** | Many per-item REST calls | One or more bulk POSTs; this repo's raw method uses two |
 | **Service principal coverage** | Per item — an unsupported item type fails only that item | Per request — service principals are supported only when *every* item in the payload supports service principals |
 
 > **Note on the gaps in this repo.** The Bulk Import API gaps above are properties of the API itself — Microsoft has not added these capabilities. This repo implements two of them in caller code so the demo works end-to-end:
 >
-> - **Substitution:** `data/fabric/bulk-parameter.yml` + `scripts/deploy_bulk.py` apply find/replace and `$items.<Type>.<Name>.$id` resolution between two POSTs (dependencies first, then the rest).
+> - **Substitution:** `data/fabric/bulk-parameter.yml` + `scripts/deploy_fabric_rest_bulk.py` apply find/replace and `$items.<Type>.<Name>.$id` resolution between two POSTs (dependencies first, then the rest).
 > - **VariableLibrary value-set activation:** A post-deploy `PATCH /v1/workspaces/{ws}/variableLibraries/{id}` call sets the active value set per environment.
 >
 > Both are workarounds, not platform fixes. Orphan cleanup, the broader fabric-cicd feature surface (`key_value_replace`, `spark_pool`, `semantic_model_binding`), and per-item service principal coverage remain unimplemented in this repo's bulk path. If you go with bulk in your own project, you take on the same caller-side work. See the [Bulk CI/CD Implementation Guide](fabric-bulk-cicd-guide.md) for the full implementation walkthrough.
@@ -288,12 +288,32 @@ Both implementations sit inside Option 3 — branch per stage, build environment
 
 Recommendation today: fabric-cicd. The Bulk APIs are still in Preview and have no parameterization or orphan-cleanup story at the API level — the caller must implement substitution, value-set activation, and any delete logic themselves. fabric-cicd already provides these capabilities, maintained by Microsoft. This repo's bulk path shows that bridging is feasible and what it costs (~600 lines of Python + a config file), but choosing bulk means you own that bridging code. Re-evaluate when (a) the APIs exit Preview and (b) Microsoft adds parameterization and orphan-cleanup at the API level, or when your repo's shape doesn't need those capabilities to begin with.
 
-> This repository demonstrates both. The fabric-cicd workflows are the recommended path; the Bulk API workflows are included alongside them for evaluation. The `DEPLOY_METHOD` repository variable selects the deploy method — including a `fabric-cicd-bulk` option that enables fabric-cicd's own experimental bulk publish, which falls back to standard per-item publish here because `parameter.yml` uses `$items`/`$workspace` variables. See the [README quick start](README.md#quick-start) for how to switch.
+> This repository demonstrates both. Standard fabric-cicd is recommended; raw
+> REST and SDK-bulk workflows are included for evaluation. `DEPLOY_METHOD`
+> selects the route. SDK bulk now uses 1.4.x with the existing parameter file,
+> and unexpected standard fallback fails deployment. See the
+> [README quick start](README.md#quick-start).
 
-The optional [Deployment Plan adapter](fabric-deployment-plan-guide.md) offers
-explicit ordering while retaining non-bulk fabric-cicd parameterization. It
-interprets the committed plan's ordering subset; it is not native plan execution
-or automatic lineage discovery.
+**SDK bulk in 1.4.x is distinct from raw REST.** It applies filtered `$items`
+and `$workspace` replacements, manages supported dynamic dependencies within
+a call, and owns Variable Library activation. Parameter-file presence alone
+does not force fallback. Unsupported types or unfiltered current-workspace
+`$items` replacements can still do so; the repository's strict adapter rejects
+those conditions and validates actual bulk mode and complete item success.
+This replaces the pre-1.4 fallback demonstration, not the retained raw REST
+method's custom substitutions.
+
+The two isolated [Deployment Plan adapters](fabric-deployment-plan-guide.md)
+interpret explicit ordering while retaining SDK parameterization. Non-bulk
+publishes one group at a time; bulk combines independent ready groups.
+Neither is native plan execution or complete lineage discovery. The direct
+REST API can attach a plan, but fabric-cicd 1.4.0 does not expose that option.
+
+All SDK dependency ranges are `>=1.4.0,<1.5.0`; Actions stay on Python 3.12.
+The other applicable release changes and the unused-feature boundaries are
+documented in the [Deployment Plan guide](fabric-deployment-plan-guide.md#140-release-applicability).
+The SDK's bulk and item-inclusion features remain experimental; a GA library
+does not make every optional feature GA.
 
 ---
 

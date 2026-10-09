@@ -17,7 +17,7 @@
 # Known gaps vs. reusable-deploy-fabric-cicd.yml (fabric-cicd):
 #   The Bulk Import API itself has no parameterization, no value-set
 #   activation, and no delete support. This repo bridges the first two in
-#   scripts/deploy_bulk.py + data/fabric/bulk-parameter.yml. The remaining
+#   scripts/deploy_fabric_rest_bulk.py + data/fabric/bulk-parameter.yml. The remaining
 #   gaps are intentionally not implemented:
 #   - No full parameter.yml feature coverage. bulk-parameter.yml supports
 #     find_replace + $items + $workspace + $environment placeholders only.
@@ -79,4 +79,4 @@ jobs:
           FABRIC_WORKSPACE_ID: ${{ secrets.FABRIC_WORKSPACE_ID }}
           REPOSITORY_DIRECTORY: ${{ inputs.repository_directory }}
           ENVIRONMENT: ${{ inputs.environment }}
-        run: python scripts/deploy_bulk.py
+        run: python scripts/deploy_fabric_rest_bulk.py

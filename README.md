@@ -52,9 +52,11 @@ Branch protection (PR required, source-branch restrictions, status checks) is en
 
 > This repository demonstrates fabric-cicd (the default, recommended GA Python library) alongside a parallel set of Bulk Import / Export API workflows (Preview) for evaluation and side-by-side comparison. Selection is controlled by the `DEPLOY_METHOD` repository variable — see the [Setup Guide](SETUP.md) for initial configuration and [CI/CD Release Options](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the full comparison.
 
-An optional [Deployment Plan adapter](fabric-deployment-plan-guide.md) reads a
-committed plan to order standard fabric-cicd calls while retaining parameterization.
-It is an ordering-only accelerator, not native Deployment Plan execution.
+Two independent [Deployment Plan adapters](fabric-deployment-plan-guide.md)
+read the same committed plan format: `fabric-cicd-plan` orders standard calls,
+while `fabric-cicd-bulk` combines independent ready groups into strict bulk calls.
+Both retain SDK parameterization and are ordering-only accelerators, not native
+Deployment Plan execution.
 
 ---
 
@@ -66,7 +68,7 @@ It is an ordering-only accelerator, not native Deployment Plan execution.
 | [CI/CD Release Options](fabric-cicd-release-options.md) | Evaluates all CI/CD release options for Fabric (Deployment Pipelines, Git-based, Build-based, Hybrid) and recommends the Hybrid approach. Includes a [comparison of fabric-cicd vs the new Bulk Import / Export APIs](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) (Preview) within Option 3. **Start here** if you're deciding on a strategy. |
 | [Hybrid CI/CD Implementation Guide](fabric-hybrid-cicd-guide.md) | Deep dive into the recommended fabric-cicd implementation: workflow structure, configuration strategy, deployment flow, and gotchas. |
 | [Bulk CI/CD Implementation Guide](fabric-bulk-cicd-guide.md) | Implementation guide for the alternative Bulk Import API (Preview) deploy path. Covers the gap-bridging workarounds (substitution, value-set activation), the two-deploy decision, extension patterns, and limitations not bridged. |
-| [Deployment Plan CI/CD Guide](fabric-deployment-plan-guide.md) | Optional non-bulk fabric-cicd adapter: declared dependency ordering, automatic remaining-item discovery, configuration, and validation boundaries. |
+| [Deployment Plan CI/CD Guide](fabric-deployment-plan-guide.md) | Independent non-bulk and grouped bulk ordering adapters, remaining-item discovery, configuration, and validation boundaries. |
 | [Development Process](fabric-development-process.md) | How developers work day-to-day: branch-out workflow, the workspace swap script, and PR readiness check. |
 | [CI/CD Governance Considerations](fabric-cicd-governance-considerations.md) | Considerations on identities, RBAC, branch protection, and approval gates for the CI/CD pipeline. Includes pointers to adjacent controls owned outside the pipeline (security/compliance topics). |
 
@@ -128,5 +130,18 @@ This repo ships four deploy methods. Set the `DEPLOY_METHOD` repository variable
 |---|---|
 | `fabric-cicd` or unset | [Standard fabric-cicd](fabric-hybrid-cicd-guide.md), the default |
 | `bulk` | [Raw Bulk Import API](fabric-bulk-cicd-guide.md) |
-| `fabric-cicd-bulk` | Experimental library Bulk Publish, with the existing fallback behavior |
+| `fabric-cicd-bulk` | [Strict plan-driven SDK Bulk Publish](fabric-deployment-plan-guide.md#isolated-bulk-adapter-14x), experimental; requires `DEPLOYMENT_PLAN_PATH` |
 | `fabric-cicd-plan` | [Plan-driven non-bulk fabric-cicd](fabric-deployment-plan-guide.md); also requires `DEPLOYMENT_PLAN_PATH` |
+
+SDK workflows use `fabric-cicd>=1.4.0,<1.5.0` and Python 3.12. Version 1.4.0
+supports this repository's filtered `$items`/`$workspace` replacements in bulk
+with [parameter.yml](data/fabric/parameter.yml) present. The library-bulk route
+rejects known fallback conditions and requires actual bulk mode plus complete
+successful item results; it stops dependent calls and cleanup on failure.
+
+For either plan route, set `DEPLOYMENT_PLAN_PATH` to
+`data/fabric/DeploymentPlan.DeploymentPlan/plan.yml`. The bulk implementation
+does not import or change the non-bulk plan implementation. The separate raw
+REST route still owns [its custom substitutions](scripts/deploy_fabric_rest_bulk.py);
+library bulk does not use that engine. Validate bulk and cross-import bindings
+in Test before protected Prod promotion.

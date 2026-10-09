@@ -37,7 +37,7 @@ Git repo (dev branch)
 │                                                     │
 │  deploy-bulk                                        │
 │    └─ reusable-deploy-bulk.yml                      │
-│       └─ scripts/deploy_bulk.py                     │
+│       └─ scripts/deploy_fabric_rest_bulk.py         │
 │          (Phase 1: POST dependencies                │
 │           — Lakehouse + Ontology)                   │
 │          (Phase 2: substitute IDs,                  │
@@ -56,16 +56,28 @@ Git repo (dev branch)
 
 The same pattern applies to Prod (`deploy-prod-bulk.yml` → `etl-prod.yml`), triggered on push to `main`.
 
-The shape mirrors the [fabric-cicd path](fabric-hybrid-cicd-guide.md#architecture-overview) deliberately. Both paths split the deploy into two phases for the same reason — the first phase creates items whose IDs the second phase needs to reference. The differences are mechanical:
+The shape mirrors the [standard fabric-cicd path](fabric-hybrid-cicd-guide.md#architecture-overview) deliberately. These two paths split the deploy into two phases for the same reason — the first phase creates items whose IDs the second phase needs to reference. The independent SDK-bulk route instead derives batches from a plan. The differences between standard fabric-cicd and this raw REST method are mechanical:
 
 | Concept | fabric-cicd | bulk |
 |---|---|---|
 | Calls per phase | One library call (`publish_all_items()`) per phase, which makes many per-item REST calls internally | One bulk POST per phase carrying the full batch |
-| Substitution | fabric-cicd library applies `parameter.yml` rules transparently | `scripts/deploy_bulk.py` reads `bulk-parameter.yml` and rewrites payloads between phases |
+| Substitution | fabric-cicd library applies `parameter.yml` rules transparently | `scripts/deploy_fabric_rest_bulk.py` reads `bulk-parameter.yml` and rewrites payloads between phases |
 | Value-set activation | Library handles automatically when `environment` is passed | Caller makes a separate `PATCH /variableLibraries/{id}` call |
 | Orphan cleanup | `unpublish_all_orphan_items()` built in | Not implemented |
 
 > Other deploy paths exist alongside this bulk path — the standard fabric-cicd path and a `fabric-cicd-bulk` variant that runs fabric-cicd with bulk publish enabled — all selected by the `DEPLOY_METHOD` repo variable. fabric-cicd is the recommended path — see [fabric-cicd vs Bulk APIs](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the comparison and [fabric-hybrid-cicd-guide.md](fabric-hybrid-cicd-guide.md) for its implementation guide.
+
+**Do not conflate raw REST with SDK bulk.** In 1.4.0, SDK bulk supports the
+filtered dynamic replacements in [parameter.yml](data/fabric/parameter.yml).
+The [isolated SDK-bulk adapter](scripts/deploy_fabric_cicd_bulk.py) delegates
+replacement to the SDK and reads an ordering plan; it does not use
+[bulk-parameter.yml](data/fabric/bulk-parameter.yml) or this guide's custom
+find/replace engine. We retain that engine here for comparison.
+
+Direct REST supports native plan attachment. The current SDK adapter does not:
+it makes plan-ordered bulk selections and rejects fallback or failed/partial
+item results. See the [Deployment Plan guide](fabric-deployment-plan-guide.md#isolated-bulk-adapter-14x)
+for configuration and live-binding validation boundaries.
 
 ### Branches & Workspaces
 
@@ -76,7 +88,7 @@ The shape mirrors the [fabric-cicd path](fabric-hybrid-cicd-guide.md#architectur
 | `main` | Prod (microsoft-fabric-sdlc-patterns-prod) | Bulk Import API via GitHub Actions |
 
 - **Dev** workspace is the only Git-connected workspace. Developers branch out from Dev for isolated feature work.
-- **Test** and **Prod** workspaces are NOT Git-connected. With the bulk path active, they receive deployments through `scripts/deploy_bulk.py`.
+- **Test** and **Prod** workspaces are NOT Git-connected. With the bulk path active, they receive deployments through `scripts/deploy_fabric_rest_bulk.py`.
 
 ---
 
@@ -109,12 +121,12 @@ microsoft-fabric-sdlc-patterns/
 │       ├── Patterns_Report.Report/
 │       └── Patterns_Data_Agent.DataAgent/
 ├── scripts/
-│   ├── deploy_bulk.py                       # Bulk Import API deploy (invoked by reusable-deploy-bulk.yml)
-│   ├── deploy_fabric_cicd.py                # fabric-cicd deploy (alternative path)
+│   ├── deploy_fabric_rest_bulk.py           # Bulk Import API deploy (invoked by reusable-deploy-bulk.yml)
+│   ├── deploy_fabric_cicd_non_bulk.py       # fabric-cicd deploy (alternative path)
 │   ├── run_fabric_etl.py                    # Run a Fabric Notebook job (invoked by reusable-fabric-etl.yml)
 │   └── workspace_swap.py                    # Bootstrap/reset feature branch workspace bindings
 ├── tests/
-│   └── test_deploy_bulk.py                  # Unit tests for the bulk script
+│   └── test_deploy_fabric_rest_bulk.py      # Unit tests for the bulk script
 └── ... (other docs, see README)
 ```
 
@@ -138,14 +150,14 @@ The `DEPLOY_METHOD` repository variable (Settings → Secrets and variables → 
 | `DEPLOY_METHOD` value | Behavior |
 |---|---|
 | `fabric-cicd` *(or unset)* | fabric-cicd workflows run; other deploy workflows skip |
-| `fabric-cicd-bulk` | fabric-cicd workflows run with bulk publish enabled (falls back to standard for this repo); other deploy workflows skip |
+| `fabric-cicd-bulk` | Strict plan-driven SDK bulk with SDK replacements; requires `DEPLOYMENT_PLAN_PATH`; other deploy workflows skip |
 | `bulk` | Bulk workflows run; other deploy workflows skip |
 | `fabric-cicd-plan` | [Plan-driven non-bulk fabric-cicd](fabric-deployment-plan-guide.md) runs; other deploy workflows skip |
 | any other value | All deploy workflows skip (safe default) |
 
 ### The Bulk Deploy Job
 
-Each deploy workflow calls `reusable-deploy-bulk.yml`, which invokes `scripts/deploy_bulk.py`. The script:
+Each deploy workflow calls `reusable-deploy-bulk.yml`, which invokes `scripts/deploy_fabric_rest_bulk.py`. The script:
 
 1. Acquires an Entra ID bearer token using the SPN's client credentials.
 2. Walks `data/fabric/` and builds a `definitionParts[]` array — one entry per file, with the path and base64-encoded content.
@@ -166,7 +178,7 @@ The ETL workflow triggers automatically after the deploy workflow completes succ
 
 | Template | Purpose |
 |---|---|
-| `reusable-deploy-bulk.yml` | Acquires a token (via the SPN secrets), checks out the repo, installs `requests` + `PyYAML`, and invokes `scripts/deploy_bulk.py` with the workspace ID, repository directory, and target environment as env vars. |
+| `reusable-deploy-bulk.yml` | Acquires a token (via the SPN secrets), checks out the repo, installs `requests` + `PyYAML`, and invokes `scripts/deploy_fabric_rest_bulk.py` with the workspace ID, repository directory, and target environment as env vars. |
 | `reusable-fabric-etl.yml` | Resolves a Fabric item by **name** (not ID) via the List Items API, then starts a job (RunNotebook) and polls until completion. Shared with the fabric-cicd path — same template, no changes needed. |
 
 ### Why Reusable Workflows (Not Composite Actions)
@@ -237,13 +249,13 @@ variable_library:
 
 **`item_types` filter:** A rule only fires for files whose item type is in the rule's `item_types` list. The script extracts the item type from the path convention `<DisplayName>.<Type>/<file>`. Files outside the listed types pass through unchanged.
 
-**Why a separate file from `parameter.yml`:** The two formats coexist deliberately. fabric-cicd uses `parameter.yml`; bulk uses `bulk-parameter.yml`. Keeping them separate means bulk doesn't have to silently ignore (or break on) fabric-cicd-only features (`key_value_replace`, `spark_pool`, `semantic_model_binding`). Both files live at the root of `data/fabric/` and both are excluded from the bulk request payload by `scripts/deploy_bulk.py`.
+**Why a separate file from `parameter.yml`:** The two formats coexist deliberately. fabric-cicd uses `parameter.yml`; bulk uses `bulk-parameter.yml`. Keeping them separate means bulk doesn't have to silently ignore (or break on) fabric-cicd-only features (`key_value_replace`, `spark_pool`, `semantic_model_binding`). Both files live at the root of `data/fabric/` and both are excluded from the bulk request payload by `scripts/deploy_fabric_rest_bulk.py`.
 
 ### 3. VariableLibrary Value-Set Activation (Post-deploy)
 
 The Bulk Import API uploads the VariableLibrary's value-set files but does NOT set which one is active in the deployed workspace. fabric-cicd makes that selection automatically via its `environment` parameter; with the bulk API, the caller must do it.
 
-`scripts/deploy_bulk.py` makes the call after the bulk POSTs complete:
+`scripts/deploy_fabric_rest_bulk.py` makes the call after the bulk POSTs complete:
 
 ```
 PATCH /v1/workspaces/{workspace_id}/variableLibraries/{library_id}
@@ -296,7 +308,7 @@ If any substitution rule references `$items.<Type>.<Name>.$id`, the deploy must 
 6. PATCH VariableLibrary if value-set activation is configured
 ```
 
-`DEPENDENCY_TYPES` in `scripts/deploy_bulk.py` defines what counts as a dependency. The list is intentionally narrow — only types actually referenced by `$items.<Type>.*` in `bulk-parameter.yml` belong here. For this repo, that's `("Lakehouse", "Ontology")`.
+`DEPENDENCY_TYPES` in `scripts/deploy_fabric_rest_bulk.py` defines what counts as a dependency. The list is intentionally narrow — only types actually referenced by `$items.<Type>.*` in `bulk-parameter.yml` belong here. For this repo, that's `("Lakehouse", "Ontology")`.
 
 This mirrors the fabric-cicd path's two-phase deploy — see the [hybrid guide's chicken-and-egg gotcha](fabric-hybrid-cicd-guide.md#chicken-and-egg-lakehouse-id) for the same problem framed for fabric-cicd.
 
@@ -440,7 +452,7 @@ The Bulk Import API can return either:
 - **`200 OK`** with the full result body (`importItemDefinitionsDetails[]`) inline — synchronous case
 - **`202 Accepted`** with an `x-ms-operation-id` header and a `Retry-After` header — asynchronous, caller polls a Long-Running Operation
 
-`scripts/deploy_bulk.py` handles both transparently. For the LRO case, it polls `GET /v1/operations/{id}` until the operation reaches `Succeeded`, `Failed`, or `Undefined`, then fetches `GET /v1/operations/{id}/result` for the same `importItemDefinitionsDetails[]` shape the sync case returns inline.
+`scripts/deploy_fabric_rest_bulk.py` handles both transparently. For the LRO case, it polls `GET /v1/operations/{id}` until the operation reaches `Succeeded`, `Failed`, or `Undefined`, then fetches `GET /v1/operations/{id}/result` for the same `importItemDefinitionsDetails[]` shape the sync case returns inline.
 
 ### Retry-After Clamping
 
@@ -490,11 +502,11 @@ substitutions:
 
 No code change required. The new rule is picked up automatically on the next deploy.
 
-If the new rule references `$items.<Type>.<Name>.$id` for a new item type, also extend `DEPENDENCY_TYPES` in `scripts/deploy_bulk.py` so that type deploys in Phase 1.
+If the new rule references `$items.<Type>.<Name>.$id` for a new item type, also extend `DEPENDENCY_TYPES` in `scripts/deploy_fabric_rest_bulk.py` so that type deploys in Phase 1.
 
 ### Adding a new placeholder type
 
-To add e.g. `$secrets.<name>` resolving to a CI secret, modify `scripts/deploy_bulk.py`:
+To add e.g. `$secrets.<name>` resolving to a CI secret, modify `scripts/deploy_fabric_rest_bulk.py`:
 
 1. Add a constant `_SECRETS_PLACEHOLDER = re.compile(r"\$secrets\.([^.\s]+)")`.
 2. In `resolve_dynamic_value()`, add a `_SECRETS_PLACEHOLDER.sub(...)` call.

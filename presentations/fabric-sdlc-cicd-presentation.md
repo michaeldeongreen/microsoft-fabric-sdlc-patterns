@@ -526,8 +526,8 @@ Both sit inside Option 3 — branch per stage, build environment per stage, depl
 | **Maturity** | **GA** | Preview (`?beta=true` required) |
 | **Env‑specific config** | `parameter.yml` (declarative) | None at the API level — caller preprocesses |
 | **Orphan cleanup** | `unpublish_all_orphan_items()` built in | None — caller's responsibility |
-| **Dependency ordering** | Caller phases manually | Service resolves automatically in one call |
-| **API call shape** | Many per‑item REST calls | One POST for the whole workspace |
+| **Dependency ordering** | Standard order + caller phases; optional plan adapters | Service resolves supported logical relationships; caller may still supply ordering |
+| **API call shape** | Standard per-item calls; experimental SDK bulk also available | One or more caller-managed POSTs |
 | **Service principal coverage** | Per item (one unsupported type fails only itself) | Per request (every item must support SPNs or the call fails) |
 
 > **Recommendation today: `fabric-cicd`.** The Bulk APIs are still Preview with no parameterization or orphan‑cleanup at the API level — the caller must implement substitution, value‑set activation, and delete logic themselves. Re‑evaluate when the APIs exit Preview *and* gain parameterization/orphan‑cleanup, or when your repo is fully on logical IDs + Variable Libraries and doesn't need those features.
@@ -542,11 +542,14 @@ A `DEPLOY_METHOD` repository variable selects which deploy method runs:
 | `DEPLOY_METHOD` | Behavior |
 |---|---|
 | `fabric-cicd` *(or unset)* | The `fabric-cicd` workflows run — the default and recommended path |
-| `fabric-cicd-bulk` | fabric-cicd runs with bulk publish enabled; falls back to standard for this repo (`parameter.yml` uses `$items`/`$workspace`) |
+| `fabric-cicd-bulk` | Strict SDK bulk with 1.4.x dynamic replacements and grouped plan ordering; requires `DEPLOYMENT_PLAN_PATH` |
 | `bulk` | The Bulk Import API workflows run instead (Preview) |
+| `fabric-cicd-plan` | Independent sequential non-bulk ordering adapter; requires `DEPLOYMENT_PLAN_PATH` |
 | any other value | All deploy workflows skip (safe default) |
 
-The bulk path bridges two of the API's gaps in **caller code** — substitution (`bulk-parameter.yml` + `deploy_bulk.py`) and value‑set activation (a post‑deploy `PATCH`). These are workarounds, not platform fixes: choosing bulk means you own that bridging code (~600 lines of Python + a config file). Orphan cleanup and the broader `fabric-cicd` feature surface remain unimplemented on the bulk path.
+The raw REST bulk path bridges two of the API's gaps in **caller code** — substitution (`bulk-parameter.yml` + `deploy_fabric_rest_bulk.py`) and value‑set activation (a post‑deploy `PATCH`). These remain comparison workarounds. SDK bulk instead delegates replacements/activation to fabric-cicd and preserves eligible SDK cleanup.
+
+The isolated bulk adapter combines authored ready groups, not native plan execution. Actual-SDK/mocked-HTTP cold/warm Test/Prod fixtures prove sixteen bulk imports total and zero standard definition POSTs with the parameter file present. Live bindings and ETL still require Test validation.
 
 </details>
 
@@ -561,7 +564,7 @@ Not for production today. They are Preview (`?beta=true`), with no parameterizat
 
 **Q - When would the Bulk APIs actually make sense?**
 
-When your repo is fully on logical IDs + Variable Library value sets (so you don't need `parameter.yml` substitution), when you want one atomic deploy instead of phased calls, or when you need a workspace-level export for disaster-recovery snapshots.
+When your repo is fully on logical IDs + Variable Library value sets (so you don't need caller-side substitution), when fewer import round trips matter, or when you need a workspace-level export for disaster-recovery snapshots. A bulk operation is not an atomic rollback guarantee. SDK bulk 1.4.x is a separate experimental option for retaining SDK parameterization.
 
 **Q - Any gotcha unique to Bulk?**
 

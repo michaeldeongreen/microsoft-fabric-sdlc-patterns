@@ -50,8 +50,10 @@ The same pattern applies to Prod (`deploy-prod.yml` → `etl-prod.yml`), trigger
 > Alternative deploy paths exist alongside this standard fabric-cicd path — a raw Bulk Import API path and a `fabric-cicd-bulk` variant that runs fabric-cicd with bulk publish enabled — all selected by the `DEPLOY_METHOD` repo variable. The standard fabric-cicd path shown here is the recommended one — see [fabric-cicd vs Bulk APIs](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the comparison and [Bulk CI/CD Implementation Guide](fabric-bulk-cicd-guide.md) for the bulk path's implementation walkthrough.
 
 For configurable ordering without changing this default path, see the
-[Deployment Plan CI/CD Guide](fabric-deployment-plan-guide.md). Its separate
-`fabric-cicd-plan` method uses the committed plan instead of fixed phases.
+[Deployment Plan CI/CD Guide](fabric-deployment-plan-guide.md). The independent
+`fabric-cicd-plan` and `fabric-cicd-bulk` adapters use the committed plan instead
+of fixed phases: sequential standard calls or grouped strict bulk calls,
+respectively. Neither executes a native Deployment Plan.
 
 ### Branches & Workspaces
 
@@ -107,8 +109,8 @@ microsoft-fabric-sdlc-patterns/
 │       └── Patterns_Data_Agent.DataAgent/
 ├── scripts/
 │   ├── workspace_swap.py                    # Bootstrap/reset feature branch workspace bindings
-│   ├── deploy_fabric_cicd.py                # fabric-cicd deploy (invoked by reusable-deploy-fabric-cicd.yml)
-│   ├── deploy_bulk.py                       # Bulk Import API deploy (invoked by reusable-deploy-bulk.yml)
+│   ├── deploy_fabric_cicd_non_bulk.py       # fabric-cicd deploy (invoked by reusable-deploy-fabric-cicd.yml)
+│   ├── deploy_fabric_rest_bulk.py           # Bulk Import API deploy (invoked by reusable-deploy-bulk.yml)
 │   └── run_fabric_etl.py                    # Run a Fabric Notebook job (invoked by reusable-fabric-etl.yml)
 ├── assets/                                  # Architecture diagrams (SVG)
 ├── fabric-cicd-release-options.md           # CI/CD strategy and release option comparison
@@ -136,6 +138,36 @@ Each deploy workflow calls `reusable-deploy-fabric-cicd.yml`, which publishes al
 
 The ETL workflow triggers automatically after the deploy workflow completes successfully. If the deploy fails, ETL does not run.
 
+### Strict Plan-Driven SDK Bulk (1.4.x)
+
+Selecting `DEPLOY_METHOD=fabric-cicd-bulk` runs
+[deploy_fabric_cicd_bulk.py](scripts/deploy_fabric_cicd_bulk.py), not the standard
+two-phase runner or the raw REST substitution engine. It requires
+`DEPLOYMENT_PLAN_PATH` and an explicit, nonempty bulk-eligible type scope.
+[deployment_plan_bulk.py](scripts/deployment_plan_bulk.py) independently reads
+and validates the plan; it does not reuse the non-bulk plan modules.
+
+The current plan yields Lakehouse; Semantic Model + Ontology; Data Agent;
+then the Report, Variable Library, and three Notebooks. Independent ready groups
+share one SDK selection, not parallel requests. Only successful outcomes release
+the next selection. These are plan-derived batches, not new hardcoded phases.
+
+fabric-cicd 1.4.0 applies the existing filtered dynamic replacements from
+[parameter.yml](data/fabric/parameter.yml) while using bulk. Its own dependency
+batching remains active within each call. The adapter rejects known fallback
+conditions, checks actual bulk mode and complete per-item success, and performs
+the existing eligible orphan cleanup once after successful publishing.
+
+Actual-SDK/mocked-HTTP cold/warm Test/Prod tests observe four bulk definition
+imports per fixture with counts `[1, 2, 1, 5]` and no standard definition POSTs.
+This proves client parameterization and transport, not live service bindings.
+The bulk Report payload retains `byPath`; verify its binding to the model
+published in an earlier selection during live Test validation. Keep the initial
+Ontology/Graph Model, connection, and ETL caveats below until tested otherwise.
+
+All SDK workflows use `>=1.4.0,<1.5.0`; bulk, item inclusion, and the ordering
+adapter remain experimental. Standard fabric-cicd remains the recommendation.
+
 > **Note:** If your workspace includes item types not yet supported by fabric-cicd, you can extend this to a multi-job "sandwich" pattern: (1) deploy supported items, (2) promote unsupported items via the [Fabric Deployment Pipelines REST API](https://learn.microsoft.com/en-us/rest/api/fabric/core/deployment-pipelines/deploy-stage-content), (3) deploy supported items that depend on the unsupported items. See [fabric-cicd-release-options.md](fabric-cicd-release-options.md) for details.
 
 ---
@@ -147,6 +179,8 @@ The ETL workflow triggers automatically after the deploy workflow completes succ
 | Template | Purpose |
 |---|---|
 | `reusable-deploy-fabric-cicd.yml` | Two-phase fabric-cicd deployment: Phase 1 deploys Lakehouse + Ontology, Phase 2 deploys all remaining items via `publish_all_items()` and `unpublish_all_orphan_items()`. Accepts `environment`, `repository_directory`, and optional `item_type_in_scope` inputs. |
+| [reusable-deploy-fabric-cicd-bulk.yml](.github/workflows/reusable-deploy-fabric-cicd-bulk.yml) | Isolated plan-driven SDK bulk with required plan path/scope, a credentials-free preview, strict results, and separate eligible cleanup. |
+| [reusable-deploy-fabric-cicd-plan.yml](.github/workflows/reusable-deploy-fabric-cicd-plan.yml) | Existing sequential non-bulk ordering adapter; its Python implementation remains independent from bulk. |
 | `reusable-fabric-etl.yml` | Resolves a Fabric item by **name** (not ID) via the List Items API, then starts a job (RunNotebook) and polls until completion. No item IDs need to be known ahead of time. |
 
 ### Why Reusable Workflows (Not Composite Actions)

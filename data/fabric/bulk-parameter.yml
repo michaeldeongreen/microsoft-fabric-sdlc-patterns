@@ -1,6 +1,6 @@
 # Bulk-deploy substitution rules and post-deploy configuration.
 #
-# This file is read by scripts/deploy_bulk.py to bridge the gaps between the
+# This file is read by scripts/deploy_fabric_rest_bulk.py to bridge the gaps between the
 # Bulk Import API and what fabric-cicd handles automatically:
 #   - find/replace substitutions (no parameter.yml equivalent in bulk API)
 #   - VariableLibrary active value-set selection (no bulk API equivalent)
@@ -9,7 +9,7 @@
 # does not (and should not) implement parameter.yml's full DSL. The two
 # config files coexist in this directory: parameter.yml for fabric-cicd,
 # bulk-parameter.yml for bulk. Both are excluded from the bulk request
-# payload by deploy_bulk.py.
+# payload by deploy_fabric_rest_bulk.py.
 #
 # Dynamic placeholders (resolved at deploy time):
 #   $workspace.$id                    target workspace ID

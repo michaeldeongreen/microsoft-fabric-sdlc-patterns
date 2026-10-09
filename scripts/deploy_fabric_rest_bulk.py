@@ -1,6 +1,6 @@
 """Deploy supported Fabric items via the Bulk Import Item Definitions API (Preview).
 
-Alternative to deploy_fabric_cicd.py. Uses the Fabric REST API's bulk import
+Alternative to deploy_fabric_cicd_non_bulk.py. Uses the Fabric REST API's bulk import
 endpoint instead of the fabric-cicd Python library.
 
 Invoked by .github/workflows/reusable-deploy-bulk.yml. Selected at orchestrator
@@ -28,7 +28,7 @@ bulk-parameter.yml) and value-set activation (a post-deploy PATCH call)
 so the demo repo works end-to-end. They are workarounds, not platform
 fixes — choosing bulk in your own project means owning equivalent code.
 
-Known gaps vs deploy_fabric_cicd.py (intentional, documented):
+Known gaps vs deploy_fabric_cicd_non_bulk.py (intentional, documented):
 - No full parameter.yml feature coverage. bulk-parameter.yml supports
   find_replace + $items + $workspace + $environment only. fabric-cicd's
   key_value_replace, spark_pool, semantic_model_binding are not

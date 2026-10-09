@@ -1,4 +1,4 @@
-"""Tests for scripts/deploy_fabric_cicd.py.
+"""Tests for scripts/deploy_fabric_cicd_non_bulk.py.
 
 Covers the Phase 2 scope-filter logic. The fabric-cicd library calls
 themselves are not unit-tested — those are validated end-to-end via the
@@ -7,7 +7,7 @@ deploy workflows.
 
 from __future__ import annotations
 
-from deploy_fabric_cicd import PHASE1_TYPES, remaining_types_for_phase2
+from deploy_fabric_cicd_non_bulk import PHASE1_TYPES, remaining_types_for_phase2
 
 
 def test_remaining_types_none_input_returns_none() -> None:

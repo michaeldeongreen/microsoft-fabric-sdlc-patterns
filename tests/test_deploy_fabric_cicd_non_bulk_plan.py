@@ -14,7 +14,7 @@ import pytest
 import yaml
 from azure.core.credentials import AccessToken, TokenCredential
 
-import deploy_fabric_cicd_plan as deploy
+import deploy_fabric_cicd_non_bulk_plan as deploy
 from deployment_plan import PLAN_SCHEMA, DeploymentGroup, DeploymentSchedule, RepositoryItem, load_schedule
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -409,12 +409,29 @@ def _workflow(name: str) -> dict:
     )
 
 
+@pytest.mark.parametrize("workflow_name,runner_name", [
+    ("reusable-deploy-fabric-cicd.yml", "deploy_fabric_cicd_non_bulk.py"),
+    ("reusable-deploy-fabric-cicd-plan.yml", "deploy_fabric_cicd_non_bulk_plan.py"),
+    ("reusable-deploy-fabric-cicd-bulk.yml", "deploy_fabric_cicd_bulk.py"),
+    ("reusable-deploy-bulk.yml", "deploy_fabric_rest_bulk.py"),
+])
+def test_reusable_workflows_reference_existing_runner(
+    workflow_name: str, runner_name: str,
+) -> None:
+    steps = _workflow(workflow_name)["jobs"]["deploy"]["steps"]
+    invocations = [step["run"] for step in steps if step.get("run", "").startswith("python scripts/")]
+    assert invocations
+    assert all(command.split()[1] == f"scripts/{runner_name}" for command in invocations)
+    assert (REPO_ROOT / "scripts" / runner_name).is_file()
+
+
 @pytest.mark.parametrize("environment,branch", [("Test", "test"), ("Prod", "main")])
 def test_plan_workflow_wiring_and_etl_registration(environment: str, branch: str) -> None:
     stage = environment.lower()
     workflow = _workflow(f"deploy-{stage}-fabric-cicd-plan.yml")
     job = workflow["jobs"]["deploy-fabric-cicd-plan"]
     assert workflow["on"]["push"]["branches"] == [branch]
+    assert "scripts/deploy_fabric_cicd_non_bulk_plan.py" in workflow["on"]["push"]["paths"]
     assert "vars.DEPLOY_METHOD == 'fabric-cicd-plan'" in job["if"]
     assert job["uses"] == "./.github/workflows/reusable-deploy-fabric-cicd-plan.yml"
     assert job["with"]["environment"] == environment
@@ -449,7 +466,7 @@ def test_reusable_workflow_validates_before_loading_azure_secrets() -> None:
     execute = next(i for i, step in enumerate(steps) if "AZURE_CLIENT_SECRET" in step.get("env", {}))
     assert preview < execute
     assert all("AZURE_CLIENT_SECRET" not in step.get("env", {}) for step in steps[:execute])
-    assert steps[execute]["run"] == "python scripts/deploy_fabric_cicd_plan.py"
+    assert steps[execute]["run"] == "python scripts/deploy_fabric_cicd_non_bulk_plan.py"
     for step in steps:
         if "uses" in step:
             sha = step["uses"].split("@")[1]

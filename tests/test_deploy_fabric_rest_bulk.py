@@ -1,4 +1,4 @@
-"""Tests for scripts/deploy_bulk.py.
+"""Tests for scripts/deploy_fabric_rest_bulk.py.
 
 Covers the pure functions extracted from the bulk-import deployment script.
 The orchestration in main() and the network-dependent poll loop are not
@@ -13,7 +13,7 @@ from unittest import mock
 
 import pytest
 
-from deploy_bulk import (
+from deploy_fabric_rest_bulk import (
     BULK_PARAMETER_FILENAME,
     DEPENDENCY_TYPES,
     EXCLUDED_FILES,
@@ -430,28 +430,28 @@ def test_interpret_post_response_unparseable_retry_after_falls_back() -> None:
 
 
 def test_parse_retry_after_normal_value() -> None:
-    from deploy_bulk import _parse_retry_after
+    from deploy_fabric_rest_bulk import _parse_retry_after
     assert _parse_retry_after("45") == 45
 
 
 def test_parse_retry_after_none_returns_fallback() -> None:
-    from deploy_bulk import POLL_FALLBACK_SECONDS, _parse_retry_after
+    from deploy_fabric_rest_bulk import POLL_FALLBACK_SECONDS, _parse_retry_after
     assert _parse_retry_after(None) == POLL_FALLBACK_SECONDS
 
 
 def test_parse_retry_after_invalid_returns_fallback() -> None:
-    from deploy_bulk import POLL_FALLBACK_SECONDS, _parse_retry_after
+    from deploy_fabric_rest_bulk import POLL_FALLBACK_SECONDS, _parse_retry_after
     assert _parse_retry_after("not-a-number") == POLL_FALLBACK_SECONDS
 
 
 def test_parse_retry_after_clamps_to_floor() -> None:
-    from deploy_bulk import POLL_FLOOR_SECONDS, _parse_retry_after
+    from deploy_fabric_rest_bulk import POLL_FLOOR_SECONDS, _parse_retry_after
     assert _parse_retry_after("0") == POLL_FLOOR_SECONDS
     assert _parse_retry_after("-100") == POLL_FLOOR_SECONDS
 
 
 def test_parse_retry_after_clamps_to_ceiling() -> None:
-    from deploy_bulk import POLL_CEILING_SECONDS, _parse_retry_after
+    from deploy_fabric_rest_bulk import POLL_CEILING_SECONDS, _parse_retry_after
     assert _parse_retry_after("999999") == POLL_CEILING_SECONDS
 
 
@@ -461,7 +461,7 @@ def test_parse_retry_after_clamps_to_ceiling() -> None:
 def test_acquire_token_success(capsys: pytest.CaptureFixture) -> None:
     fake_resp = mock.Mock(status_code=200)
     fake_resp.json.return_value = {"access_token": "fake-token-xyz"}
-    with mock.patch("deploy_bulk.requests.post", return_value=fake_resp) as post:
+    with mock.patch("deploy_fabric_rest_bulk.requests.post", return_value=fake_resp) as post:
         token = acquire_token("tenant", "client", "secret")
     assert token == "fake-token-xyz"
     # Verify the call was shaped correctly
@@ -477,7 +477,7 @@ def test_acquire_token_success(capsys: pytest.CaptureFixture) -> None:
 
 def test_acquire_token_failure_exits() -> None:
     fake_resp = mock.Mock(status_code=401, text="Unauthorized")
-    with mock.patch("deploy_bulk.requests.post", return_value=fake_resp):
+    with mock.patch("deploy_fabric_rest_bulk.requests.post", return_value=fake_resp):
         with pytest.raises(SystemExit) as exc:
             acquire_token("tenant", "client", "secret")
     assert "Token acquisition failed" in str(exc.value)
@@ -798,8 +798,8 @@ def test_activate_variable_library_value_set_happy_path(
 ) -> None:
     fake_resp = mock.Mock(status_code=200, text="{}")
     headers = {"Authorization": "Bearer x", "Content-Type": "application/json"}
-    with mock.patch("deploy_bulk.requests.patch", return_value=fake_resp) as patch:
-        from deploy_bulk import activate_variable_library_value_set
+    with mock.patch("deploy_fabric_rest_bulk.requests.patch", return_value=fake_resp) as patch:
+        from deploy_fabric_rest_bulk import activate_variable_library_value_set
         activate_variable_library_value_set(
             workspace_id="ws-id", library_id="vl-id",
             value_set_name="Test", headers=headers,
@@ -819,8 +819,8 @@ def test_activate_variable_library_value_set_happy_path(
 def test_activate_variable_library_value_set_failure_exits() -> None:
     fake_resp = mock.Mock(status_code=400, text="Bad value set name")
     headers = {"Authorization": "Bearer x"}
-    with mock.patch("deploy_bulk.requests.patch", return_value=fake_resp):
-        from deploy_bulk import activate_variable_library_value_set
+    with mock.patch("deploy_fabric_rest_bulk.requests.patch", return_value=fake_resp):
+        from deploy_fabric_rest_bulk import activate_variable_library_value_set
         with pytest.raises(SystemExit) as exc:
             activate_variable_library_value_set(
                 workspace_id="ws", library_id="vl",

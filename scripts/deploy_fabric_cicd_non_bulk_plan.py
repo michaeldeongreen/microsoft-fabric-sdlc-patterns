@@ -1,12 +1,12 @@
 """Deploy with non-bulk fabric-cicd in a committed Deployment Plan's order.
 
-Requires fabric-cicd >= 1.3.0 and azure-identity for public publishing APIs and
+Requires fabric-cicd >= 1.4.0, < 1.5.0 and azure-identity for public publishing APIs and
 service-principal authentication; deployment_plan uses PyYAML for native YAML.
 No native plan execution or Before/After actions are implemented.
 
 Use --plan <plan.yml> --dry-run for a credentials-free deployment preview.
 Live runs use the same Azure, Fabric, repository and environment variables as
-deploy_fabric_cicd.py, plus DEPLOYMENT_PLAN_PATH. Plan paths are checkout-relative.
+deploy_fabric_cicd_non_bulk.py, plus DEPLOYMENT_PLAN_PATH. Plan paths are checkout-relative.
 """
 
 from __future__ import annotations

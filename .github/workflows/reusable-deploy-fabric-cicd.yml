@@ -52,7 +52,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install "fabric-cicd>=1.2.0,<2.0.0" azure-identity
+        run: pip install "fabric-cicd>=1.4.0,<1.5.0" azure-identity
 
       # fabric-cicd reads parameter.yml from the repository_directory root
       # and applies environment-specific find_replace / key_value_replace rules
@@ -66,4 +66,4 @@ jobs:
           REPOSITORY_DIRECTORY: ${{ inputs.repository_directory }}
           ENVIRONMENT: ${{ inputs.environment }}
           ITEM_TYPE_IN_SCOPE: ${{ inputs.item_type_in_scope }}
-        run: python scripts/deploy_fabric_cicd.py
+        run: python scripts/deploy_fabric_cicd_non_bulk.py

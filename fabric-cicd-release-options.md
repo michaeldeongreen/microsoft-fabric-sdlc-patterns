@@ -1,5 +1,12 @@
 # Best Practices with Fabric CI/CD Overview
 
+This strategy guide compares Fabric platform options and possible extensions.
+For the four GitHub implementations actually shipped in this repository, use
+the [README method matrix](README.md#choose-a-deployment-method); for exact
+triggers and runners, use the [shared workflow reference](fabric-hybrid-cicd-guide.md#github-actions-workflows).
+The native-pipeline hybrid described below is an extension, not a fifth
+implemented deployment route.
+
 ## Table of Contents
 
 - [Introduction — Why CI/CD in Fabric?](#introduction--why-cicd-in-fabric)
@@ -170,7 +177,7 @@ With this option, all deployments originate from the Git repository and use Fabr
 
 **What makes this different from Option 1:**
 - **No Deployment Pipelines involved** — there is no Fabric Deployment Pipeline resource. Promotion happens entirely through Git PRs and the Update from Git API.
-- **Git is source of truth for every stage** — if a workspace is lost, it can be fully reconstructed from the corresponding branch.
+- **Versioned definitions for every stage** — recovery uses retained known-good definitions and reviewed target configuration; data and other workspace state require separate recovery.
 - **Branching strategy matters** — this approach aligns with **Gitflow**, where multiple long-lived branches map to environments.
 
 ---
@@ -179,7 +186,7 @@ With this option, all deployments originate from the Git repository and use Fabr
 - You want Git to be the **single source of truth** and the origin of all deployments.
 - Your team follows **Gitflow** as its branching strategy, with multiple primary branches.
 - Files can be uploaded directly into the workspace without needing a build environment to alter them first.
-- You want full recoverability — every stage can be rebuilt from its Git branch.
+- You want a versioned definition-recovery source for every stage, alongside a separate data/configuration recovery plan.
 
 ---
 
@@ -244,7 +251,7 @@ Option 3 has two viable tooling implementations today. Both deploy from a build 
   - `key_value_replace` — JSONPath-based key replacement in JSON/YAML files (e.g., connection IDs in pipelines)
   - `spark_pool` — Swaps spark pool configuration per environment
   - `semantic_model_binding` — Auto-binds semantic models to data source connections per environment
-  - Dynamic replacement — `$items.<type>.<name>.$id` resolves the deployed item's ID at runtime; `$workspace.$id` for workspace ID
+  - Dynamic replacement — `$items.<type>.<name>.$id` resolves the target item's ID during deployment; `$workspace.$id` for workspace ID
   - `$ENV:` variables — Pulls values from CI/CD pipeline environment variables
   - Template files — Split large parameter files into smaller templates via `extend`
   - See the [fabric-cicd and Azure DevOps tutorial](https://learn.microsoft.com/en-us/fabric/cicd/tutorial-fabric-cicd-azure-devops) for an end-to-end example.
@@ -257,19 +264,19 @@ Option 3 has two viable tooling implementations today. Both deploy from a build 
 
 Both implementations sit inside Option 3 — branch per stage, build environment per stage, deploy from Git. The decision between them comes down to whether you want a library that solves the common CI/CD problems for you, or a lower-level API surface that you wrap yourself.
 
-| Dimension | fabric-cicd | Bulk Import / Export APIs |
+| Dimension | fabric-cicd non-bulk | Bulk Import / Export APIs |
 |---|---|---|
 | **Maturity** | GA | Preview (`?beta=true` query parameter required) |
 | **Environment-specific config** | `parameter.yml` (declarative `find_replace`, `key_value_replace`, `$items` resolution) | None at the API level — caller must preprocess files or rely entirely on Variable Libraries + logical IDs. *This repo demonstrates one way to bridge the gap in caller code (see note below the table).* |
 | **Orphan cleanup** | `unpublish_all_orphan_items()` built in | None — API only supports Create / Update; deletes are caller's responsibility |
-| **Dependency ordering** | Caller phases manually (e.g., Lakehouse + Ontology first, then everything else) | Service resolves automatically in a single call |
+| **Dependency ordering** | Library order plus this repo's caller phases, or its optional non-bulk plan adapter | Service resolves supported logical-ID relationships; explicit ordering and physical-ID substitutions can still require caller work |
 | **Long-running operations** | Hidden by the library | When the call returns `202 Accepted`, the caller polls `/operations/{id}` and then `/operations/{id}/result` explicitly. Sync `200 OK` returns the result body directly with no polling needed. |
-| **API call shape** | Many per-item REST calls | One POST for the entire workspace payload |
+| **API call shape** | Many per-item REST calls | One or more bulk POSTs; this repo's raw method uses two |
 | **Service principal coverage** | Per item — an unsupported item type fails only that item | Per request — service principals are supported only when *every* item in the payload supports service principals |
 
 > **Note on the gaps in this repo.** The Bulk Import API gaps above are properties of the API itself — Microsoft has not added these capabilities. This repo implements two of them in caller code so the demo works end-to-end:
 >
-> - **Substitution:** `data/fabric/bulk-parameter.yml` + `scripts/deploy_bulk.py` apply find/replace and `$items.<Type>.<Name>.$id` resolution between two POSTs (dependencies first, then the rest).
+> - **Substitution:** `data/fabric/bulk-parameter.yml` + `scripts/deploy_fabric_rest_bulk.py` apply find/replace and `$items.<Type>.<Name>.$id` resolution between two POSTs (dependencies first, then the rest).
 > - **VariableLibrary value-set activation:** A post-deploy `PATCH /v1/workspaces/{ws}/variableLibraries/{id}` call sets the active value set per environment.
 >
 > Both are workarounds, not platform fixes. Orphan cleanup, the broader fabric-cicd feature surface (`key_value_replace`, `spark_pool`, `semantic_model_binding`), and per-item service principal coverage remain unimplemented in this repo's bulk path. If you go with bulk in your own project, you take on the same caller-side work. See the [Bulk CI/CD Implementation Guide](fabric-bulk-cicd-guide.md) for the full implementation walkthrough.
@@ -288,12 +295,32 @@ Both implementations sit inside Option 3 — branch per stage, build environment
 
 Recommendation today: fabric-cicd. The Bulk APIs are still in Preview and have no parameterization or orphan-cleanup story at the API level — the caller must implement substitution, value-set activation, and any delete logic themselves. fabric-cicd already provides these capabilities, maintained by Microsoft. This repo's bulk path shows that bridging is feasible and what it costs (~600 lines of Python + a config file), but choosing bulk means you own that bridging code. Re-evaluate when (a) the APIs exit Preview and (b) Microsoft adds parameterization and orphan-cleanup at the API level, or when your repo's shape doesn't need those capabilities to begin with.
 
-> This repository demonstrates both. The fabric-cicd workflows are the recommended path; the Bulk API workflows are included alongside them for evaluation. The `DEPLOY_METHOD` repository variable selects the deploy method — including a `fabric-cicd-bulk` option that enables fabric-cicd's own experimental bulk publish, which falls back to standard per-item publish here because `parameter.yml` uses `$items`/`$workspace` variables. See the [README quick start](README.md#quick-start) for how to switch.
+> This repository demonstrates both. fabric-cicd non-bulk is the recommended starting point; raw
+> REST bulk and fabric-cicd bulk workflows are included for evaluation. `DEPLOY_METHOD`
+> selects the route. fabric-cicd bulk now uses 1.4.x with the existing parameter file,
+> and unexpected standard fallback fails deployment. See the
+> [README quick start](README.md#quick-start).
 
-The optional [Deployment Plan adapter](fabric-deployment-plan-guide.md) offers
-explicit ordering while retaining non-bulk fabric-cicd parameterization. It
-interprets the committed plan's ordering subset; it is not native plan execution
-or automatic lineage discovery.
+**fabric-cicd bulk in 1.4.x is distinct from raw REST bulk.** It applies filtered `$items`
+and `$workspace` replacements, manages supported dynamic dependencies within
+a call, and owns Variable Library activation. Parameter-file presence alone
+does not force fallback. Unsupported types or unfiltered current-workspace
+`$items` replacements can still do so; the repository's strict adapter rejects
+those conditions and validates actual bulk mode and complete item success.
+This replaces the pre-1.4 fallback demonstration, not the retained raw REST
+method's custom substitutions.
+
+The two isolated [Deployment Plan adapters](fabric-deployment-plan-guide.md)
+interpret explicit ordering while retaining fabric-cicd parameterization. Non-bulk
+publishes one group at a time; bulk combines independent ready groups.
+Neither is native plan execution or complete lineage discovery. The direct
+REST API can attach a plan, but fabric-cicd 1.4.0 does not expose that option.
+
+All fabric-cicd dependency ranges are `>=1.4.0,<1.5.0`; Actions stay on Python 3.12.
+The other applicable release changes and the unused-feature boundaries are
+documented in the [Deployment Plan guide](fabric-deployment-plan-guide.md#140-release-applicability).
+The library's bulk and item-inclusion features remain experimental; a GA library
+does not make every optional feature GA.
 
 ---
 
@@ -353,7 +380,7 @@ Technically, the Terraform provider can *create* items like notebooks in a targe
 
 ---
 
-**Recommendation for the Customer:**
+**Infrastructure recommendation:**
 - Use **Bicep** for provisioning Fabric **capacities** as part of your existing Azure IaC pipelines.
 - For **workspace setup**, **deployment pipeline creation**, **role assignments**, and **Git connections**, use either the Fabric Terraform provider, Fabric REST APIs, or manual setup in the portal — depending on your team's IaC preference.
 - Use **fabric-cicd** and **Deployment Pipelines** for content deployment (as described in the Release Options and My Recommendation sections).
@@ -371,7 +398,7 @@ Technically, the Terraform provider can *create* items like notebooks in a targe
 | **Config management** | Deployment rules + autobinding | Post-deployment API calls or parameterization | Declarative `parameter.yml` (fabric-cicd) or custom scripts before deploy |
 | **Visual comparison** | Yes (Fabric-native UI) | No (Git diffs only) | No (Git diffs only) |
 | **Deployment history** | Yes (built into Fabric) | No | No |
-| **Stage recoverability** | Dev from Git; Test/Prod from last deployment only | All stages recoverable from Git branches | All stages recoverable from corresponding branch + `parameter.yml` |
+| **Definition recovery** | Retain known-good source-stage content/configuration; operation history is not a backup | Retained Git revision plus reviewed target configuration | Retained source/bundle, tool version, and target configuration |
 | **Setup complexity** | Low | Medium | High |
 | **CI/CD pipeline needed** | Optional (can use UI manually) | Yes | Yes |
 | **Related items awareness** | UI: Yes / API: No | N/A | Yes — fabric-cicd `$items` dynamic replacement resolves item IDs at deploy time |
@@ -386,6 +413,12 @@ Technically, the Terraform provider can *create* items like notebooks in a targe
 ### Hybrid Approach — fabric-cicd + Deployment Pipelines
 
 I recommend a **hybrid approach** that uses **fabric-cicd** for all supported items and **Fabric Deployment Pipelines** for any items that lack fabric-cicd support. This gives us Git as the single source of truth for the majority of items, with a clean path to drop the Deployment Pipelines component as items gain support.
+
+Apply the native component only where the item and identity support that route.
+The current repository does not invoke it: workload definitions use one of
+the four GitHub routes, while DeploymentPlan is control metadata. Native
+pipeline orchestration and a shared deployment lock across tools require
+additional implementation.
 
 > Note on tooling within this recommendation. “fabric-cicd” here refers specifically to the GA Python library. Microsoft has also released the [Bulk Import / Export APIs](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions) (Preview) as an alternative implementation of Option 3. They are worth tracking but not yet recommended for production CI/CD — see [Tooling within Option 3](#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the comparison and reasoning.
 
@@ -415,7 +448,7 @@ I recommend a **hybrid approach** that uses **fabric-cicd** for all supported it
 ### Deployment Flow
 
 #### Dev Stage (Trigger: PR merged → `dev` branch)
-1. **Update from Git API** syncs the Dev workspace with the latest commit on the `dev` branch.
+1. The shared Dev workspace owner uses **Update from Git** after merge. An API-based sync can be automated separately, but this repository does not ship that workflow.
 2. Run **Data Pipelines / Notebooks** for ETL jobs as needed.
 3. **Items not supported by fabric-cicd** (if any) are **manually created and updated** in the Dev workspace only. These items are not in Git and have no version history — they exist only in the workspace and move between stages via Deployment Pipelines.
 4. Validate and test in the Dev workspace.
@@ -443,7 +476,7 @@ Two complementary mechanisms handle environment-specific configuration:
 |---|---|---|
 | **When it runs** | At notebook execution time | Before items are uploaded to the workspace |
 | **What it handles** | Workspace IDs, lakehouse names/IDs, and other runtime values resolved via `notebookutils.variableLibrary.getLibrary()` | Metadata GUIDs baked into notebook META blocks, connection IDs in pipeline JSON, spark pool configs, semantic model bindings |
-| **How it works** | Value sets auto-bind per workspace — notebooks automatically resolve the correct values for the environment they're running in | fabric-cicd `find_replace`, `key_value_replace`, `$items` dynamic replacement rewrite item definitions before upload |
+| **How it works** | Workloads read the active value set; deployment tooling or an operator must select and verify the intended set | fabric-cicd `find_replace`, `key_value_replace`, `$items` dynamic replacement rewrite item definitions before upload |
 
 **Use Variable Libraries as the primary mechanism** for auto-binding. They provide clean, runtime resolution without deployment-time rewrites. Fall back to `parameter.yml` for deployment-time metadata that Variable Libraries cannot reach (e.g., `default_lakehouse` GUIDs in notebook metadata, connection IDs in Data Pipeline JSON).
 
@@ -466,7 +499,7 @@ When all item types gain fabric-cicd support:
 - **fabric-cicd handles all items end-to-end** — no sandwich pattern needed.
 - The flow simplifies to: PR merged → fabric-cicd deploys → run ETL → validate.
 
-> **Note:** This repository has already reached this state — all items are deployed via fabric-cicd in a single deploy job.
+> **Implementation boundary:** The current inventory needs no native Deployment Pipelines extension. The fabric-cicd routes publish the workload items; DeploymentPlan remains control metadata. The separate raw REST method is a comparison route. A single deployment job can make several publishing calls, and successful publication is not complete release validation.
 
 ---
 
@@ -474,35 +507,40 @@ When all item types gain fabric-cicd support:
 
 #### Hotfix Flow (Supported Items via fabric-cicd)
 
-1. Cut a **hotfix branch** from `main` (e.g., `hotfix/2026-04-16`).
-2. Reproduce and fix in isolation: branch out to a temporary workspace or use client tools; commit changes to the hotfix branch.
-3. **PR → merge to `main`** after review.
-4. CI/CD triggers **fabric-cicd** to deploy the changed items to the Prod workspace.
-5. Validate; run **Data Pipelines / Notebooks** as needed (post-deploy ingestion).
-6. Cherry-pick or merge the hotfix into `dev`/`test` branches to keep branches consistent.
+1. Reproduce and fix in an isolated feature workspace/branch, then open a reviewed PR into `dev`.
+2. Promote `dev -> test` and validate the candidate before `test -> main`.
+3. Obtain the configured Production approval; the selected method deploys its defined scope, not necessarily only the changed item.
+4. Verify configuration, execution, and required smoke results before marking the release successful.
 
-> **Tip:** This keeps hotfix scope tight and auditable, and leverages Git history for later rollbacks.
+A feature/hotfix PR directly into `main` fails this repository's promotion-path
+check. An organization-specific emergency override needs a separately approved
+policy and implementation; it is not a bypass provided here.
 
 #### Hotfix Flow (Unsupported Items via Deployment Pipelines)
 
 - If your workspace includes **items not supported by fabric-cicd**, promote via Deployment Pipelines from the previous stage (e.g., Test → Prod).
 - Automate with the [Deploy Stage Content](https://learn.microsoft.com/en-us/rest/api/fabric/core/deployment-pipelines/deploy-stage-content) API; selective deploy requires explicitly listing items (no "select related" in API).
 
-> **Note:** Deployment Pipelines provide the governance path but don't give you Git-based version history. Keep a known-good version in the earlier stage so you can re-deploy forward if needed.
+> **Note:** This is an optional extension, not a shipped workflow. Retain the known-good content and configuration using the item's supported recovery method; today's earlier-stage contents and operation history are not a definition backup.
 
 #### Rollback Playbook
 
 **Supported items (fabric-cicd):**
-1. Identify the last known-good commit.
-2. Use `git revert` (or `git reset`) to make it the current commit on the target branch.
-3. Re-deploy with **fabric-cicd** to the affected workspace(s).
+1. Identify the last fully validated release and retain its definitions, tool version, and reviewed target configuration.
+2. Create a reviewed corrective/revert commit in the development flow; preserve protected history and promote through `dev -> test -> main`.
+3. Validate compatibility, selected scope, and deletion behavior before redeployment; rerun the required post-recovery checks.
 
 **Unsupported items (Deployment Pipelines):**
-1. Re-deploy the previous stage's version forward (e.g., re-run Dev → Test or Test → Prod for the last known-good state).
-2. If automated via API, run the same [Deploy Stage Content](https://learn.microsoft.com/en-us/rest/api/fabric/core/deployment-pipelines/deploy-stage-content) call with the specific items listed.
+1. Restore retained known-good content/configuration to a suitable source stage using a supported recovery method.
+2. Authorize selective forward deployment and verify the actual result. Do not assume the current previous-stage version is the last successful Production release.
 
 **Data considerations:**
-- Data isn't versioned by Git. Plan and execute ETL after rollback to restore state (seed/test data or reprocessing). Post-deploy ingestion is part of every release stage.
+- Definition rollback does not restore data or reverse schema/external-system changes. Data recovery needs retained restore points/history, source watermarks, explicit authorization for destructive work, and verified replay/reconciliation. Do not reseed Production tables as a rollback shortcut.
+
+Use the [Quality Gates recovery guidance](fabric-cicd-quality-gates-and-release-controls.md#6-failure-handling-and-recovery)
+for these boundaries. A dedicated rollback demonstration is tracked in
+[#81](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns/issues/81),
+not implemented by the current deploy workflows.
 
 #### Validation Checklist (Prod)
 
@@ -516,7 +554,7 @@ When all item types gain fabric-cicd support:
 ## Best Practices
 
 - Use service principals for automation
-- Use Terraform or Bicep to provision Fabric CI/CD environment infrastructure *(Note: The Customer uses Bicep today — Bicep covers Fabric capacities; for broader resource management such as workspaces and deployment pipelines, consider supplementing with the Fabric Terraform provider or REST APIs)*
+- Use Terraform or Bicep according to supported infrastructure coverage; capacity, workspace, and content deployment are distinct surfaces.
 - Use Variable Libraries to parameterize settings that change across environments
 - Abstract logic for ETL jobs into workspace items such as notebooks and pipelines
 - Write automation scripts to run ETL jobs as an essential aspect of the CI/CD lifecycle

@@ -1,5 +1,10 @@
 # Bulk CI/CD Implementation Guide
 
+This is the **raw REST bulk — custom Python caller** route (`DEPLOY_METHOD=bulk`), not fabric-cicd bulk.
+For fabric-cicd bulk with library-managed replacements, use the
+[Deployment Plan guide](fabric-deployment-plan-guide.md#isolated-bulk-adapter-14x).
+Compare all four implementations in the [README matrix](README.md#choose-a-deployment-method).
+
 This repository implements a parallel deployment path for Microsoft Fabric using the **[Bulk Import Item Definitions API](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions)** (Preview), as an alternative to the [fabric-cicd path](fabric-hybrid-cicd-guide.md). It demonstrates how to deploy the same Fabric workspace items (Notebooks, Lakehouses, Variable Libraries, Semantic Models, Reports, Ontologies, Data Agents) across environments using GitHub Actions and the Fabric REST API directly.
 
 For the strategic comparison between fabric-cicd and the Bulk APIs (and the recommendation), see [fabric-cicd-release-options.md](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis).
@@ -56,7 +61,7 @@ Git repo (dev branch)
 
 The same pattern applies to Prod (`deploy-prod-bulk.yml` → `etl-prod.yml`), triggered on push to `main`.
 
-The shape mirrors the [standard fabric-cicd path](fabric-hybrid-cicd-guide.md#architecture-overview) deliberately. These two paths split the deploy into two phases for the same reason — the first phase creates items whose IDs the second phase needs to reference. The independent SDK-bulk route instead derives batches from a plan. The differences between standard fabric-cicd and this raw REST method are mechanical:
+The shape mirrors the [default fabric-cicd non-bulk route](fabric-hybrid-cicd-guide.md#architecture-overview) deliberately. These two routes split the deploy into two phases for the same reason — the first phase creates items whose IDs the second phase needs to reference. The independent fabric-cicd bulk route instead derives batches from a plan. The differences between fabric-cicd non-bulk and this raw REST method are mechanical:
 
 | Concept | fabric-cicd | bulk |
 |---|---|---|
@@ -65,16 +70,16 @@ The shape mirrors the [standard fabric-cicd path](fabric-hybrid-cicd-guide.md#ar
 | Value-set activation | Library handles automatically when `environment` is passed | Caller makes a separate `PATCH /variableLibraries/{id}` call |
 | Orphan cleanup | `unpublish_all_orphan_items()` built in | Not implemented |
 
-> Other deploy paths exist alongside this bulk path — the standard fabric-cicd path and a `fabric-cicd-bulk` variant that runs fabric-cicd with bulk publish enabled — all selected by the `DEPLOY_METHOD` repo variable. fabric-cicd is the recommended path — see [fabric-cicd vs Bulk APIs](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the comparison and [fabric-hybrid-cicd-guide.md](fabric-hybrid-cicd-guide.md) for its implementation guide.
+> Other deploy routes use fabric-cicd non-bulk, fabric-cicd non-bulk + client-read plan, or fabric-cicd bulk + client-read plan. Select a route with `DEPLOY_METHOD`; fabric-cicd non-bulk is this repository's recommended starting point. See the [method matrix](README.md#choose-a-deployment-method) and [non-bulk implementation guide](fabric-hybrid-cicd-guide.md).
 
-**Do not conflate raw REST with SDK bulk.** In 1.4.0, SDK bulk supports the
+**Do not conflate raw REST bulk with fabric-cicd bulk.** In 1.4.0, fabric-cicd bulk supports the
 filtered dynamic replacements in [parameter.yml](data/fabric/parameter.yml).
-The [isolated SDK-bulk adapter](scripts/deploy_fabric_cicd_bulk.py) delegates
-replacement to the SDK and reads an ordering plan; it does not use
+The [isolated fabric-cicd bulk adapter](scripts/deploy_fabric_cicd_bulk.py) delegates
+replacement to fabric-cicd and reads an ordering plan; it does not use
 [bulk-parameter.yml](data/fabric/bulk-parameter.yml) or this guide's custom
 find/replace engine. We retain that engine here for comparison.
 
-Direct REST supports native plan attachment. The current SDK adapter does not:
+Direct REST supports native plan attachment. The current fabric-cicd adapter does not:
 it makes plan-ordered bulk selections and rejects fallback or failed/partial
 item results. See the [Deployment Plan guide](fabric-deployment-plan-guide.md#isolated-bulk-adapter-14x)
 for configuration and live-binding validation boundaries.
@@ -130,7 +135,10 @@ microsoft-fabric-sdlc-patterns/
 └── ... (other docs, see README)
 ```
 
-The fabric-cicd workflows (`deploy-test.yml`, `deploy-prod.yml`, `reusable-deploy-fabric-cicd.yml`), their `fabric-cicd-bulk` counterparts (`deploy-test-fabric-cicd-bulk.yml`, `deploy-prod-fabric-cicd-bulk.yml`, `reusable-deploy-fabric-cicd-bulk.yml`), and the bulk workflows all live in the same `.github/workflows/` directory. The `DEPLOY_METHOD` repository variable selects which set runs.
+All four method families live in [.github/workflows/](.github/workflows/).
+`DEPLOY_METHOD` selects their deployment jobs; the
+[shared workflow reference](fabric-hybrid-cicd-guide.md#github-actions-workflows)
+maps every caller and template.
 
 ---
 
@@ -140,20 +148,15 @@ The fabric-cicd workflows (`deploy-test.yml`, `deploy-prod.yml`, `reusable-deplo
 
 | Event | Workflow Triggered | What It Does |
 |---|---|---|
-| Push to `test` branch (changes in `data/fabric/**`) when `DEPLOY_METHOD=bulk` | `deploy-test-bulk.yml` | Deploys all items to the Test workspace via the Bulk Import API |
+| Push to `test` (Fabric definitions or workflow changes), `DEPLOY_METHOD=bulk` | `deploy-test-bulk.yml` | Imports workload definitions to Test, excluding DeploymentPlan control items |
 | `deploy-test-bulk.yml` completes successfully | `etl-test.yml` | Runs the `Import_Patterns_Data` notebook in the Test workspace |
-| Push to `main` branch (changes in `data/fabric/**`) when `DEPLOY_METHOD=bulk` | `deploy-prod-bulk.yml` | Deploys all items to the Prod workspace via the Bulk Import API |
+| Push to `main` (Fabric definitions or workflow changes), `DEPLOY_METHOD=bulk` | `deploy-prod-bulk.yml` | Imports workload definitions to Prod, excluding DeploymentPlan control items |
 | `deploy-prod-bulk.yml` completes successfully | `etl-prod.yml` | Runs the `Import_Patterns_Data` notebook in the Prod workspace |
 
-The `DEPLOY_METHOD` repository variable (Settings → Secrets and variables → Actions → Variables) controls which deploy workflow runs:
-
-| `DEPLOY_METHOD` value | Behavior |
-|---|---|
-| `fabric-cicd` *(or unset)* | fabric-cicd workflows run; other deploy workflows skip |
-| `fabric-cicd-bulk` | Strict plan-driven SDK bulk with SDK replacements; requires `DEPLOYMENT_PLAN_PATH`; other deploy workflows skip |
-| `bulk` | Bulk workflows run; other deploy workflows skip |
-| `fabric-cicd-plan` | [Plan-driven non-bulk fabric-cicd](fabric-deployment-plan-guide.md) runs; other deploy workflows skip |
-| any other value | All deploy workflows skip (safe default) |
+Set `DEPLOY_METHOD=bulk` for this route. For other values and their capabilities,
+use the [README method matrix](README.md#choose-a-deployment-method). Unselected
+jobs may appear as skipped workflow runs; changing the selector alone does
+not initiate a deployment.
 
 ### The Bulk Deploy Job
 
@@ -173,6 +176,10 @@ The ETL workflow triggers automatically after the deploy workflow completes succ
 ---
 
 ## GitHub Actions Workflows
+
+Use the [shared reference](fabric-hybrid-cicd-guide.md#github-actions-workflows)
+for all workflow triggers, selectors, and runners. The templates below are
+the raw route's local implementation details.
 
 ### Reusable Templates (called via `workflow_call`)
 
@@ -210,7 +217,7 @@ Notebooks call `notebookutils.variableLibrary.getLibrary("Patterns_Variables")` 
 | `target_lakehouse_name` | `PatternsLakehouse` | *(default)* | *(default)* |
 | `target_lakehouse_id` | Dev lakehouse ID | Dev lakehouse ID* | Dev lakehouse ID* |
 
-\* The `target_lakehouse_id` uses the Dev GUID as a placeholder in the value set files. At deploy time, `bulk-parameter.yml` rewrites it with the actual lakehouse ID in the target workspace (see below).
+\* Test/Prod inherit `target_lakehouse_id` from the base [variables.json](data/fabric/Patterns_Variables.VariableLibrary/variables.json); they do not override it in their value-set files. The raw caller applies [bulk-parameter.yml](data/fabric/bulk-parameter.yml) to replace that base placeholder with the deployed Lakehouse ID.
 
 ### 2. `bulk-parameter.yml` (Deploy-time)
 
@@ -381,17 +388,24 @@ The first three secrets are identical across environments (single SPN). `FABRIC_
 
 ### 6. Set the `DEPLOY_METHOD` Repository Variable
 
-To activate the bulk path, set `DEPLOY_METHOD=bulk` in Settings → Secrets and variables → Actions → Variables. Without this, the bulk workflows skip and fabric-cicd runs instead.
+Set `DEPLOY_METHOD=bulk` in Settings → Secrets and variables → Actions →
+Variables for this raw deployment job. Unset selects standard `fabric-cicd`;
+other selectors follow the [README matrix](README.md#choose-a-deployment-method).
 
 ---
 
 ## Initial Deployment to a Clean Workspace
 
-When deploying to a workspace for the first time, follow these steps in order. Subsequent deployments are fully automated — only the first deployment requires manual intervention.
+This walkthrough uses the raw REST route. Follow these steps for a clean target.
+Subsequent publication and ETL are automated, subject to configured approvals;
+required release validation and any changed prerequisite configuration remain
+separate.
 
 ### Step 1: Trigger the Deployment
 
-Push to the target branch (`test` or `main`). The bulk deploy workflow triggers automatically and executes:
+With `DEPLOY_METHOD=bulk`, merge a qualifying `dev -> test` or `test -> main`
+PR containing Fabric definition or workflow changes. Configured deployment
+approvals apply. The raw deployment job executes:
 
 - **Phase 1 (if needed):** POST Lakehouse + Ontology
 - **Phase 2:** Substitute IDs from Phase 1's response into the remaining items, then POST them
@@ -576,6 +590,6 @@ These are deliberate non-goals for this demo repo. They can be added incremental
 - [Fabric Bulk Import Item Definitions API (Preview)](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions) — Endpoint reference
 - [Fabric Long-Running Operations](https://learn.microsoft.com/en-us/rest/api/fabric/articles/long-running-operation) — `?async=true` semantics, polling pattern
 - [Fabric Update Variable Library](https://learn.microsoft.com/en-us/rest/api/fabric/variablelibrary/items/update-variable-library) — PATCH endpoint used by value-set activation
-- [Microsoft Bulk Import tutorial](https://learn.microsoft.com/en-us/fabric/cicd/tutorial-bulkapi-cicd) — Microsoft's walkthrough (note the URL discrepancy called out under [Gotchas](#microsofts-tutorial-url-is-wrong))
+- [Microsoft Bulk Import tutorial](https://learn.microsoft.com/en-us/fabric/cicd/tutorial-bulkapi-cicd) — Microsoft's walkthrough (note the URL discrepancy called out under [Gotchas](#microsoft-tutorials-url-is-wrong))
 - [Fabric Create Item API — Permissions](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/create-item) — Contributor role requirement
 - [GitHub Reusable Workflows](https://docs.github.com/en/actions/sharing-automations/reusing-workflows) — `workflow_call`, inputs, secrets

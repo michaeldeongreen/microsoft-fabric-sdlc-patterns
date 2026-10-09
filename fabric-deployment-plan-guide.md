@@ -1,14 +1,18 @@
 # Deployment Plan CI/CD Guide
 
 Two independent repository-owned adapters read a committed Fabric Deployment
-Plan: `fabric-cicd-plan` uses sequential standard publishing, and
-`fabric-cicd-bulk` combines independent ready groups into strict SDK bulk
-selections. Each replaces hard-coded phases in its own method. The standard
+Plan: `fabric-cicd-plan` uses sequential non-bulk publishing, and
+`fabric-cicd-bulk` combines independent ready groups into strict fabric-cicd bulk
+selections. Each replaces hard-coded phases in its own method. The default non-bulk
 `fabric-cicd` and raw REST `bulk` implementations remain available and unchanged.
 
 These are ordering-only solution accelerators, not native Deployment Plan
 execution. Deployment Plans are in preview, and the fabric-cicd item-inclusion
 API used here is experimental. Validate the method in Test before production.
+Native Fabric Deployment Pipelines are a separate service and are not invoked
+by either adapter. Use the [README comparison](README.md#choose-a-deployment-method)
+to choose a route and the [shared workflow reference](fabric-hybrid-cicd-guide.md#github-actions-workflows)
+to locate its caller and runner.
 
 > Support boundary: fabric-cicd maintainers describe selective deployment as
 > [not a best practice](https://github.com/microsoft/fabric-cicd/issues/384)
@@ -20,6 +24,10 @@ API used here is experimental. Validate the method in Test before production.
 > a new default for every fabric-cicd customer.
 
 ## How It Works
+
+This walkthrough describes **fabric-cicd non-bulk + client-read plan** (`fabric-cicd-plan`). fabric-cicd bulk reads the
+same supported plan format but groups independent ready items; its instructions
+begin at [Isolated Bulk Adapter](#isolated-bulk-adapter-14x).
 
 <pre>
 <a href=".github/workflows/deploy-test-fabric-cicd-plan.yml">deploy-test-fabric-cicd-plan.yml</a> / <a href=".github/workflows/deploy-prod-fabric-cicd-plan.yml">deploy-prod-fabric-cicd-plan.yml</a>
@@ -91,7 +99,7 @@ module imports the non-bulk plan implementation. Both readers support the same
 ordering-only schema, but the Python code is deliberately isolated.
 
 Only explicit `dependsOn` determines readiness. Independent ready groups are
-combined into one exact SDK selection, not sent in parallel. The current plan
+combined into one exact fabric-cicd selection, not sent in parallel. The current plan
 and inventory produce:
 
 | Selection | Items | Count |
@@ -104,15 +112,16 @@ and inventory produce:
 The table is a fixture result, not a hardcoded type order. Changing authored
 dependencies changes the batches. Every call uses fresh workspace state,
 explicit item types, and exact `Name.ItemType` inclusion selectors.
-The SDK may split a selection into additional internal dependency batches for
+fabric-cicd may split a selection into additional internal dependency batches for
 other repositories; one library call is not a fixed HTTP request count.
 
 ### Enable and Preview Bulk
 
 Promote the updated code and workflows through the existing controls before
-changing repository-wide routing. Set `DEPLOYMENT_PLAN_PATH` to
-`data/fabric/DeploymentPlan.DeploymentPlan/plan.yml`, then select
-`DEPLOY_METHOD=fabric-cicd-bulk` only when ready for approved Test validation.
+changing repository-wide routing. Copy the two repository-variable values from
+[Setup: fabric-cicd-bulk settings](SETUP.md#fabric-cicd-bulk-settings), and use
+the shared environment secrets there. Select this route only when ready for
+approved Test validation.
 The Test and Prod callers already supply the seven-type explicit scope.
 Unlike non-bulk, an omitted or empty scope is an error, not an all-types default.
 
@@ -124,7 +133,7 @@ python scripts\deploy_fabric_cicd_bulk.py --plan data\fabric\DeploymentPlan.Depl
 ```
 
 The preview returns `batches`, `remainingItems`, `itemTypesInScope`,
-`cleanupItemTypes`, and the installed SDK version without credentials or Fabric
+`cleanupItemTypes`, and the installed fabric-cicd version without credentials or Fabric
 calls. A missing/invalid plan never restores phases or switches methods.
 When `ENVIRONMENT` is supplied, preview also checks selected Variable Library
 value-set metadata; it remains optional for a local credentials-free preview.
@@ -133,46 +142,51 @@ deployment step. Their path filters cover Fabric definitions, `deployment-plans/
 the bulk-only scripts, dependencies, and workflows. Add a custom plan directory
 to both caller filters if it is stored elsewhere.
 
-### SDK Replacements and Strict Success
+<a id="sdk-replacements-and-strict-success"></a>
+
+### fabric-cicd Replacements and Strict Success
 
 fabric-cicd 1.4.0 supports this repository's five filtered dynamic rules in
-[parameter.yml](data/fabric/parameter.yml) with bulk enabled. The SDK owns
+[parameter.yml](data/fabric/parameter.yml) with bulk enabled. fabric-cicd owns
 replacement and Test/Prod value-set activation. Bulk does not port the raw
 REST find/replace engine or read [bulk-parameter.yml](data/fabric/bulk-parameter.yml).
 Before live authentication, the adapter requires each selected Variable Library
 to declare the exact environment name and contain its matching value-set file.
-Missing/mismatched metadata fails rather than letting the SDK activate Default
+Missing/mismatched metadata fails rather than letting fabric-cicd activate Default
 or silently skip activation. It does not make a second activation PATCH.
 
-To keep that check valid after parameterization, an authenticated, read-only SDK
+To keep that check valid after parameterization, an authenticated, read-only fabric-cicd
 rule preflight runs for all selected libraries before the first definition
 import, then again for each selection. This is not part of `--dry-run`.
 Library `settings.json` and `valueSets/*.json`, including override bodies, must
 remain literal. Active `find_replace` rules with matching control-file content
 are rejected. Any `key_value_replace` rule whose filters include those files is
-also rejected: the SDK reserializes JSON even without a matching key or
+also rejected: fabric-cicd reserializes JSON even without a matching key or
 environment, which can enable a later text rule to change activation metadata.
 Scope library key-value rules to `**/variables.json`; ordinary workload files
-and library variables still use SDK parameterization. The five committed rules
+and library variables still use fabric-cicd parameterization. The five committed rules
 are unaffected. This is a conservative adapter safety restriction, not an
-upstream SDK limitation.
+upstream fabric-cicd limitation.
 
 The adapter requests experimental features, bulk publishing, item inclusion,
 and response collection. It rejects bulk-ineligible types and uses the bounded
-1.4.x SDK's read-only eligibility helper to reject unfiltered current-workspace
+fabric-cicd 1.4.x read-only eligibility helper to reject unfiltered current-workspace
 `$items` rules before publishing. It uses public publishing APIs, not private
-transport calls or SDK patches.
+transport calls or fabric-cicd patches.
 
 After each selection it requires actual `bulk_publish_enabled=True` and
 complete, correctly identified per-item results with `operationStatus=Succeeded`
 and valid target IDs. Failed, partially successful, unknown, missing, or malformed
 results stop dependent selections, the remainder, and orphan cleanup.
+The mode check runs after `publish_all_items` returns: known fallback causes
+are rejected before publishing, but an unexpected fallback may already have
+performed standard writes. Failing the run does not undo them.
 `FAIL_IF_BULK_USED` and `fail_if_bulk_used` have been removed; choosing this route
 requires genuine bulk. For standard publishing, select the standard route.
 
-Only after successful publishing does the adapter run the existing SDK orphan
+Only after successful publishing does the adapter run the existing fabric-cicd orphan
 cleanup once. Lakehouse, Ontology, and DeploymentPlan remain excluded. Inventory
-GETs, SDK post-hooks/activation PATCHes, and cleanup DELETEs are legitimate
+GETs, fabric-cicd post-hooks/activation PATCHes, and cleanup DELETEs are legitimate
 separate requests, not standard definition-publish fallback.
 
 ### Verified Client Behavior and Remaining Service Checks
@@ -198,26 +212,30 @@ and a warm repeat; never clear a shared workspace.
 
 ## 1.4.0 Release Applicability
 
-All SDK workflows and [requirements-dev.txt](requirements-dev.txt) use
+All fabric-cicd workflows and [requirements-dev.txt](requirements-dev.txt) use
 `fabric-cicd>=1.4.0,<1.5.0`; the bulk adapter rejects incompatible versions.
 Actions remain on Python 3.12. The exact 1.4.0 lower boundary is tested.
 
 | Release change | Treatment here |
 |---|---|
-| Bulk dynamic variables and early syntax validation | Exercise actual SDK replacements and reject invalid syntax before definition writes; test missing resources separately. |
+| Bulk dynamic variables and early syntax validation | Exercise actual fabric-cicd replacements and reject invalid syntax before definition writes; test missing resources separately. |
 | Removed `contains_param_vars` attribute | Remove the old reporting dependency; item-variable presence is not proof of fallback. |
 | GraphModel and CosmosDBDatabase support | No standalone items of those types exist here. Do not expand publish/cleanup scope or remove Ontology setup caveats. |
 | Python 3.14 support | Inherited upstream capability, not a reason to change this repository's Actions runtime. |
 | KQLQueryset, PaginatedReport, and Activator fixes | Inherit the fixes; these item types are not in this inventory. `Report` is not `PaginatedReport`. |
-| Semantic Model connection trailing-slash fix | Applies to SDK `bindConnection` requests; no `semantic_model_binding` is configured here. Do not claim all connection setup is solved. |
+| Semantic Model connection trailing-slash fix | Applies to fabric-cicd `bindConnection` requests; no `semantic_model_binding` is configured here. Do not claim all connection setup is solved. |
 | `$ENV:` name handling | No such rules here; the raw REST `$environment` placeholder is a different DSL. |
-| jsonpath-ng regression bound | Respect the SDK's `>=1.7.0,<1.8.0` transitive constraint; no redundant direct pin. No active `key_value_replace` rules are added. |
+| jsonpath-ng regression bound | Respect fabric-cicd's `>=1.7.0,<1.8.0` transitive constraint; no redundant direct pin. No active `key_value_replace` rules are added. |
 | New end-to-end tutorial | Reference material, not a replacement for the repository's architecture. |
 
 See the [versioned changelog](https://microsoft.github.io/fabric-cicd/1.4.0/changelog/#v140-october-07-2026)
 and [bulk limitations](https://microsoft.github.io/fabric-cicd/1.4.0/how_to/optional_feature/#bulk-publish).
 
 ## Workflows and Scripts
+
+The files below implement the **non-bulk plan route**. For the bulk counterpart
+and all other workflow families, use the
+[shared workflow reference](fabric-hybrid-cicd-guide.md#github-actions-workflows).
 
 | File | Role |
 |---|---|
@@ -237,6 +255,9 @@ workflow names; [deploy_fabric_cicd_non_bulk_plan.py](scripts/deploy_fabric_cicd
 does not run ETL itself.
 
 ## Enable the Method
+
+This section enables **`fabric-cicd-plan`**, not fabric-cicd bulk. For
+`fabric-cicd-bulk`, follow [Enable and Preview Bulk](#enable-and-preview-bulk).
 
 Complete the [Setup Guide](SETUP.md) first. Keep the existing method selected
 while promoting
@@ -279,6 +300,10 @@ that directory to the `paths` list in both files.
 
 ## Preview and Customize
 
+The command below previews **non-bulk ordering**. The
+[bulk preview](#enable-and-preview-bulk) reports ready batches instead of a
+sequential group list.
+
 From the repository root, after installing [requirements-dev.txt](requirements-dev.txt):
 
 The command invokes
@@ -319,6 +344,10 @@ Customers own the completeness of the declared dependency graph; fabric-cicd
 does not validate that selective calls include every prerequisite.
 
 ## Configuration and Failure Boundaries
+
+This section describes **fabric-cicd non-bulk + client-read plan** behavior. fabric-cicd bulk's additional mode,
+response, and Variable Library guards are documented under
+[fabric-cicd Replacements and Strict Success](#fabric-cicd-replacements-and-strict-success).
 
 fabric-cicd still applies [parameter.yml](data/fabric/parameter.yml), resolves
 physical IDs, and selects the Variable Library value set for `Test` or `Prod`.
@@ -372,7 +401,7 @@ Use an approved Test target and check:
 The [clean-workspace caveats](fabric-hybrid-cicd-guide.md#initial-deployment-to-a-clean-workspace)
 still apply, including Ontology/Graph Model initialization. Deploying a notebook
 does not populate tables; ordering alone does not replace ETL or connection setup.
-Offline tests cover scheduling and SDK parameterization with a mocked transport;
+Offline tests cover scheduling and fabric-cicd parameterization with a mocked transport;
 they are not evidence of a successful live deployment in your tenant.
 
 ## Relationship to Native Deployment Plans
@@ -387,11 +416,11 @@ actions. The DeploymentPlan control item is not imported or orphan-cleaned.
 
 Fabric REST accepts `options.deploymentPlan`, but fabric-cicd 1.4.0 does not
 expose it in its public publishing API. Keep the isolated bulk adapter a bridge
-that can be replaced when suitable native SDK bulk integration is released and
+that can be replaced when suitable native fabric-cicd bulk integration is released and
 verified. That does not imply native non-bulk support or retire the independent
 non-bulk example.
 
-Retest SDK upgrades. When migrating bulk to native plan execution, reassess
+Retest fabric-cicd upgrades. When migrating bulk to native plan execution, reassess
 unlisted items, actions, permissions, failure handling, and parameterization:
 Fabric combines the native plan with lineage/standard ordering, whereas these
 adapters deliberately deploy unlisted items after the authored groups.

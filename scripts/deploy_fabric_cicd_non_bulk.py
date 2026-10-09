@@ -1,4 +1,4 @@
-"""Deploy supported Fabric items via the fabric-cicd library.
+"""Deploy supported Fabric items via non-bulk fabric-cicd.
 
 Two-phase deployment to satisfy item dependencies:
 

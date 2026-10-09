@@ -17,8 +17,8 @@
 | **The decision** | Three release options exist. This repo recommends **Option 3 — Git‑based with a build environment**, implemented with the GA **`fabric-cicd`** library. |
 | **The shape** | Three branches (`dev`, `test`, `main`) → three workspaces (Dev, Test, Prod). Dev is Git‑connected; Test/Prod receive deployments via CI/CD. |
 | **The guardrails** | Branch protection + an enforced `dev → test → main` promotion path, environment approvals on Prod, least‑privilege service principals, and a full audit trail in Git + GitHub Actions. |
-| **The payoff** | Git is the single source of truth for every stage. Every change is reviewed, approved, deployed, and auditable — and fully recoverable from Git. |
-| **The proof** | This isn't slideware — it's a working **reference implementation and solution accelerator**. Every pattern here runs end-to-end in this repository: both the developer workflow and the full CI/CD pipeline. |
+| **The payoff** | Versioned definitions and a traceable release path. Retained definitions/configuration support recovery; data requires a separate plan. |
+| **The implementation** | Branch Out tools and GitHub deployment/ETL examples. Native-pipeline extensions and broader enterprise controls are design guidance, not all shipped workflows. |
 
 <div align="center">
 
@@ -236,7 +236,7 @@ Git is connected only to **Dev**. Promotion happens **workspace‑to‑workspace
 **Watch out for:**
 - API lacks "related‑items" awareness — you deploy all content or list every item + dependency by hand.
 - Linear structure only — no skipping stages.
-- Git is source of truth for **Dev only** — Test/Prod are recoverable only from their last deployment.
+- Git directly versions **Dev**; retain known-good definitions/configuration for stage recovery. Deployment history is not a backup, and data recovery is separate.
 - Deployment rules cover a limited subset of properties.
 
 </details>
@@ -287,7 +287,7 @@ Every stage has its own branch, and each stage's pipeline spins up a **build env
 | **Config management** | Deployment rules + autobinding | Post‑deploy API calls | Declarative `parameter.yml` |
 | **Visual comparison** | **Yes** | No | No |
 | **Deployment history** | **Yes** | No | No |
-| **Stage recoverability** | Dev from Git; Test/Prod from last deploy | All from Git | All from Git + `parameter.yml` |
+| **Definition recovery** | Retained known-good source-stage content/configuration | Retained Git revision + target configuration | Retained source/bundle + tool version + target configuration |
 | **Setup complexity** | **Low** | Medium | High |
 | **Key limitation** | Linear; no dependency resolution in API | Multi‑branch merge complexity | Full deploy every run; param upkeep |
 | **Best for** | Fabric‑native, minimal setup | Git as full source of truth (Gitflow) | Build‑time config transformation per stage |
@@ -299,7 +299,7 @@ Every stage has its own branch, and each stage's pipeline spins up a **build env
 
 **Q - Why not just use Deployment Pipelines? It is Fabric-native with a nice UI.**
 
-It is the lowest-setup option and gives visual change comparison and deployment history out of the box. The trade-off: Git is the source of truth for **Dev only**, so Test and Prod are recoverable only from their last deployment; the promotion API has no "related items" awareness (you list every item and dependency by hand); and the structure is strictly linear.
+It gives visual comparison and deployment history, but Git directly versions Dev only. Retain known-good definitions/configuration for recovery; operation history is not a backup and does not restore data. API scope/dependencies and the linear stage structure also need deliberate design.
 
 **Q - Why not connect every workspace with Git integration (Option 2)?**
 
@@ -321,9 +321,9 @@ Yes, it needs a build/release pipeline per stage. But `fabric-cicd`'s declarativ
 
 ## 6. The recommended hybrid approach
 
-> **Takeaway:** Use **`fabric-cicd`** (Option 3) for every supported item, and fall back to **Deployment Pipelines** only for item types that lack `fabric-cicd` support. As support grows, you drop the fallback.
+> **Takeaway:** Use standard **`fabric-cicd`** as this repository's baseline. Add a native Deployment Pipelines component only where an item needs and supports that route.
 
-The recommendation is a **hybrid**: `fabric-cicd` for all supported items, Deployment Pipelines to fill any gap. This keeps Git as the single source of truth for the majority of items with a clean path to simplify further.
+The recommendation is a **hybrid**: `fabric-cicd` for supported items, with a native extension where needed. The four current repository implementations do not invoke native Deployment Pipelines; compare them in the [README matrix](../README.md#choose-a-deployment-method).
 
 <p align="center"><img src="../assets/hybrid-recommendation-flow.svg" alt="Hybrid Recommendation Flow"></p>
 
@@ -438,7 +438,7 @@ This mix is deliberate: it exercises every hard case — actual IDs (Semantic Mo
 |---|---|---|
 | **When** | At notebook execution | Before items upload to the workspace |
 | **Handles** | Workspace IDs, lakehouse names/IDs resolved at runtime | Hardcoded GUIDs in notebook META, connection IDs, spark pools, model bindings |
-| **How** | Value sets auto‑bind per environment | `find_replace`, `$items` dynamic replacement rewrite definitions |
+| **How** | Workloads read the active set; tooling/operator selects and verifies it | `find_replace`, `$items` dynamic replacement rewrite definitions |
 
 > **Rule of thumb:** use **Variable Libraries as the primary mechanism** (clean runtime auto‑binding), and fall back to `parameter.yml` only for deploy‑time metadata that Variable Libraries cannot reach.
 
@@ -495,15 +495,19 @@ On subsequent deployments, both phases are idempotent. `fabric-cicd` does a **fu
 
 | Workflow | Role |
 |---|---|
-| `deploy-test.yml` / `deploy-prod.yml` | Orchestrators — trigger on push to `test` / `main` (paths filtered to `data/fabric/**`) |
+| `deploy-test.yml` / `deploy-prod.yml` | Standard callers — qualifying pushes to `test` / `main` (Fabric definition or workflow changes) |
 | `reusable-deploy-fabric-cicd.yml` | The two‑phase `fabric-cicd` deployment template |
 | `reusable-fabric-etl.yml` | Resolves a notebook by name, runs it, polls to completion |
 | `etl-test.yml` / `etl-prod.yml` | Chain after a successful deploy via `workflow_run` |
 | `check-pr-ready.yml` | Blocks feature IDs from merging to `dev` |
-| `run-tests.yml` | Runs pytest when scripts/tests change |
+| `run-tests.yml` | Runs pytest on every PR, without a path filter |
 | `enforce-promotion-path.yml` | Enforces the `dev → test → main` source‑branch path |
 
-**Why reusable workflows (not composite actions)?** They support the `environment:` keyword at job level — which unlocks GitHub Environment protection rules (required reviewers, branch restrictions) and environment‑scoped secrets. A path filter on `data/fabric/**` means doc‑only commits never trigger a deploy.
+This table traces the standard route. Use the
+[shared workflow reference](../fabric-hybrid-cicd-guide.md#github-actions-workflows)
+for every method's callers, templates, manual triggers, and ETL handoffs.
+
+**Why reusable workflows (not composite actions)?** They support job-level `environment:` and scoped secrets. Reviewers and branch restrictions apply when configured by the owner. Deployment callers filter paths; documentation-only changes do not trigger them.
 
 </details>
 
@@ -526,8 +530,8 @@ Both sit inside Option 3 — branch per stage, build environment per stage, depl
 | **Maturity** | **GA** | Preview (`?beta=true` required) |
 | **Env‑specific config** | `parameter.yml` (declarative) | None at the API level — caller preprocesses |
 | **Orphan cleanup** | `unpublish_all_orphan_items()` built in | None — caller's responsibility |
-| **Dependency ordering** | Caller phases manually | Service resolves automatically in one call |
-| **API call shape** | Many per‑item REST calls | One POST for the whole workspace |
+| **Dependency ordering** | Standard order + caller phases; optional plan adapters | Service resolves supported logical relationships; caller may still supply ordering |
+| **API call shape** | Non-bulk per-item calls; experimental fabric-cicd bulk also available | One or more caller-managed POSTs |
 | **Service principal coverage** | Per item (one unsupported type fails only itself) | Per request (every item must support SPNs or the call fails) |
 
 > **Recommendation today: `fabric-cicd`.** The Bulk APIs are still Preview with no parameterization or orphan‑cleanup at the API level — the caller must implement substitution, value‑set activation, and delete logic themselves. Re‑evaluate when the APIs exit Preview *and* gain parameterization/orphan‑cleanup, or when your repo is fully on logical IDs + Variable Libraries and doesn't need those features.
@@ -542,11 +546,14 @@ A `DEPLOY_METHOD` repository variable selects which deploy method runs:
 | `DEPLOY_METHOD` | Behavior |
 |---|---|
 | `fabric-cicd` *(or unset)* | The `fabric-cicd` workflows run — the default and recommended path |
-| `fabric-cicd-bulk` | fabric-cicd runs with bulk publish enabled; falls back to standard for this repo (`parameter.yml` uses `$items`/`$workspace`) |
+| `fabric-cicd-bulk` | fabric-cicd bulk + client-read plan, with 1.4.x dynamic replacements; requires `DEPLOYMENT_PLAN_PATH` |
 | `bulk` | The Bulk Import API workflows run instead (Preview) |
+| `fabric-cicd-plan` | Independent sequential non-bulk ordering adapter; requires `DEPLOYMENT_PLAN_PATH` |
 | any other value | All deploy workflows skip (safe default) |
 
-The bulk path bridges two of the API's gaps in **caller code** — substitution (`bulk-parameter.yml` + `deploy_bulk.py`) and value‑set activation (a post‑deploy `PATCH`). These are workarounds, not platform fixes: choosing bulk means you own that bridging code (~600 lines of Python + a config file). Orphan cleanup and the broader `fabric-cicd` feature surface remain unimplemented on the bulk path.
+The raw REST bulk path bridges two of the API's gaps in **caller code** — substitution (`bulk-parameter.yml` + `deploy_fabric_rest_bulk.py`) and value‑set activation (a post‑deploy `PATCH`). These remain comparison workarounds. fabric-cicd bulk delegates replacements/activation to the library and preserves eligible fabric-cicd cleanup.
+
+The isolated bulk adapter combines authored ready groups, not native plan execution. Cold/warm Test/Prod fixtures using actual fabric-cicd with mocked HTTP prove sixteen bulk imports total and zero standard definition POSTs with the parameter file present. Live bindings and ETL still require Test validation.
 
 </details>
 
@@ -561,7 +568,7 @@ Not for production today. They are Preview (`?beta=true`), with no parameterizat
 
 **Q - When would the Bulk APIs actually make sense?**
 
-When your repo is fully on logical IDs + Variable Library value sets (so you don't need `parameter.yml` substitution), when you want one atomic deploy instead of phased calls, or when you need a workspace-level export for disaster-recovery snapshots.
+When your repo is fully on logical IDs + Variable Library value sets (so you don't need caller-side substitution), when fewer import round trips matter, or when you need a workspace-level export for disaster-recovery snapshots. A bulk operation is not an atomic rollback guarantee. fabric-cicd bulk 1.4.x is a separate experimental option that retains the library's parameterization.
 
 **Q - Any gotcha unique to Bulk?**
 
@@ -579,7 +586,7 @@ Service principal coverage is **per request** - if even one item type doesn't su
 
 ## 10. Governance and guardrails
 
-> **Takeaway:** The pipeline is governed by GitHub‑native controls: least‑privilege identities, branch protection with an enforced promotion path, environment approvals on Prod, and a complete audit trail.
+> **Takeaway:** Configure GitHub-native controls around the pipeline: least-privilege identities, branch rules, required checks, and Production approvals. Fork owners supply these policies; workflow YAML does not create them.
 
 ### Pick the right identity for the job
 
@@ -654,11 +661,11 @@ These are part of any mature production Fabric deployment but owned by your **pl
 
 **Q - Client secrets in GitHub - is that safe enough for production?**
 
-The demo uses a client secret for simplicity. For production, evaluate **GitHub OIDC federation**: the workflow exchanges a short-lived token for an Azure token (no stored secret), and the trust policy binds to repo + branch + environment so a feature branch cannot assume the Prod identity.
+The demo uses a client secret. For production, evaluate **GitHub OIDC federation**: short-lived tokens replace a stored client secret. Restrict trust to the approved repository/environment and configure deployment-branch rules separately; an environment-based subject alone does not enforce a branch restriction.
 
 **Q - Can a developer deploy straight to Prod, by accident or otherwise?**
 
-No. Protected branches block direct pushes; the promotion path is enforced (a PR into `main` must come from `test`); and the Prod GitHub Environment requires approval and restricts deployment to `main`. The deploy service principal also cannot push to the repo (`GITHUB_TOKEN` is `contents: read`).
+With the documented protections configured, branch rules block direct pushes, the source-branch check requires `test → main`, and the protected Prod Environment restricts deployment and requires approval. These controls are not established by cloning YAML alone. The workflow's `GITHUB_TOKEN` has `contents: read`.
 
 **Q - If Test is compromised, can it reach Prod?**
 
@@ -697,19 +704,19 @@ In production you use one service principal per environment, each Contributor on
 
 ## 12. When things go wrong
 
-> **Takeaway:** Hotfixes cut from `main`, get reviewed, and deploy through the same gates. Rollback is a reviewed `git revert` for code — but data needs its own plan.
+> **Takeaway:** Urgent fixes and reviewed reverts follow `dev → test → main` in this repository. Definition recovery and data recovery remain separate.
 
 <details>
 <summary><b>▸ Hotfix flow</b></summary>
 
 <br/>
 
-1. Cut a **hotfix branch** from `main` (e.g., `hotfix/2026-04-16`).
-2. Reproduce and fix in isolation (branch out to a temp workspace or use client tools); commit to the hotfix branch.
-3. **PR → merge to `main`** after review.
-4. CI/CD triggers `fabric-cicd` to deploy the changed items to Prod.
-5. Validate; run the ETL notebook as needed (post‑deploy ingestion).
-6. Cherry‑pick/merge the hotfix back into `dev`/`test` so branches stay consistent.
+1. Reproduce and fix in an isolated feature workspace/branch; open a reviewed PR into `dev`.
+2. Promote `dev → test`, validate the candidate, then promote `test → main` with configured Production authorization.
+3. The selected deployment publishes its defined scope; verify configuration, execution, and required smoke checks.
+
+A direct feature/hotfix PR into `main` fails the promotion-path check.
+Emergency overrides need a separately approved policy; none is implemented here.
 
 </details>
 
@@ -719,11 +726,11 @@ In production you use one service principal per environment, each Contributor on
 <br/>
 
 **Code (supported items):**
-1. Identify the last known‑good commit.
-2. `git revert` (or `git reset`) to make it current on the target branch.
-3. Re‑deploy with `fabric-cicd`.
+1. Identify the last fully validated release and its retained definitions, tool version, and target configuration.
+2. Create a reviewed corrective/revert commit and promote it through `dev → test → main`, preserving protected history.
+3. Check schema compatibility, scope/deletion behavior, and post-recovery results.
 
-**Data:** data is **not** versioned by Git. Plan and execute ETL after rollback to restore state (seed/test data or reprocessing). Post‑deploy ingestion is part of every release stage.
+**Data:** definitions do not undo data writes. Recovery needs retained restore points/history, source watermarks, and authorized restore/replay with reconciliation. Never reseed Production as a shortcut. See the [Quality Gates recovery guidance](../fabric-cicd-quality-gates-and-release-controls.md#6-failure-handling-and-recovery).
 
 > A rollback you've never exercised is a hope, not a plan. Test it in Test first.
 
@@ -751,7 +758,7 @@ In production you use one service principal per environment, each Contributor on
 6. Configuration is handled by Variable Libraries (runtime) + `parameter.yml` (deploy‑time).
 7. Governance is GitHub‑native: least privilege, enforced promotion path, Prod approvals, full audit.
 
-> **This is more than a deck — it's a working solution accelerator.** Everything you've seen is implemented end to end in this repository: both the developer workflow *and* the full CI/CD pipeline, running as a **reference implementation and solution accelerator** — not isolated snippets. Clone it, point the workflows at your own Fabric workspaces, and adapt the parts you need.
+> **Use this as a reference implementation.** The repository includes Branch Out tooling and four GitHub deployment routes with ETL follow-up. Configure and validate your own environments and controls; native-pipeline extensions, OIDC, and broader release demonstrations are not all implemented by these examples.
 
 **A newcomer's starting checklist:**
 
@@ -769,12 +776,15 @@ In production you use one service principal per environment, each Contributor on
 
 | Document | What it covers |
 |---|---|
-| `README.md` | Repository landing page, key concepts, quick start |
-| `fabric-cicd-release-options.md` | Full release‑option comparison and the hybrid recommendation — **start here for strategy** |
-| `fabric-hybrid-cicd-guide.md` | The `fabric-cicd` implementation: workflows, config, prerequisites, gotchas |
-| `fabric-bulk-cicd-guide.md` | The alternative Bulk Import API path and its workarounds |
-| `fabric-development-process.md` | The Branch Out workflow and `workspace_swap.py` |
-| `fabric-cicd-governance-considerations.md` | Identity, RBAC, branch protection, approvals, adjacent controls |
+| [README](../README.md) | Reader entry points and the four-method comparison |
+| [Setup](../SETUP.md) | Ordered fork/workspace/configuration instructions |
+| [Release options](../fabric-cicd-release-options.md) | Strategy and optional architectural extensions |
+| [Shared workflow reference](../fabric-hybrid-cicd-guide.md#github-actions-workflows) | Every caller, trigger, template, runner, and ETL handoff |
+| [Raw REST Bulk](../fabric-bulk-cicd-guide.md) | Direct API payload/substitution implementation |
+| [Deployment Plan adapters](../fabric-deployment-plan-guide.md) | Independent fabric-cicd non-bulk/bulk ordering examples |
+| [Development process](../fabric-development-process.md) | Branch Out and the post-merge shared-Dev handoff |
+| [Governance](../fabric-cicd-governance-considerations.md) | Identity and administrator-configured protections |
+| [Quality gates](../fabric-cicd-quality-gates-and-release-controls.md) | Recommended validation, release evidence, and recovery controls |
 
 </details>
 

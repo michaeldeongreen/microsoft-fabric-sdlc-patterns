@@ -410,21 +410,22 @@ Git history can support every Git-backed option; the evidence row highlights the
 
 # Inside Option 3: `fabric-cicd` vs Bulk APIs
 
-| Concern | Standard `fabric-cicd` | `fabric-cicd` bulk publish | Direct Bulk APIs |
+| Concern | `fabric-cicd` non-bulk | `fabric-cicd` bulk publish | Direct Bulk APIs |
 |---|---|---|---|
-| Transport | Ordered per-item API calls | Bulk Import when compatible; **per-item fallback here (v1.3.0)** | One or more caller-managed Bulk Import calls |
-| Environment binding / parameterization | Full `parameter.yml` feature set | Same `parameter.yml`; this repo's dynamic values trigger the v1.3.0 fallback | None built in; caller rewrites definitions and configures after import |
-| Dependency handling | Library order + caller phases | Bulk API graph when bulk runs; standard order after fallback | Bulk API resolves logical IDs in one request; caller preprocesses physical target IDs |
+| Transport | Ordered per-item API calls | **Strict bulk with filtered dynamic replacements (1.4.x)** | One or more caller-managed Bulk Import calls |
+| Environment binding / parameterization | Full `parameter.yml` feature set | fabric-cicd-owned `parameter.yml` replacements and value-set activation | None built in; caller rewrites definitions and configures after import |
+| Dependency handling | Library order + caller phases | fabric-cicd-supported dependencies + isolated authored-plan grouping | Supported logical-ID graph; caller handles physical target IDs and explicit ordering |
 | Orphan cleanup / deletion | `unpublish_all_orphan_items()` | Same separate cleanup; Bulk Import is publish-only | Separate Delete Item calls |
-| Repository behavior | Two caller phases, ordered per item | Two-phase per-item fallback here (v1.3.0) | Two Bulk calls here: foundations, then rewritten dependents |
+| Repository behavior | Two caller phases, ordered per item | Plan-derived ready groups, then remainder; failure stops later calls | Two Bulk calls here: foundations, then rewritten dependents |
 
-**Repository recommendation:** standard `fabric-cicd`.
+**Repository starting point:** `fabric-cicd` non-bulk.
 
 **Binding ≠ deletion:** binding fixes target references; orphan cleanup removes source-absent items.
 
 <!--
-The repository installs published fabric-cicd 1.3.0. In that version, contains_param_vars is true when parameter.yml contains dynamic $items/$workspace values, and bulk publish falls back to standard per-item calls.
-The unversioned latest documentation already describes dependency batches for supported dynamic values. Re-check this result after upgrading; do not present the 1.3.0 fallback as permanent behavior.
+The repository bounds fabric-cicd to >=1.4.0,<1.5.0. The pre-1.4 dynamic-variable fallback is historical; parameter-file presence alone is not a fallback condition in 1.4.0.
+Cold/warm Test/Prod tests using actual fabric-cicd with mocked HTTP observe four bulk imports each and zero standard definition POSTs. Scope and result checks reject fallback and incomplete success.
+Bulk ordering is an independent repository-owned adapter, not native plan attachment. It combines ready groups: Lakehouse; Ontology + Semantic Model; Data Agent; remaining items. Live bindings still require Test validation, including the Report's unchanged byPath reference across imports.
 The Repository behavior row is specific to this implementation. Its direct Bulk script uses two calls because bulk-parameter.yml needs the target Lakehouse ID before rewriting dependent definitions. The service itself handles logical-ID dependencies in one bulk request.
 -->
 
@@ -487,16 +488,23 @@ Post-deploy: ETL + validation
 
 <!-- _class: compact -->
 
-# Three selectable deployment paths
+# Four selectable deployment paths
+
+Compare capabilities in the [README method matrix](../README.md#choose-a-deployment-method);
+locate files in the [shared workflow reference](../fabric-hybrid-cicd-guide.md#github-actions-workflows).
 
 | `DEPLOY_METHOD` | Result |
 |---|---|
 | unset or `fabric-cicd` | Recommended standard path |
-| `fabric-cicd-bulk` | Requests library bulk; falls back here because of dynamic parameters |
+| `fabric-cicd-bulk` | fabric-cicd bulk + client-read plan; requires `DEPLOYMENT_PLAN_PATH` |
 | `bulk` | Direct Bulk Import implementation |
-| anything else | All deployment workflows skip |
+| `fabric-cicd-plan` | Independent sequential non-bulk plan adapter |
+| anything else | All deployment jobs skip |
 
 All successful paths converge on the same ETL workflow.
+
+Both plan adapters use experimental selective deployment and read ordering only.
+None of these routes invokes native Fabric Deployment Pipelines.
 
 ### Why direct Bulk requires more code
 
@@ -525,26 +533,28 @@ Switch from the deck to GitHub after the next flow slide.
 
 # From pull request to usable workspace
 
+Default **fabric-cicd non-bulk** walkthrough; other methods use different callers.
+
 ```text
 PR: test → main
   ↓ branch rules + promotion-path check + unit tests
 merge creates push to main
-  ↓ DEPLOY_METHOD selects one orchestrator
+  ↓ DEPLOY_METHOD selects the standard deployment job
 Prod GitHub Environment supplies identity + workspace
   ↓ reusable workflow checks out the revision + authenticates
 deploy script + parameter.yml → Fabric APIs
-Phase 1 → Phase 2 → orphan cleanup
+standard phases → orphan cleanup
   ↓ successful deployment
-Prod ETL runs and validates data readiness
+Prod ETL starts/polls the import notebook; verify release readiness separately
 ```
 
 ### Files to follow
 
 1. [`enforce-promotion-path.yml`](../.github/workflows/enforce-promotion-path.yml) — permits only `test → main`
 2. [`run-tests.yml`](../.github/workflows/run-tests.yml) — installs dependencies and runs pytest for every PR
-3. [`deploy-prod.yml`](../.github/workflows/deploy-prod.yml) — selects the deploy method and Prod environment
+3. [`deploy-prod.yml`](../.github/workflows/deploy-prod.yml) — runs the standard route when selected, targeting Prod
 4. [`reusable-deploy-fabric-cicd.yml`](../.github/workflows/reusable-deploy-fabric-cicd.yml) — authenticates and runs the standard deployment
-5. [`deploy_fabric_cicd.py`](../scripts/deploy_fabric_cicd.py) — controls phases and orphan cleanup
+5. [`deploy_fabric_cicd_non_bulk.py`](../scripts/deploy_fabric_cicd_non_bulk.py) — controls phases and orphan cleanup
    - [`parameter.yml`](../data/fabric/parameter.yml) — rewrites target workspace/item IDs before upload
 6. [`etl-prod.yml`](../.github/workflows/etl-prod.yml) — starts ETL only after deployment succeeds
 
@@ -697,5 +707,5 @@ It is reproducing a working Fabric solution across item types whose definitions,
 
 | Official guidance | This repository |
 |---|---|
-| [Plan CI/CD for Fabric solutions](https://learn.microsoft.com/en-us/fabric/fundamentals/understand-best-practices-fabric-cicd)<br>[Choose a Fabric CI/CD workflow](https://learn.microsoft.com/en-us/fabric/cicd/manage-deployment)<br>[End-to-end automation tutorial](https://learn.microsoft.com/en-us/fabric/cicd/tutorial-end-to-end-automation) | [Release options](../fabric-cicd-release-options.md)<br>[Hybrid implementation guide](../fabric-hybrid-cicd-guide.md)<br>[Governance considerations](../fabric-cicd-governance-considerations.md) |
-| [`fabric-cicd` parameterization](https://microsoft.github.io/fabric-cicd/1.3.0/how_to/parameterization/)<br>[Optional and selective features](https://microsoft.github.io/fabric-cicd/1.3.0/how_to/optional_feature/)<br>[Code reference](https://microsoft.github.io/fabric-cicd/1.3.0/reference/code_reference/) | [Direct Bulk API implementation](../fabric-bulk-cicd-guide.md)<br>[Development process](../fabric-development-process.md)<br>[Reference implementation](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns) |
+| [Plan CI/CD for Fabric solutions](https://learn.microsoft.com/en-us/fabric/fundamentals/understand-best-practices-fabric-cicd)<br>[Choose a Fabric CI/CD workflow](https://learn.microsoft.com/en-us/fabric/cicd/manage-deployment)<br>[End-to-end automation tutorial](https://learn.microsoft.com/en-us/fabric/cicd/tutorial-end-to-end-automation) | [Setup](../SETUP.md)<br>[Release options](../fabric-cicd-release-options.md)<br>[Shared workflow reference](../fabric-hybrid-cicd-guide.md#github-actions-workflows)<br>[Quality gates and recovery](../fabric-cicd-quality-gates-and-release-controls.md) |
+| [`fabric-cicd` parameterization](https://microsoft.github.io/fabric-cicd/1.4.0/how_to/parameterization/)<br>[Optional and selective features](https://microsoft.github.io/fabric-cicd/1.4.0/how_to/optional_feature/)<br>[Code reference](https://microsoft.github.io/fabric-cicd/1.4.0/reference/code_reference/) | [Direct Bulk API implementation](../fabric-bulk-cicd-guide.md)<br>[Deployment Plan adapters](../fabric-deployment-plan-guide.md)<br>[Reference implementation](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns) |

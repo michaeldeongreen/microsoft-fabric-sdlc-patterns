@@ -8,7 +8,7 @@ on:
       - "data/fabric/**"
       - "deployment-plans/**"
       - "scripts/deployment_plan.py"
-      - "scripts/deploy_fabric_cicd_plan.py"
+      - "scripts/deploy_fabric_cicd_non_bulk_plan.py"
       - "requirements-dev.txt"
       - ".github/workflows/**"
   workflow_dispatch:

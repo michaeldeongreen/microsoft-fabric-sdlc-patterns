@@ -49,10 +49,10 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install "fabric-cicd>=1.3.0,<2.0.0" "azure-identity>=1.15" "PyYAML>=6.0"
+        run: pip install "fabric-cicd>=1.4.0,<1.5.0" "azure-identity>=1.15" "PyYAML>=6.0"
 
       - name: Preview and validate the deployment schedule
-        run: python scripts/deploy_fabric_cicd_plan.py --dry-run
+        run: python scripts/deploy_fabric_cicd_non_bulk_plan.py --dry-run
 
       - name: Deploy with fabric-cicd in plan order
         env:
@@ -60,4 +60,4 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           FABRIC_WORKSPACE_ID: ${{ secrets.FABRIC_WORKSPACE_ID }}
-        run: python scripts/deploy_fabric_cicd_plan.py
+        run: python scripts/deploy_fabric_cicd_non_bulk_plan.py

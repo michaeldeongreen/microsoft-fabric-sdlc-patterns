@@ -137,6 +137,12 @@ Before merging back to `dev`, all feature-specific changes must be reverted so d
    ```
 3. **Open a PR** to `dev`.
 
+After merge, the shared Dev workspace owner uses **Update from Git** to bring
+that workspace to the merged `dev` revision before the next Branch Out.
+This repository does not include an automatic Dev-sync workflow; a separately
+implemented Update-from-Git API workflow is an architectural option, not a
+step performed by the included deployment callers.
+
 #### PR Validation
 
 A GitHub Actions workflow (`.github/workflows/check-pr-ready.yml`) runs on every PR targeting `dev`. It verifies:
@@ -149,7 +155,7 @@ If any check fails, the PR is blocked until the developer runs `workspace_swap.p
 
 #### Running the Script with GitHub Copilot Chat
 
-The repo ships slash commands in `.github/prompts/` that wrap the CLI. In Copilot Chat (Agent mode) you can type:
+The repo ships agent skills in [.github/skills/](.github/skills/) that wrap the CLI and are also available as slash commands. In Copilot Chat (Agent mode) you can type:
 
 - `/swap-to-feature` — swap repo IDs to your feature workspace
 - `/swap-to-feature-dryrun` — preview the swap without writing files
@@ -213,8 +219,11 @@ Not all item types need rewriting. Fabric items fall into two categories based o
 | `data/fabric/Patterns_Ontology.Ontology/RelationshipTypes/*/Contextualizations/*.json` | Ontology contextualizations — validated (not rewritten) by the script |
 | `data/fabric/Patterns_Data_Agent.DataAgent/Files/Config/draft/ontology-*/datasource.json` | Data Agent datasource — registered but not scanned (no dev IDs) |
 | `.github/workflows/check-pr-ready.yml` | PR check to block feature IDs from merging to dev |
-| `.github/workflows/run-tests.yml` | Runs unit tests on PRs when scripts or tests change |
+| `.github/workflows/run-tests.yml` | Runs unit tests on every PR, without a path filter |
 | `data/fabric/parameter.yml` | Deploy-time parameterization for fabric-cicd (used in CI/CD, not by `workspace_swap.py`) |
+
+For deployment methods, reusable templates, and ETL handoffs beyond this
+developer loop, use the [shared workflow reference](fabric-hybrid-cicd-guide.md#github-actions-workflows).
 
 ## References
 

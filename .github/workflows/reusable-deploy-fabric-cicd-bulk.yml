@@ -1,5 +1,4 @@
-# Reusable workflow: Deploy supported Fabric items via fabric-cicd with bulk
-# publish requested (experimental).
+# Reusable workflow: Strict SDK bulk with isolated client-side plan ordering.
 #
 # Third deployment path alongside reusable-deploy-fabric-cicd.yml (standard
 # fabric-cicd) and reusable-deploy-bulk.yml (raw REST bulk). Selected at the
@@ -8,15 +7,9 @@
 #
 # Called by: deploy-test-fabric-cicd-bulk.yml, deploy-prod-fabric-cicd-bulk.yml
 #
-# What it demonstrates:
-#   This path enables fabric-cicd's experimental bulk publish
-#   (enable_experimental_features + enable_bulk_publish) and runs the same
-#   two-phase deployment as the standard path. Because data/fabric/parameter.yml
-#   is built on $items/$workspace dynamic variables, fabric-cicd ALWAYS falls
-#   back to standard per-item publish here. scripts/deploy_fabric_cicd_bulk.py
-#   surfaces that outcome; watch the log for the fabric-cicd warning
-#   "Falling back to standard deployment. Reason: parameter file contains
-#   dynamic variables ($workspace/$items)..." and the script's own summary.
+# The repository-owned bulk adapter batches independent ready plan groups.
+# fabric-cicd owns parameterization; fallback and incomplete success fail the job.
+# This is not native Deployment Plan execution or Before/After action support.
 #
 # Prerequisites:
 #   - GitHub Environment secrets: AZURE_TENANT_ID, AZURE_CLIENT_ID,
@@ -24,8 +17,9 @@
 #   - Service principal must have Contributor (or higher) role on the target workspace
 #   - Fabric Admin must enable "Service principals can use Fabric APIs"
 #   - parameter.yml in repository_directory for environment-specific replacements
+#   - DEPLOYMENT_PLAN_PATH repository variable pointing to the committed plan
 #
-# Requires fabric-cicd >= 1.2.0 (bulk publish was added in 1.2.0).
+# Requires a released fabric-cicd >= 1.4.0, < 1.5.0; bulk remains experimental.
 
 name: "Reusable: Deploy via fabric-cicd Bulk"
 
@@ -36,21 +30,19 @@ on:
         description: "Target environment (Test, Prod)"
         required: true
         type: string
+      deployment_plan_path:
+        description: "Checkout-relative path to the committed ordering-only plan.yml"
+        required: true
+        type: string
       repository_directory:
         description: "Path to the Fabric item definitions"
         required: false
         type: string
         default: "data/fabric"
       item_type_in_scope:
-        description: "JSON array of item types to deploy (e.g., '[\"Notebook\", \"Lakehouse\"]'). Deploys all if omitted."
-        required: false
+        description: "Required nonempty JSON array of bulk-eligible item types"
+        required: true
         type: string
-        default: ""
-      fail_if_bulk_used:
-        description: "Fail the job if bulk publish is actually used (i.e., the expected fallback did not happen). Off by default."
-        required: false
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -61,9 +53,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: ${{ inputs.environment }}
+    env:
+      REPOSITORY_DIRECTORY: ${{ inputs.repository_directory }}
+      DEPLOYMENT_PLAN_PATH: ${{ inputs.deployment_plan_path }}
+      ENVIRONMENT: ${{ inputs.environment }}
+      ITEM_TYPE_IN_SCOPE: ${{ inputs.item_type_in_scope }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
@@ -71,20 +70,15 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install "fabric-cicd>=1.2.0,<2.0.0" azure-identity
+        run: pip install "fabric-cicd>=1.4.0,<1.5.0" "azure-identity>=1.15" "PyYAML>=6.0"
 
-      # fabric-cicd reads parameter.yml from the repository_directory root and
-      # applies environment-specific find_replace rules. With bulk publish
-      # requested but $items/$workspace variables present, it falls back to
-      # standard per-item publish; the script logs and proves that outcome.
-      - name: Deploy with fabric-cicd (bulk requested)
+      - name: Preview and validate the bulk deployment schedule
+        run: python scripts/deploy_fabric_cicd_bulk.py --dry-run
+
+      - name: Deploy with strict fabric-cicd bulk in plan order
         env:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           FABRIC_WORKSPACE_ID: ${{ secrets.FABRIC_WORKSPACE_ID }}
-          REPOSITORY_DIRECTORY: ${{ inputs.repository_directory }}
-          ENVIRONMENT: ${{ inputs.environment }}
-          ITEM_TYPE_IN_SCOPE: ${{ inputs.item_type_in_scope }}
-          FAIL_IF_BULK_USED: ${{ inputs.fail_if_bulk_used }}
         run: python scripts/deploy_fabric_cicd_bulk.py

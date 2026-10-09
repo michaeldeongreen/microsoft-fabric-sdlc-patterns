@@ -4,9 +4,12 @@ This guide takes an independent fork from empty workspaces to a working
 `dev -> test -> main` promotion flow. It assumes familiarity with Azure and
 GitHub, but no prior Microsoft Fabric setup experience.
 
-The default and recommended deployment method is
-[fabric-cicd](https://microsoft.github.io/fabric-cicd). The alternative Bulk API
-path is documented separately in the [Bulk CI/CD Implementation Guide](fabric-bulk-cicd-guide.md).
+The steps below use **fabric-cicd non-bulk**, this repository's default route.
+[fabric-cicd](https://microsoft.github.io/fabric-cicd) is the Python library
+that publishes the items. After the default route works,
+use the [four-method comparison](README.md#choose-a-deployment-method) to choose
+an alternative. The [shared workflow reference](fabric-hybrid-cicd-guide.md#github-actions-workflows)
+explains each caller, trigger, template, and runner.
 
 ## What You Will Build
 
@@ -150,8 +153,11 @@ the target workspace.
 
 ## 5. Configure GitHub
 
-Create GitHub environments named exactly `Test` and `Prod`. Add these secrets to
-both environments:
+### Environment Secrets
+
+In **Settings > Environments**, create environments named exactly `Test` and
+`Prod`. Add these environment-scoped secrets to both; these are not repository
+variables:
 
 | Secret | Value |
 |---|---|
@@ -161,12 +167,53 @@ both environments:
 | `FABRIC_WORKSPACE_ID` | Test ID in `Test`; Production ID in `Prod` |
 
 For `Prod`, require a deployment reviewer and restrict deployments to `main`.
-Set the repository variable `DEPLOY_METHOD` to `fabric-cicd`, or leave it unset
-to use the same default.
 
-To evaluate plan-driven ordering after the default path works, follow the
-[Deployment Plan CI/CD Guide](fabric-deployment-plan-guide.md). It documents the
-separate method and its `DEPLOYMENT_PLAN_PATH` repository variable.
+These workflows use client-secret authentication. OIDC is a recommended
+production option to evaluate, not the authentication implemented by this
+setup; see [Governance](fabric-cicd-governance-considerations.md).
+
+### Deployment Method Variables
+
+In **Settings > Secrets and variables > Actions > Variables**, use **New
+repository variable** for the nonsecret settings below. Choose one method:
+
+| Method | `DEPLOY_METHOD` | `DEPLOYMENT_PLAN_PATH` |
+|---|---|---|
+| fabric-cicd non-bulk — repository default | `fabric-cicd`, or leave unset | Not used |
+| fabric-cicd non-bulk + client-read plan | `fabric-cicd-plan` | `data/fabric/DeploymentPlan.DeploymentPlan/plan.yml` |
+| fabric-cicd bulk + client-read plan | `fabric-cicd-bulk` | `data/fabric/DeploymentPlan.DeploymentPlan/plan.yml` |
+| Raw REST bulk — custom Python caller | `bulk` | Not used |
+
+Both plan routes use the committed [sample plan](data/fabric/DeploymentPlan.DeploymentPlan/plan.yml)
+unless you configure another checkout-relative plan path. Their adapters read
+it client-side; they do not pass it to fabric-cicd or the REST API. See the
+[Deployment Plan guide](fabric-deployment-plan-guide.md) for supported ordering
+and experimental boundaries.
+
+### fabric-cicd-bulk Settings
+
+For **fabric-cicd bulk + client-read plan**, enter these two repository variables exactly:
+
+| Repository variable | Value |
+|---|---|
+| `DEPLOY_METHOD` | `fabric-cicd-bulk` |
+| `DEPLOYMENT_PLAN_PATH` | `data/fabric/DeploymentPlan.DeploymentPlan/plan.yml` |
+
+- Use the four [environment secrets above](#environment-secrets); `FABRIC_WORKSPACE_ID` must identify the corresponding Test or Prod target.
+- Use [parameter.yml](data/fabric/parameter.yml) for fabric-cicd replacements. `DEPLOY_METHOD=bulk` and [bulk-parameter.yml](data/fabric/bulk-parameter.yml) belong to the separate raw REST route.
+- No extra GitHub bulk-feature flag is needed: the runner enables the required fabric-cicd feature flags.
+- The shipped callers supply `ENVIRONMENT` (`Test`/`Prod`), `REPOSITORY_DIRECTORY` (`data/fabric`), and the seven-type `ITEM_TYPE_IN_SCOPE`. You do not create additional repository variables for these; customize the workflow inputs if needed.
+- For a credentials-free schedule check, use the [bulk preview instructions](fabric-deployment-plan-guide.md#enable-and-preview-bulk).
+
+### Before Switching Methods
+
+Promote the selected workflows and their ETL listeners to the default branch
+before switching methods, and wait for in-flight deployments to finish.
+The selector applies to both Test and Prod; the routes are alternatives, not
+concurrent deployment jobs. Evaluate fabric-cicd bulk in an approved nonproduction
+target and configure Production protections before any Production promotion.
+
+### Branch Rules
 
 After the Dev baseline commits are complete, protect the branches with GitHub
 rulesets:
@@ -185,12 +232,21 @@ rationale is in
 
 ## 6. Deploy Test and Production
 
-1. Open a pull request from `dev` to `test` and merge it. The Test deployment
-   runs, followed by the ETL workflow.
-2. Verify Test before continuing.
+1. Open a pull request from `dev` to `test` with a qualifying definition or
+   workflow change and merge it. The selected Test deployment runs, followed
+   by its ETL listener on successful completion.
+2. Verify Test before continuing. Notebook completion is not a full release
+   validation suite; use the [Quality Gates guide](fabric-cicd-quality-gates-and-release-controls.md)
+   to define the evidence required for your workload.
 3. Open a pull request from `test` to `main` and merge it. The Production
    workflow then waits for a `Prod` environment reviewer to approve the
    deployment.
+
+Deployment path filters differ by method; documentation-only changes do not
+start these deployments. Only the non-bulk-plan Test caller supports a manual
+deployment run. Both ETL callers support manual runs. See the
+[workflow reference](fabric-hybrid-cicd-guide.md#github-actions-workflows) before
+trying to rerun a stage.
 
 On the first deployment, open the Ontology in each target workspace and bind its
 Graph Model to the local Lakehouse tables. See

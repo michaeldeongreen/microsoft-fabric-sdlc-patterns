@@ -40,6 +40,9 @@ begin at [Isolated Bulk Adapter](#isolated-bulk-adapter-14x).
         -&gt; publish remaining in-scope items
         -&gt; clean up eligible orphaned items
   -&gt; <a href=".github/workflows/etl-test.yml">etl-test.yml</a> / <a href=".github/workflows/etl-prod.yml">etl-prod.yml</a> (ETL workflows), after successful deployment
+     -&gt; <a href=".github/workflows/reusable-fabric-etl.yml">reusable-fabric-etl.yml</a>
+        -&gt; run the existing loader and wait for job success
+        -&gt; <a href="scripts/refresh_semantic_model.py">refresh_semantic_model.py</a>: refresh the configured model and wait for completion
 </pre>
 
 [deploy_fabric_cicd_non_bulk_plan.py](scripts/deploy_fabric_cicd_non_bulk_plan.py) calls
@@ -252,7 +255,10 @@ method. No additional source-workspace credential is needed. The existing
 [etl-test.yml](.github/workflows/etl-test.yml) and
 [etl-prod.yml](.github/workflows/etl-prod.yml) listeners recognize the new
 workflow names; [deploy_fabric_cicd_non_bulk_plan.py](scripts/deploy_fabric_cicd_non_bulk_plan.py)
-does not run ETL itself.
+does not run ETL or model refresh itself. Both plan methods use the same
+[post-ETL follow-up](fabric-hybrid-cicd-guide.md#post-etl-semantic-model-refresh)
+as the default non-bulk and raw REST routes: the existing loader succeeds,
+then `Patterns_Semantic_Model` is refreshed and that request must complete.
 
 ## Enable the Method
 
@@ -395,12 +401,17 @@ Use an approved Test target and check:
 - For bulk, verify the Report/model and logical-ID bindings across imports;
   do not infer them from the client request tests.
 - The correct value set is active before the existing ETL workflow runs once.
+- The notebook job succeeds, then the shared post-ETL model refresh completes;
+  verify the model's required fields, calculations, and consumer paths separately.
 - A second deployment updates the same item IDs rather than creating duplicates.
 - Cleanup affects only the expected orphaned items and types.
 
 The [clean-workspace caveats](fabric-hybrid-cicd-guide.md#initial-deployment-to-a-clean-workspace)
 still apply, including Ontology/Graph Model initialization. Deploying a notebook
-does not populate tables; ordering alone does not replace ETL or connection setup.
+does not populate tables; publishing `SemanticModel_Group` does not refresh it
+after the loader's writes. Ordering alone does not replace ETL, post-ETL Direct
+Lake framing, or connection setup. The follow-up does not attach a native plan
+or change either adapter's publishing order.
 Offline tests cover scheduling and fabric-cicd parameterization with a mocked transport;
 they are not evidence of a successful live deployment in your tenant.
 

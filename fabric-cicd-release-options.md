@@ -449,13 +449,13 @@ additional implementation.
 
 #### Dev Stage (Trigger: PR merged → `dev` branch)
 1. The shared Dev workspace owner uses **Update from Git** after merge. An API-based sync can be automated separately, but this repository does not ship that workflow.
-2. Run **Data Pipelines / Notebooks** for ETL jobs as needed.
+2. Run **Data Pipelines / Notebooks** for ETL jobs as needed. For this sample, after the existing loader succeeds, refresh `Patterns_Semantic_Model` using the workspace **Refresh** icon before consumer validation.
 3. **Items not supported by fabric-cicd** (if any) are **manually created and updated** in the Dev workspace only. These items are not in Git and have no version history — they exist only in the workspace and move between stages via Deployment Pipelines.
 4. Validate and test in the Dev workspace.
 
 #### Test Stage (Trigger: PR merged → `test` branch)
 1. **fabric-cicd** deploys all supported items to the Test workspace via `publish_all_items()`. Uses a two-phase approach (Lakehouse + Ontology first, then remaining items) to satisfy dependency resolution.
-2. Run **Data Pipelines / Notebooks** for ETL jobs.
+2. Run **Data Pipelines / Notebooks** for ETL jobs. In this repository, the shared ETL runner waits for `Import_Patterns_Data` to succeed, then refreshes `Patterns_Semantic_Model` and waits for that request to complete.
 3. Perform automated and manual testing.
 
 > **Note:** If your workspace includes item types not yet supported by fabric-cicd, you can extend this to a multi-job "sandwich" pattern: (1) deploy supported items that do not depend on unsupported items, (2) promote unsupported items via the [Deployment Pipelines REST API](https://learn.microsoft.com/en-us/rest/api/fabric/core/deployment-pipelines/deploy-stage-content), (3) deploy supported items that depend on unsupported items.
@@ -463,7 +463,7 @@ additional implementation.
 #### Prod Stage (Trigger: PR merged → `main` branch)
 Same pattern as Test:
 1. **fabric-cicd** deploys all supported items to the Prod workspace.
-2. Run **Data Pipelines / Notebooks** for ETL jobs.
+2. Run **Data Pipelines / Notebooks** for ETL jobs, followed by the same successful model refresh as Test.
 3. Production validation.
 
 ---
@@ -497,9 +497,16 @@ Two complementary mechanisms handle environment-specific configuration:
 When all item types gain fabric-cicd support:
 - **Drop the Deployment Pipeline entirely.**
 - **fabric-cicd handles all items end-to-end** — no sandwich pattern needed.
-- The flow simplifies to: PR merged → fabric-cicd deploys → run ETL → validate.
+- For this sample, the flow simplifies to: PR merged → fabric-cicd deploys → run ETL → refresh the semantic model → validate.
 
 > **Implementation boundary:** The current inventory needs no native Deployment Pipelines extension. The fabric-cicd routes publish the workload items; DeploymentPlan remains control metadata. The separate raw REST method is a comparison route. A single deployment job can make several publishing calls, and successful publication is not complete release validation.
+
+All four shipped methods share the
+[post-ETL follow-up](fabric-hybrid-cicd-guide.md#post-etl-semantic-model-refresh).
+For this Direct Lake on OneLake model, refresh frames the Delta references
+after the loader's writes; it is not another ETL or a change to deployment
+ordering. A green ETL workflow requires both job and refresh completion,
+not a guarantee of all DAX results or consumer access.
 
 ---
 

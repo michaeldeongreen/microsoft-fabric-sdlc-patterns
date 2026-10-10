@@ -2,7 +2,7 @@
 
 # Microsoft Fabric SDLC Patterns
 
-A reference implementation for Microsoft Fabric development and CI/CD using GitHub Actions and the [fabric-cicd](https://microsoft.github.io/fabric-cicd) Python library. It includes a Branch Out developer workflow, four selectable deployment implementations, and a post-deployment notebook job. The guides also discuss production controls and architectural extensions that are not all implemented by the examples.
+A reference implementation for Microsoft Fabric development and CI/CD using GitHub Actions and the [fabric-cicd](https://microsoft.github.io/fabric-cicd) Python library. It includes a Branch Out developer workflow, four selectable deployment implementations, and a post-deployment notebook job followed by a semantic model refresh. The guides also discuss production controls and architectural extensions that are not all implemented by the examples.
 
 *Based on field experience with Microsoft Fabric customers and partners. Opinions expressed here are my own and do not represent Microsoft's official guidance.*
 
@@ -56,8 +56,8 @@ Ordering labels:
 
 The workflows currently use service-principal client secrets. Fork owners must
 configure GitHub branch rules and Environment protection; workflow YAML does
-not create those policies. Running the ETL notebook is not a complete enterprise
-quality-gate suite. The [release guidance](fabric-cicd-quality-gates-and-release-controls.md)
+not create those policies. Completing the ETL notebook and semantic model refresh
+is not a complete enterprise quality-gate suite. The [release guidance](fabric-cicd-quality-gates-and-release-controls.md)
 describes the additional evidence and controls to design for your workloads.
 Dedicated [approval](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns/issues/82),
 [rollback](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns/issues/81),
@@ -70,7 +70,9 @@ examples are tracked as future work.
 ## Architecture
 
 The default fabric-cicd non-bulk route is shown below. The other methods replace its
-deployment implementation and share the Test/Prod ETL listeners.
+deployment implementation and share the Test/Prod ETL listeners. Those listeners
+wait for the existing loader notebook to succeed, then refresh
+`Patterns_Semantic_Model` and wait for that refresh to complete.
 
 ```
 Feature branch (feature/*)
@@ -81,24 +83,32 @@ Git repo (dev branch)
   │
   │  PR merge → test branch (source must be dev)
   ▼
-┌──────────────────────────────────────────────┐
-│  deploy-test.yml                             │
-│    └─ fabric-cicd: publish_all_items()       │
-│                    ↓ on success               │
-│  etl-test.yml                                │
-│    └─ Fabric REST API: run notebook          │
-└──────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│  deploy-test.yml                                    │
+│    └─ fabric-cicd: publish_all_items()              │
+│                    ↓ on success                     │
+│  etl-test.yml                                       │
+│    ├─ Fabric REST API: run notebook + wait          │
+│    └─ Power BI REST API: refresh model + wait       │
+└─────────────────────────────────────────────────────┘
   │
   │  PR merge → main branch (source must be test)
   ▼
-┌──────────────────────────────────────────────┐
-│  deploy-prod.yml                             │
-│    └─ fabric-cicd: publish_all_items()       │
-│                    ↓ on success               │
-│  etl-prod.yml                                │
-│    └─ Fabric REST API: run notebook          │
-└──────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│  deploy-prod.yml                                    │
+│    └─ fabric-cicd: publish_all_items()              │
+│                    ↓ on success                     │
+│  etl-prod.yml                                       │
+│    ├─ Fabric REST API: run notebook + wait          │
+│    └─ Power BI REST API: refresh model + wait       │
+└─────────────────────────────────────────────────────┘
 ```
+
+For this sample's **Direct Lake on OneLake** model, refresh performs framing of
+the Delta table references after ETL; it is not another data load or a storage
+mode conversion. Notebook-only callers can omit the optional model input.
+See the [shared follow-up contract](fabric-hybrid-cicd-guide.md#post-etl-semantic-model-refresh)
+and [refresh permissions](SETUP.md#post-etl-refresh-permissions).
 
 Branch protection (PR required, source-branch restrictions, status checks) is enforced by GitHub branch rulesets and the [enforce-promotion-path.yml](.github/workflows/enforce-promotion-path.yml) workflow — see the [Governance Considerations](fabric-cicd-governance-considerations.md).
 
@@ -164,7 +174,7 @@ When designing your development and CI/CD processes, identify which items in you
 
 1. **Fabric Capacity** — A Fabric or Power BI Premium capacity for all workspaces
 2. **Three Fabric Workspaces** — Dev (Git-connected), Test, and Prod
-3. **Service Principal** — With Contributor role on Test and Prod workspaces
+3. **Service Principal** — With Contributor role on Test and Prod workspaces, plus verified model-refresh and source permissions; see [Setup](SETUP.md#post-etl-refresh-permissions)
 4. **GitHub Environments** — `Test` and `Prod` with environment-scoped secrets
 5. **Fabric Admin Setting** — Service principal access to Fabric APIs enabled in the Fabric Admin portal under Developer settings (see [developer tenant settings](https://learn.microsoft.com/en-us/fabric/admin/service-admin-portal-developer))
 

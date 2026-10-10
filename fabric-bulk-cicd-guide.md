@@ -55,7 +55,8 @@ Git repo (dev branch)
 ┌─────────────────────────────────────────────────────┐
 │  etl-test.yml                                       │
 │    └─ reusable-fabric-etl.yml                       │
-│       └─ Fabric REST API: run notebook by name      │
+│       ├─ Fabric REST API: run notebook + wait       │
+│       └─ Power BI REST API: refresh model + wait    │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -108,7 +109,7 @@ microsoft-fabric-sdlc-patterns/
 │       ├── etl-test.yml                     # Triggers after any deploy-test* workflow succeeds
 │       ├── etl-prod.yml                     # Triggers after any deploy-prod* workflow succeeds
 │       ├── reusable-deploy-bulk.yml         # Template: Bulk Import API deployment
-│       ├── reusable-fabric-etl.yml          # Template: run Notebook via Fabric REST API
+│       ├── reusable-fabric-etl.yml          # Template: run notebook, then optional model refresh
 │       ├── check-pr-ready.yml               # PR check: blocks feature IDs from merging to dev
 │       ├── run-tests.yml                    # PR check: runs pytest when scripts/tests change
 │       └── enforce-promotion-path.yml       # PR check: enforces dev→test→main source-branch promotion
@@ -129,6 +130,7 @@ microsoft-fabric-sdlc-patterns/
 │   ├── deploy_fabric_rest_bulk.py           # Bulk Import API deploy (invoked by reusable-deploy-bulk.yml)
 │   ├── deploy_fabric_cicd_non_bulk.py       # fabric-cicd deploy (alternative path)
 │   ├── run_fabric_etl.py                    # Run a Fabric Notebook job (invoked by reusable-fabric-etl.yml)
+│   ├── refresh_semantic_model.py            # Post-ETL Power BI refresh (invoked by the same template)
 │   └── workspace_swap.py                    # Bootstrap/reset feature branch workspace bindings
 ├── tests/
 │   └── test_deploy_fabric_rest_bulk.py      # Unit tests for the bulk script
@@ -149,9 +151,9 @@ maps every caller and template.
 | Event | Workflow Triggered | What It Does |
 |---|---|---|
 | Push to `test` (Fabric definitions or workflow changes), `DEPLOY_METHOD=bulk` | `deploy-test-bulk.yml` | Imports workload definitions to Test, excluding DeploymentPlan control items |
-| `deploy-test-bulk.yml` completes successfully | `etl-test.yml` | Runs the `Import_Patterns_Data` notebook in the Test workspace |
+| `deploy-test-bulk.yml` completes successfully | `etl-test.yml` | Runs `Import_Patterns_Data` in Test, then refreshes `Patterns_Semantic_Model` and waits for completion |
 | Push to `main` (Fabric definitions or workflow changes), `DEPLOY_METHOD=bulk` | `deploy-prod-bulk.yml` | Imports workload definitions to Prod, excluding DeploymentPlan control items |
-| `deploy-prod-bulk.yml` completes successfully | `etl-prod.yml` | Runs the `Import_Patterns_Data` notebook in the Prod workspace |
+| `deploy-prod-bulk.yml` completes successfully | `etl-prod.yml` | Runs the same notebook and model refresh in Prod, waiting for completion |
 
 Set `DEPLOY_METHOD=bulk` for this route. For other values and their capabilities,
 use the [README method matrix](README.md#choose-a-deployment-method). Unselected
@@ -171,7 +173,7 @@ Each deploy workflow calls `reusable-deploy-bulk.yml`, which invokes `scripts/de
 
 The Bulk Import API can return `200 OK` with the result body inline, or `202 Accepted` with a Long-Running Operation (LRO). The script handles both transparently — see [Gotchas](#lro-polling).
 
-The ETL workflow triggers automatically after the deploy workflow completes successfully. If the deploy fails, ETL does not run.
+The ETL workflow triggers automatically after the deploy workflow completes successfully. If the deploy fails, ETL does not run. Its shared follow-up refreshes the configured model only after the notebook succeeds; this does not change either raw REST deployment phase.
 
 ---
 
@@ -186,7 +188,12 @@ the raw route's local implementation details.
 | Template | Purpose |
 |---|---|
 | `reusable-deploy-bulk.yml` | Acquires a token (via the SPN secrets), checks out the repo, installs `requests` + `PyYAML`, and invokes `scripts/deploy_fabric_rest_bulk.py` with the workspace ID, repository directory, and target environment as env vars. |
-| `reusable-fabric-etl.yml` | Resolves a Fabric item by **name** (not ID) via the List Items API, then starts a job (RunNotebook) and polls until completion. Shared with the fabric-cicd path — same template, no changes needed. |
+| `reusable-fabric-etl.yml` | Resolves a Fabric item by **name**, runs and polls its job, then optionally invokes `refresh_semantic_model.py` to refresh the named model through Power BI and wait for that request. All four deployment methods share this template. |
+
+Test and Prod configure `Patterns_Semantic_Model`; an empty optional
+`semantic_model_name` preserves notebook-only callers. See the
+[shared post-ETL contract](fabric-hybrid-cicd-guide.md#post-etl-semantic-model-refresh)
+for Direct Lake framing, failure criteria, and the live-validation boundary.
 
 ### Why Reusable Workflows (Not Composite Actions)
 
@@ -386,6 +393,10 @@ The first three secrets are identical across environments (single SPN). `FABRIC_
 - Test: the Test workspace ID
 - Prod: the Prod workspace ID
 
+These credentials also authorize the shared post-ETL Power BI refresh.
+Verify its [tenant, model, and source permissions](SETUP.md#post-etl-refresh-permissions);
+successful raw REST publishing does not by itself prove refresh authorization.
+
 ### 6. Set the `DEPLOY_METHOD` Repository Variable
 
 Set `DEPLOY_METHOD=bulk` in Settings → Secrets and variables → Actions →
@@ -397,9 +408,9 @@ other selectors follow the [README matrix](README.md#choose-a-deployment-method)
 ## Initial Deployment to a Clean Workspace
 
 This walkthrough uses the raw REST route. Follow these steps for a clean target.
-Subsequent publication and ETL are automated, subject to configured approvals;
-required release validation and any changed prerequisite configuration remain
-separate.
+Subsequent publication, ETL, and model refresh are automated, subject to
+configured approvals; required release validation and any changed prerequisite
+configuration remain separate.
 
 ### Step 1: Trigger the Deployment
 
@@ -411,9 +422,14 @@ approvals apply. The raw deployment job executes:
 - **Phase 2:** Substitute IDs from Phase 1's response into the remaining items, then POST them
 - **Post-deploy:** PATCH the VariableLibrary to set the active value set for the environment
 
-### Step 2: ETL Populates the Lakehouse
+### Step 2: ETL Populates the Lakehouse, Then Refreshes the Model
 
 The ETL workflow (`etl-test.yml` or `etl-prod.yml`) triggers automatically after a successful deployment. It runs the `Import_Patterns_Data` notebook, which creates and populates the Delta tables (`doctors`, `patients`, `appointments`) in the Lakehouse.
+
+After notebook success, the same shared runner refreshes
+`Patterns_Semantic_Model` and waits for completion. This frames the current
+Delta references for the Direct Lake on OneLake model; it is not another ETL
+run or a raw bulk publishing operation.
 
 ### Step 3: Configure Graph Model Data Source (Manual)
 
@@ -435,11 +451,14 @@ Confirm all items are functional in the target workspace:
 - **Lakehouse** — tables populated with data
 - **Ontology** — overview loads, entity types and relationships visible
 - **Variable Library** — active value set matches the target environment (`Test` or `Prod`)
-- **Semantic Model** — connected to the lakehouse (may require manual connection config on first deploy)
+- **Semantic Model** — post-ETL refresh completed; verify the local Lakehouse connection, model-owner/source permissions, required fields, and calculations (configure a supported connection if required on first deploy)
 - **Report** — renders with data from the Semantic Model
 - **Data Agent** — references the Ontology and responds to queries
 
 > **Note:** Steps 3–4 (Ontology activation) are platform behaviors, not bulk-specific. The fabric-cicd path requires the same manual steps on first deploy.
+
+Notebook and refresh completion do not replace these consumer checks or the
+[required release evidence](fabric-cicd-quality-gates-and-release-controls.md).
 
 ---
 

@@ -50,8 +50,9 @@
   <line x1="745" y1="175" x2="720" y2="175" stroke="#4A90D9" stroke-width="2" marker-end="url(#arrow1)"/>
 
   <rect x="530" y="150" width="190" height="50" rx="6" fill="#4A90D9" stroke="#3a7bc8"/>
-  <text x="625" y="172" text-anchor="middle" fill="white" font-weight="bold">Fabric UI</text>
-  <text x="625" y="187" text-anchor="middle" fill="white">Run Import Data notebook</text>
+  <text x="625" y="165" text-anchor="middle" fill="white" font-weight="bold">Fabric UI</text>
+  <text x="625" y="180" text-anchor="middle" fill="white">Run Import Data notebook</text>
+  <text x="625" y="195" text-anchor="middle" fill="white">then refresh model</text>
 
   <line x1="530" y1="175" x2="505" y2="175" stroke="#4A90D9" stroke-width="2" marker-end="url(#arrow1)"/>
 

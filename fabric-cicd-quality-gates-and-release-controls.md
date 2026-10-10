@@ -86,7 +86,7 @@ At PR, inspect source definitions/code. After publication, inspect effective tar
 ### Semantic models and reports
 
 - Check structure, connections, relationships, and critical measures; review changed visuals and metrics. Static-check examples use tools such as Tabular Editor Best Practice Analyzer and PBI Inspector, not a universal Fabric validator. [Validation example](https://learn.microsoft.com/en-us/power-bi/developer/projects/projects-build-pipelines).
-- For Import models, wait for successful refresh before asserting results. For Direct Lake, query the intended current data. Test calculations and security with the supported consumer identities described below. [Refresh API](https://learn.microsoft.com/en-us/rest/api/power-bi/datasets/refresh-dataset-in-group).
+- For Import models, wait for successful refresh before asserting results. For Direct Lake, wait for required [framing](https://learn.microsoft.com/en-us/fabric/fundamentals/direct-lake-how-it-works#framing) after source ETL, then query the intended current data. Framing is not another ETL/data copy and its success does not validate DAX or consumer access. Test calculations and security with the supported consumer identities described below. [Refresh API](https://learn.microsoft.com/en-us/rest/api/power-bi/datasets/refresh-dataset-in-group).
 
 ### Dataflows Gen2
 
@@ -109,7 +109,7 @@ Source-only tests run at PR. Integration, data, and consumer tests run after Tes
 - Consumer tests: use the intended user's approved authentication. Model RLS is bypassed by workspace Admin/Member/Contributor roles; the deployment identity is not a substitute. [RLS behavior](https://learn.microsoft.com/en-us/fabric/security/service-admin-row-level-security).
 - Access boundaries: verify allowed/denied results on each relevant model/report, SQL, OneLake, and agent path. Model RLS alone does not secure direct data access; a failed login or timeout is not a passing denial test. [Permission model](https://learn.microsoft.com/en-us/fabric/security/permission-model).
 - Power BI Execute Queries cannot use service principals for RLS- or SSO-enabled models. Use a supported user-based route or recorded manual verification; never weaken MFA/Conditional Access to make automation work. [API limitations](https://learn.microsoft.com/en-us/rest/api/power-bi/datasets/execute-queries).
-- Harness checks: wait for operation/job-specific terminal success and inspect per-item outcomes and response-body errors. Fail CI on failed or missing required outcomes, cancellation, timeout, or unmet assertions; accepting a request, logging errors, or skipping checks is not a pass. [Jobs API](https://learn.microsoft.com/en-us/rest/api/fabric/core/job-scheduler/run-on-demand-item-job).
+- Harness checks: wait for operation/job/refresh-specific terminal success and inspect per-item outcomes and response-body errors. Fail CI on failed or missing required outcomes, cancellation, timeout, or unmet assertions; accepting a request, logging errors, or skipping checks is not a pass. [Jobs API](https://learn.microsoft.com/en-us/rest/api/fabric/core/job-scheduler/run-on-demand-item-job).
 
 ## 4. Approvals and release controls
 
@@ -128,10 +128,12 @@ Source-only tests run at PR. Integration, data, and consumer tests run after Tes
 
 ### Execution and completion
 
+- In this repository's [shared Test/Prod follow-up](fabric-hybrid-cicd-guide.md#post-etl-semantic-model-refresh), a green ETL workflow requires the existing notebook job and the configured `Patterns_Semantic_Model` refresh to complete successfully, in that order. Missing/ambiguous models, authorization errors, refresh failure, and timeout block success. This implemented orchestration gate is not the full business-result or consumer-validation suite.
+- A refresh polling timeout is not server-side cancellation. Check the specific request's status/history before retriggering; a failed workflow can leave a service operation running.
 - Share a lock/concurrency policy across all routes targeting the same workspace; hold it through deployment, required workload execution, and smoke checks. Do not interrupt an in-progress release with a competing one.
 - Limit Production writes to approved deployment/operational identities. Keep secrets outside code; separate deployment, runtime, and consumer access. See [Governance Considerations](fabric-cicd-governance-considerations.md) for identity controls.
 - Prefer OIDC/workload identity federation for CI where supported; constrain trust and deployment branch policies and verify Fabric permissions. This repository currently uses client-secret authentication; the [OIDC example is planned](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns/issues/84).
-- Retain approvals, target configuration, per-item outcomes, job/test IDs, deletions, and run links with restricted access and masked results. Keep failed/partial attempts separate from the last fully validated Production release.
+- Retain approvals, target configuration, per-item outcomes, job/refresh/test IDs, deletions, and run links with restricted access and masked results. Keep failed/partial attempts separate from the last fully validated Production release.
 
 ## 5. Support inventory and exceptions
 

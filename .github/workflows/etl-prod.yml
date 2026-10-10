@@ -33,4 +33,5 @@ jobs:
     with:
       environment: Prod
       item_name: Import_Patterns_Data
+      semantic_model_name: Patterns_Semantic_Model
     secrets: inherit

@@ -109,7 +109,12 @@ A Python script at `scripts/workspace_swap.py` handles the full lifecycle of fea
    ```
 6. **Sync** the feature workspace from the Fabric UI (Update from Git).
 7. **Activate the feature value set** in the Fabric UI: open the Variable Library → select the feature value set → activate it.
-8. **Run the import data notebook** to populate the feature lakehouse.
+8. **Run the existing `Import_Patterns_Data` notebook** to populate the feature lakehouse.
+9. **Refresh `Patterns_Semantic_Model`** using the semantic model's **Refresh**
+   icon in the workspace after the notebook succeeds. Reload an already-open
+   model/report UI and verify the required fields and results. This Direct Lake
+   on OneLake refresh frames the loader's Delta references; it does not run
+   another import notebook.
 
 #### Step-by-Step: Swap to Dev Before PR
 
@@ -142,6 +147,13 @@ that workspace to the merged `dev` revision before the next Branch Out.
 This repository does not include an automatic Dev-sync workflow; a separately
 implemented Update-from-Git API workflow is an architectural option, not a
 step performed by the included deployment callers.
+
+Run the existing loader in Dev as needed after syncing merged changes, then
+refresh `Patterns_Semantic_Model` from the workspace **Refresh** icon before
+consumer validation. Dev and feature notebook runs remain manual and
+independent; the loader does not refresh the model itself. Only the shared
+[Test/Prod follow-up](fabric-hybrid-cicd-guide.md#post-etl-semantic-model-refresh)
+automates the model refresh after successful ETL.
 
 #### PR Validation
 

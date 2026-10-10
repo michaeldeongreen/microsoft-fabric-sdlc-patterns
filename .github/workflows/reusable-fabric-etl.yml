@@ -6,6 +6,8 @@
 # the need to know item IDs ahead of time (which differ per workspace).
 # The Fabric Jobs API is asynchronous — this workflow starts the job, then polls
 # the Location header URL until the job completes, fails, or times out.
+# When a Semantic Model name is supplied, refresh it after ETL and wait for
+# completion. For Direct Lake, this frames the newly written Delta tables.
 #
 # Called by: etl-test.yml, etl-prod.yml (triggered via workflow_run after deploy)
 #
@@ -40,6 +42,11 @@ on:
         required: false
         type: string
         default: "RunNotebook"
+      semantic_model_name:
+        description: "Semantic Model to refresh after successful ETL; empty skips model refresh"
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -48,7 +55,7 @@ jobs:
   run-etl:
     name: Run ETL (${{ inputs.environment }})
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
     environment: ${{ inputs.environment }}
     steps:
       - name: Checkout repository
@@ -60,9 +67,10 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install azure-identity requests
+        run: pip install "azure-identity>=1.15" "requests>=2.31"
 
       - name: Run Fabric item job
+        timeout-minutes: 60
         env:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -72,3 +80,14 @@ jobs:
           ITEM_TYPE: ${{ inputs.item_type }}
           JOB_TYPE: ${{ inputs.job_type }}
         run: python scripts/run_fabric_etl.py
+
+      - name: Refresh Semantic Model after ETL
+        if: ${{ success() && inputs.semantic_model_name != '' }}
+        timeout-minutes: 15
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          FABRIC_WORKSPACE_ID: ${{ secrets.FABRIC_WORKSPACE_ID }}
+          SEMANTIC_MODEL_NAME: ${{ inputs.semantic_model_name }}
+        run: python scripts/refresh_semantic_model.py

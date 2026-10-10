@@ -4,8 +4,9 @@ This strategy guide compares Fabric platform options and possible extensions.
 For the four GitHub implementations actually shipped in this repository, use
 the [README method matrix](README.md#choose-a-deployment-method); for exact
 triggers and runners, use the [shared workflow reference](fabric-hybrid-cicd-guide.md#github-actions-workflows).
-The native-pipeline hybrid described below is an extension, not a fifth
-implemented deployment route.
+The recommendation is to start with **fabric-cicd non-bulk**. The native-pipeline
+hybrid described below is an optional extension, not a fifth implemented
+deployment route or a prerequisite for the default method.
 
 ## Table of Contents
 
@@ -19,6 +20,8 @@ implemented deployment route.
 - [Infrastructure & Resource Provisioning](#infrastructure--resource-provisioning)
 - [Comparison Summary](#comparison-summary)
 - [My Recommendation](#my-recommendation)
+  - [Start with fabric-cicd Non-Bulk](#start-with-fabric-cicd-non-bulk)
+  - [Optional Extensions for Unsupported Items](#optional-extensions-for-unsupported-items)
 - [Best Practices](#best-practices)
 - [References](#references)
 - [Acknowledgments](#acknowledgments)
@@ -383,7 +386,7 @@ Technically, the Terraform provider can *create* items like notebooks in a targe
 **Infrastructure recommendation:**
 - Use **Bicep** for provisioning Fabric **capacities** as part of your existing Azure IaC pipelines.
 - For **workspace setup**, **deployment pipeline creation**, **role assignments**, and **Git connections**, use either the Fabric Terraform provider, Fabric REST APIs, or manual setup in the portal — depending on your team's IaC preference.
-- Use **fabric-cicd** and **Deployment Pipelines** for content deployment (as described in the Release Options and My Recommendation sections).
+- Start with **fabric-cicd non-bulk** for content deployment. Add another supported publisher only where the chosen architecture needs it; native Deployment Pipelines are not required by the default route.
 
 
 ---
@@ -394,7 +397,7 @@ Technically, the Terraform provider can *create* items like notebooks in a targe
 |---|---|---|---|
 | **Source of truth** | Git (Dev only) + workspaces | Git (all stages) | Git (all stages) |
 | **Branching strategy** | Any (Git only for Dev) | Gitflow (branch per stage) | Branch per stage with build envs |
-| **Deployment mechanism** | Fabric Deployment Pipelines (UI or API) | Update from Git API | fabric-cicd (recommended) or Bulk Import / Export APIs (Preview) — see [Tooling within Option 3](#tooling-within-option-3-fabric-cicd-vs-bulk-apis) |
+| **Deployment mechanism** | Fabric Deployment Pipelines (UI or API) | Update from Git API | fabric-cicd non-bulk (recommended starting point) or Bulk Import / Export APIs (Preview) — see [Tooling within Option 3](#tooling-within-option-3-fabric-cicd-vs-bulk-apis) |
 | **Config management** | Deployment rules + autobinding | Post-deployment API calls or parameterization | Declarative `parameter.yml` (fabric-cicd) or custom scripts before deploy |
 | **Visual comparison** | Yes (Fabric-native UI) | No (Git diffs only) | No (Git diffs only) |
 | **Deployment history** | Yes (built into Fabric) | No | No |
@@ -410,19 +413,32 @@ Technically, the Terraform provider can *create* items like notebooks in a targe
 
 ## My Recommendation
 
-### Hybrid Approach — fabric-cicd + Deployment Pipelines
+### Start with fabric-cicd Non-Bulk
 
-I recommend a **hybrid approach** that uses **fabric-cicd** for all supported items and **Fabric Deployment Pipelines** for any items that lack fabric-cicd support. This gives us Git as the single source of truth for the majority of items, with a clean path to drop the Deployment Pipelines component as items gain support.
+For this repository, I recommend **fabric-cicd non-bulk** as the starting point.
+It publishes the sample's workload items from retained definitions, uses
+`parameter.yml` for deployment-time configuration, and leaves Dev connected to
+Git while Test and Prod receive API-based deployments.
 
-Apply the native component only where the item and identity support that route.
-The current repository does not invoke it: workload definitions use one of
-the four GitHub routes, while DeploymentPlan is control metadata. Native
-pipeline orchestration and a shared deployment lock across tools require
-additional implementation.
+Set `DEPLOY_METHOD` to `fabric-cicd`, or leave it unset, for the default route.
+Use the [fabric-cicd Non-Bulk CI/CD Guide](fabric-hybrid-cicd-guide.md) for its
+implementation and the [method matrix](README.md#choose-a-deployment-method)
+for the alternative client-read plan and raw REST examples. This is a
+repository starting-point recommendation, not a claim that one method fits
+every Fabric workload.
 
-> Note on tooling within this recommendation. “fabric-cicd” here refers specifically to the GA Python library. Microsoft has also released the [Bulk Import / Export APIs](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions) (Preview) as an alternative implementation of Option 3. They are worth tracking but not yet recommended for production CI/CD — see [Tooling within Option 3](#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the comparison and reasoning.
+**Hybrid** is an architectural description for combining publishers when
+needed, not the name of this default method. Using Fabric Git integration for
+development and fabric-cicd for publishing does not require native Deployment
+Pipelines.
 
-![Hybrid Recommendation Flow](assets/hybrid-recommendation-flow.svg)
+> **Implementation boundary:** All four shipped methods publish through their selected GitHub route and share the ETL and model-refresh follow-up. None invokes native Fabric Deployment Pipelines. The client-read DeploymentPlan is ordering metadata, not a native pipeline.
+
+![fabric-cicd Non-Bulk Flow with Optional Hybrid Extension](assets/hybrid-recommendation-flow.svg)
+
+The diagram's native-pipeline branch is an optional extension, not part of
+the default execution flow. Its prerequisites are described
+[below](#optional-extensions-for-unsupported-items).
 
 ---
 
@@ -431,8 +447,8 @@ additional implementation.
 - **Three branches:** `dev`, `test`, `main` (production)
 - **Three workspaces:** Dev, Test, Prod
 - **Dev workspace** is connected to the `dev` branch via Fabric Git integration — this is the shared development workspace
-- **Test and Prod workspaces** are NOT Git-connected — they receive deployments via fabric-cicd and Deployment Pipelines
-- A **Fabric Deployment Pipeline** is created with stages pointing to Dev → Test → Prod (used only for items that lack fabric-cicd support, if any)
+- **Test and Prod workspaces** are NOT Git-connected — the default route deploys their workload definitions through fabric-cicd
+- No native Fabric Deployment Pipeline is required or created by the default workflows
 
 ---
 
@@ -449,21 +465,20 @@ additional implementation.
 
 #### Dev Stage (Trigger: PR merged → `dev` branch)
 1. The shared Dev workspace owner uses **Update from Git** after merge. An API-based sync can be automated separately, but this repository does not ship that workflow.
-2. Run **Data Pipelines / Notebooks** for ETL jobs as needed.
-3. **Items not supported by fabric-cicd** (if any) are **manually created and updated** in the Dev workspace only. These items are not in Git and have no version history — they exist only in the workspace and move between stages via Deployment Pipelines.
-4. Validate and test in the Dev workspace.
+2. Run **Data Pipelines / Notebooks** for ETL jobs as needed. For this sample, after the existing loader succeeds, refresh `Patterns_Semantic_Model` using the workspace **Refresh** icon before consumer validation.
+3. Validate and test in the Dev workspace. If your workload includes items outside the selected publisher's scope, assess the [optional extensions](#optional-extensions-for-unsupported-items) separately; fabric-cicd support does not determine Git integration or export support.
 
 #### Test Stage (Trigger: PR merged → `test` branch)
 1. **fabric-cicd** deploys all supported items to the Test workspace via `publish_all_items()`. Uses a two-phase approach (Lakehouse + Ontology first, then remaining items) to satisfy dependency resolution.
-2. Run **Data Pipelines / Notebooks** for ETL jobs.
+2. Run **Data Pipelines / Notebooks** for ETL jobs. In this repository, the shared ETL runner waits for `Import_Patterns_Data` to succeed, then refreshes `Patterns_Semantic_Model` and waits for that request to complete.
 3. Perform automated and manual testing.
 
-> **Note:** If your workspace includes item types not yet supported by fabric-cicd, you can extend this to a multi-job "sandwich" pattern: (1) deploy supported items that do not depend on unsupported items, (2) promote unsupported items via the [Deployment Pipelines REST API](https://learn.microsoft.com/en-us/rest/api/fabric/core/deployment-pipelines/deploy-stage-content), (3) deploy supported items that depend on unsupported items.
+> Additional publishers are not part of this default flow. Introduce an [optional extension](#optional-extensions-for-unsupported-items) only after verifying its support and orchestration requirements.
 
 #### Prod Stage (Trigger: PR merged → `main` branch)
 Same pattern as Test:
 1. **fabric-cicd** deploys all supported items to the Prod workspace.
-2. Run **Data Pipelines / Notebooks** for ETL jobs.
+2. Run **Data Pipelines / Notebooks** for ETL jobs, followed by the same successful model refresh as Test.
 3. Production validation.
 
 ---
@@ -484,22 +499,61 @@ Two complementary mechanisms handle environment-specific configuration:
 
 ### Why This Approach
 
-- **Git as source of truth** for all supported items across all stages.
-- **fabric-cicd's `parameter.yml`** handles environment-specific configuration declaratively — no custom scripts.
-- **Deployment Pipelines** fill the gap for any items that lack fabric-cicd support, with minimal overhead.
-- **Variable Libraries** provide clean runtime auto-binding, reducing the surface area of deployment-time parameterization.
-- **Forward-looking** — as fabric-cicd adds support for new item types, the flow remains a simple single-job deployment.
+- **Git as source of truth** for the retained workload definitions deployed to each stage.
+- **fabric-cicd's `parameter.yml`** handles deployment-time replacements without a custom replacement engine.
+- **One publisher for the current workload scope** avoids unnecessary cross-tool promotion and coordination.
+- **Variable Libraries** provide runtime configuration where items consume them, reducing deployment-time parameterization.
+- **Explicit follow-up** runs the loader and model refresh before the configured ETL workflow succeeds.
+
+---
+
+<a id="hybrid-approach--fabric-cicd--deployment-pipelines"></a>
+
+### Optional Extensions for Unsupported Items
+
+Do not infer a deployment route from a single unsupported-item list. Check
+these capabilities independently:
+
+1. **Git integration:** Can Fabric synchronize the item's definition to Git?
+2. **Selected publisher:** Can the chosen fabric-cicd version or item API export/deploy its definition under the intended identity?
+3. **Native Deployment Pipelines:** Does the native service support the item subtype, promotion operation, and identity?
+
+An item outside Git integration is not automatically outside fabric-cicd or
+another file-based API. Likewise, lack of fabric-cicd support does not prove
+that native Deployment Pipelines can promote it. Retain reviewed definitions
+and recovery information using the item's supported surfaces.
+
+Where native Deployment Pipelines meet those requirements, you can design a
+**hybrid extension**: publish independent items with fabric-cicd, promote the
+additional items using the [Deploy Stage Content API](https://learn.microsoft.com/en-us/rest/api/fabric/core/deployment-pipelines/deploy-stage-content),
+then publish any dependents. This "sandwich" pattern requires additional
+implementation, including dependency handling, a shared deployment lock,
+coordinated cleanup scopes, and failure/recovery checks across publishers.
+It is not a selectable method or a shipped workflow in this repository.
+
+If no automated route covers an item, define an approved manual process and
+recovery evidence rather than silently excluding it. Add a second publisher
+only for a demonstrated workload need, not to satisfy a "hybrid" label.
 
 ---
 
 ### Future State
 
-When all item types gain fabric-cicd support:
-- **Drop the Deployment Pipeline entirely.**
-- **fabric-cicd handles all items end-to-end** — no sandwich pattern needed.
-- The flow simplifies to: PR merged → fabric-cicd deploys → run ETL → validate.
+The current sample already needs no native Deployment Pipelines extension:
+PR merged → fabric-cicd deploys → run ETL → refresh the semantic model → validate.
 
-> **Implementation boundary:** The current inventory needs no native Deployment Pipelines extension. The fabric-cicd routes publish the workload items; DeploymentPlan remains control metadata. The separate raw REST method is a comparison route. A single deployment job can make several publishing calls, and successful publication is not complete release validation.
+If your workload requires a hybrid extension today, reassess it as the chosen
+publisher gains support. Retire that extension only after verifying equivalent
+configuration, dependency handling, and recovery behavior. A single deployment
+job can still make several publishing calls; publication is not complete
+release validation.
+
+All four shipped methods share the
+[post-ETL follow-up](fabric-hybrid-cicd-guide.md#post-etl-semantic-model-refresh).
+For this Direct Lake on OneLake model, refresh frames the Delta references
+after the loader's writes; it is not another ETL or a change to deployment
+ordering. A green ETL workflow requires both job and refresh completion,
+not a guarantee of all DAX results or consumer access.
 
 ---
 
@@ -516,9 +570,9 @@ A feature/hotfix PR directly into `main` fails this repository's promotion-path
 check. An organization-specific emergency override needs a separately approved
 policy and implementation; it is not a bypass provided here.
 
-#### Hotfix Flow (Unsupported Items via Deployment Pipelines)
+#### Hotfix Flow (Optional Native-Pipeline Extension)
 
-- If your workspace includes **items not supported by fabric-cicd**, promote via Deployment Pipelines from the previous stage (e.g., Test → Prod).
+- If your workload uses the verified [native-pipeline extension](#optional-extensions-for-unsupported-items), promote its selected items from the authorized previous stage (e.g., Test → Prod).
 - Automate with the [Deploy Stage Content](https://learn.microsoft.com/en-us/rest/api/fabric/core/deployment-pipelines/deploy-stage-content) API; selective deploy requires explicitly listing items (no "select related" in API).
 
 > **Note:** This is an optional extension, not a shipped workflow. Retain the known-good content and configuration using the item's supported recovery method; today's earlier-stage contents and operation history are not a definition backup.
@@ -530,7 +584,7 @@ policy and implementation; it is not a bypass provided here.
 2. Create a reviewed corrective/revert commit in the development flow; preserve protected history and promote through `dev -> test -> main`.
 3. Validate compatibility, selected scope, and deletion behavior before redeployment; rerun the required post-recovery checks.
 
-**Unsupported items (Deployment Pipelines):**
+**Items using the optional native-pipeline extension:**
 1. Restore retained known-good content/configuration to a suitable source stage using a supported recovery method.
 2. Authorize selective forward deployment and verify the actual result. Do not assume the current previous-stage version is the last successful Production release.
 

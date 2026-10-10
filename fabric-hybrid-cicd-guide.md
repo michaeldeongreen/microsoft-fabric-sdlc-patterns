@@ -1,14 +1,18 @@
-# Hybrid CI/CD Implementation Guide
+<a id="hybrid-cicd-implementation-guide"></a>
 
-This repository implements the **Hybrid CI/CD recommendation** for Microsoft Fabric using **fabric-cicd**. It demonstrates how to deploy Fabric workspace items (Notebooks, Lakehouses, Variable Libraries, Semantic Models, Reports, Ontologies, Data Agents) across environments using GitHub Actions.
+# fabric-cicd Non-Bulk CI/CD Guide
 
-This page explains the default fabric-cicd non-bulk route and owns the
-[shared workflow reference](#github-actions-workflows) for all four methods.
+This guide describes **fabric-cicd non-bulk**, this repository's default deployment method and recommended starting point. It demonstrates how to deploy Fabric workspace items (Notebooks, Lakehouses, Variable Libraries, Semantic Models, Reports, Ontologies, Data Agents) across environments using GitHub Actions.
+
+This page also owns the [shared workflow reference](#github-actions-workflows) for all four methods.
 Dev uses Fabric Git integration; Test/Prod receive API-based deployments.
-The native Deployment Pipelines extension in the strategic recommendation is
-not implemented by these workflows.
+Using Git for development does not add a second publisher to the default route.
+An optional hybrid architecture can combine publishers when a workload requires
+it; native Fabric Deployment Pipelines are not used by these workflows.
 
-For the full CI/CD strategy, release option comparison, and recommendation rationale, see [fabric-cicd-release-options.md](fabric-cicd-release-options.md).
+For the release option comparison and [optional extensions for unsupported items](fabric-cicd-release-options.md#optional-extensions-for-unsupported-items), see [CI/CD Release Options](fabric-cicd-release-options.md).
+
+The existing filename is retained to preserve links to this guide.
 
 ---
 
@@ -179,7 +183,7 @@ Ontology/Graph Model, connection, and ETL caveats below until tested otherwise.
 All fabric-cicd workflows use `>=1.4.0,<1.5.0`; bulk, item inclusion, and the ordering
 adapter remain experimental. fabric-cicd non-bulk remains the recommended starting point.
 
-> **Note:** If your workspace includes item types not yet supported by fabric-cicd, you can extend this to a multi-job "sandwich" pattern: (1) deploy supported items, (2) promote unsupported items via the [Fabric Deployment Pipelines REST API](https://learn.microsoft.com/en-us/rest/api/fabric/core/deployment-pipelines/deploy-stage-content), (3) deploy supported items that depend on the unsupported items. See [fabric-cicd-release-options.md](fabric-cicd-release-options.md) for details.
+> **Optional extension, not implemented here:** If the selected publisher cannot deploy an item, first verify another route's support for that item and execution identity. Where native Fabric Deployment Pipelines support it, a multi-job "sandwich" can publish independent items, promote the extra items, then publish their dependents. Lack of Git integration support alone does not require this architecture. See [Optional Extensions for Unsupported Items](fabric-cicd-release-options.md#optional-extensions-for-unsupported-items).
 
 ---
 
@@ -446,7 +450,7 @@ Standard deployment callers watch Fabric definitions and workflow files. Plan ca
 
 ## References
 
-- [Fabric CI/CD Release Options](fabric-cicd-release-options.md) — Full strategy document with release option comparison and hybrid recommendation
+- [Fabric CI/CD Release Options](fabric-cicd-release-options.md) — Release option comparison, recommended non-bulk starting point, and optional hybrid extensions
 - [fabric-cicd Python Library](https://microsoft.github.io/fabric-cicd) — Docs, getting started, supported item types
 - [fabric-cicd Parameterization](https://microsoft.github.io/fabric-cicd/latest/how_to/parameterization/) — `parameter.yml` reference with `find_replace`, `$items` dynamic replacement
 - [fabric-cicd Item Types](https://microsoft.github.io/fabric-cicd/latest/reference/item_types/) — Per-item-type notes including Variable Library active value set behavior

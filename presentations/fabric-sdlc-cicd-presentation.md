@@ -14,11 +14,11 @@
 |---|---|
 | **The problem** | A Fabric workspace is a *shared, live* environment. Editing it directly affects everyone. You need a disciplined way to move items **and data** from Dev → Test → Prod. |
 | **The building blocks** | Git integration (version control), a development process (isolated feature work), and a release strategy (how content is promoted). |
-| **The decision** | Three release options exist. This repo recommends **Option 3 — Git‑based with a build environment**, implemented with the GA **`fabric-cicd`** library. |
+| **The decision** | Three release options exist. This repo uses **Option 3 — Git‑based with a build environment**, with **fabric-cicd non-bulk** as its default and recommended starting point. |
 | **The shape** | Three branches (`dev`, `test`, `main`) → three workspaces (Dev, Test, Prod). Dev is Git‑connected; Test/Prod receive deployments via CI/CD. |
 | **The guardrails** | Branch protection + an enforced `dev → test → main` promotion path, environment approvals on Prod, least‑privilege service principals, and a full audit trail in Git + GitHub Actions. |
 | **The payoff** | Versioned definitions and a traceable release path. Retained definitions/configuration support recovery; data requires a separate plan. |
-| **The implementation** | Branch Out tools and GitHub deployment/ETL examples. Native-pipeline extensions and broader enterprise controls are design guidance, not all shipped workflows. |
+| **The implementation** | Branch Out tools and GitHub deployment/ETL examples. Native-pipeline extensions are optional design guidance, not shipped workflows; broader enterprise controls also need owner configuration. |
 
 <div align="center">
 
@@ -37,7 +37,7 @@
 | 3 | [How Git integration works in Fabric](#3-how-git-integration-works-in-fabric) | The foundation all release options build on |
 | 4 | [How developers work day to day](#4-how-developers-work-day-to-day) | Isolated feature work with Branch Out |
 | 5 | [Choosing a release strategy](#5-choosing-a-release-strategy) | The three options, compared honestly |
-| 6 | [The recommended hybrid approach](#6-the-recommended-hybrid-approach) | What to pick and why |
+| 6 | [Repository default and optional extensions](#6-repository-default-and-optional-extensions) | The starting point and when another publisher might be needed |
 | 7 | [Reference architecture](#7-reference-architecture) | Branches, workspaces, and the end‑to‑end flow |
 | 8 | [How the deployment actually works](#8-how-the-deployment-actually-works) | Two‑phase deploy, config strategy, workflows |
 | 9 | [fabric-cicd versus the Bulk APIs](#9-fabric-cicd-versus-the-bulk-apis) | The tooling choice inside Option 3 |
@@ -78,15 +78,16 @@ Everything else in this walkthrough is a consequence of taking that idea serious
 
 > **Takeaway:** Not all Fabric items can be managed the same way, and not all of them store their environment‑specific IDs the same way. These two facts shape your entire CI/CD strategy.
 
-### Reality 1 — Fabric items fall into three categories
+### Reality 1 — Source control and deployment support are independent
 
-| Category | What it means | Examples |
+| Capability | Check for each item/subtype | What it establishes |
 |---|---|---|
-| **Git‑tracked** | Definitions are serialized to files in the repo — enabling version control, branching, and code review. | Notebooks, Semantic Models, Lakehouses, Reports, Variable Libraries, Data Pipelines, Environments |
-| **Fabric APIs** | Not version-controlled in Git, but moved between workspaces through **Fabric REST APIs**. Fabric Deployment Pipelines are one such API — the same capability with a point-and-click UI on top. No Git history for these items. | Changes over time — always check the official list |
-| **Manual** | Reachable through neither Git integration nor a Fabric API. Created and configured by hand in each workspace. | Changes over time — always check the official list |
+| **Fabric Git integration** | Can Fabric serialize and sync the definition? Check the [Git supported-items list](https://learn.microsoft.com/en-us/fabric/cicd/git-integration/intro-to-git-integration#supported-items). | Native Git tracking, branching, and code review — not publisher support. |
+| **fabric-cicd publishing** | Does the chosen [library version](https://microsoft.github.io/fabric-cicd/latest/) support definition deployment with the intended identity? | A library-based release route — not proof of Git or native pipeline support. |
+| **Native Deployment Pipelines** | Does the [native service](https://learn.microsoft.com/en-us/fabric/cicd/deployment-pipelines/intro-to-deployment-pipelines#supported-items) support the item and identity? | A possible separate publisher, not an automatic fallback for a library gap. |
+| **Other routes / manual exceptions** | Is another approved definition export/deployment API available? What still needs manual configuration? | Capture available definitions/configuration and retain release evidence for exceptions. |
 
-> **Important:** Both supported‑items lists evolve as Microsoft adds capabilities. Always verify against the official documentation before assuming a category. *In this repository, all items are Git‑tracked and deployed via `fabric-cicd`.*
+> **Important:** Verify these support surfaces independently for the item/subtype, tool version, and identity. An item unsupported by fabric-cicd may still be Git-tracked or exportable; version definitions/configuration where possible. This repository versions its workload definitions and publishes them with **fabric-cicd non-bulk** by default.
 
 ### Reality 2 — Environment IDs are either dynamic or static
 
@@ -129,7 +130,7 @@ This is why the development tooling in this repo only rewrites Semantic Models a
 - **Providers.** Azure DevOps (cloud), GitHub (cloud), GitHub Enterprise (cloud).
 - **Two‑way sync.** Changes in the workspace are **committed** to the branch; changes in the repo are **pulled** into the workspace via *Update*. Only one direction syncs at a time.
 - **Item definitions become files.** Items are serialized to file‑based definitions (JSON, Python, etc.), preserving folder structure.
-- **Unsupported items are ignored** — they stay in the workspace but are never synced, committed, or deleted.
+- **Items unsupported by Fabric Git integration are ignored by its sync** — they stay in the workspace but are not synced, committed, or deleted by Fabric Git integration. Other export or publishing routes may still be supported.
 - **Branch out.** A developer can spin up a new branch *and* a new workspace from a connected workspace, for isolated development.
 - **Prerequisites.** Tenant admin switches (Git sync, provider sync, workspace creation) must be enabled, and a Fabric/Premium capacity is required.
 
@@ -260,7 +261,7 @@ Every stage has its own branch, and **each branch is Git‑connected to its work
 </details>
 
 <details>
-<summary><b>▸ Option 3 — Git‑based with a build environment (recommended)</b></summary>
+<summary><b>▸ Option 3 — Git‑based with a build environment (this repository's architecture)</b></summary>
 
 <br/>
 
@@ -283,7 +284,7 @@ Every stage has its own branch, and each stage's pipeline spins up a **build env
 | | **Option 1 — Deployment Pipelines** | **Option 2 — Git Integration** | **Option 3 — Build Env** |
 |---|---|---|---|
 | **Source of truth** | Git (Dev only) + workspaces | Git (all stages) | Git (all stages) |
-| **Deployment mechanism** | Deployment Pipelines (UI/API) | Update from Git API | `fabric-cicd` (recommended) or Bulk APIs (Preview) |
+| **Deployment mechanism** | Deployment Pipelines (UI/API) | Update from Git API | fabric-cicd non-bulk (repository starting point) or alternative API/library routes |
 | **Config management** | Deployment rules + autobinding | Post‑deploy API calls | Declarative `parameter.yml` |
 | **Visual comparison** | **Yes** | No | No |
 | **Deployment history** | **Yes** | No | No |
@@ -313,39 +314,41 @@ Yes, it needs a build/release pipeline per stage. But `fabric-cicd`'s declarativ
 
 <div align="center">
 
-[◀ Prev](#4-how-developers-work-day-to-day) · [▲ Agenda](#agenda) · [Next: The recommendation ▶](#6-the-recommended-hybrid-approach)
+[◀ Prev](#4-how-developers-work-day-to-day) · [▲ Agenda](#agenda) · [Next: Default and extensions ▶](#6-repository-default-and-optional-extensions)
 
 </div>
 
 ---
 
-## 6. The recommended hybrid approach
+## 6. Repository default and optional extensions
 
-> **Takeaway:** Use standard **`fabric-cicd`** as this repository's baseline. Add a native Deployment Pipelines component only where an item needs and supports that route.
+> **Takeaway:** **fabric-cicd non-bulk** is this repository's default and recommended starting point. Choose any additional publisher only for a workload requirement with verified item and identity support.
 
-The recommendation is a **hybrid**: `fabric-cicd` for supported items, with a native extension where needed. The four current repository implementations do not invoke native Deployment Pipelines; compare them in the [README matrix](../README.md#choose-a-deployment-method).
+The default implements Option 3's **Git-based deployment**, not a multi-publisher hybrid. Dev Git integration plus API-based releases does not itself combine publishers. The four current repository implementations do not invoke native Fabric Deployment Pipelines; compare them in the [README matrix](../README.md#choose-a-deployment-method). The client-read Deployment Plan adapters are alternative ordering examples, not native Deployment Pipelines.
 
-<p align="center"><img src="../assets/hybrid-recommendation-flow.svg" alt="Hybrid Recommendation Flow"></p>
+<p align="center"><img src="../assets/hybrid-recommendation-flow.svg" alt="fabric-cicd Non-Bulk Default and Optional Publisher Extension"></p>
 
 - **Three branches:** `dev`, `test`, `main` (production).
 - **Three workspaces:** Dev, Test, Prod.
 - **Dev** is Git‑connected (the shared development workspace).
-- **Test and Prod are NOT Git‑connected** — they receive deployments via `fabric-cicd`.
+- **Test and Prod are NOT Git‑connected** — they receive deployments via fabric-cicd non-bulk by default.
 
-> **This repository has already reached the future state:** all items are deployed via `fabric-cicd` in a single deploy job — no Deployment Pipeline fallback needed.
+> **The repository default uses one fabric-cicd non-bulk deploy job per environment.** Native Deployment Pipelines are neither required by this default nor implemented by the current routes.
 
 <details>
-<summary><b>▸ Deep dive: the "sandwich" pattern for unsupported items</b></summary>
+<summary><b>▸ Deep dive: an optional multi-publisher "sandwich" pattern</b></summary>
 
 <br/>
 
-If your workspace includes item types `fabric-cicd` does not yet support, extend the single deploy into a three‑layer sandwich:
+Only consider a **hybrid publisher extension** when the workload needs another mechanism and its item/subtype, identity, and version support have been verified. A fabric-cicd support gap does not establish native pipeline support. With an approved additional publisher, a conceptual three-layer sandwich could be:
 
-1. Deploy supported items that **don't** depend on unsupported items.
-2. Promote unsupported items via the **Deployment Pipelines REST API**.
-3. Deploy supported items that **do** depend on the unsupported ones.
+1. Deploy fabric-cicd-owned prerequisites that do not depend on the additional publisher's items.
+2. Deploy the separately owned items through the verified additional mechanism — native Deployment Pipelines only if that route supports them and the intended identity.
+3. Deploy fabric-cicd-owned items that depend on those results.
 
-When all item types gain `fabric-cicd` support, you drop the Deployment Pipeline entirely and the flow collapses back to: *PR merged → deploy → run ETL → validate.*
+Assign one publisher per item and implement cross-publisher dependency ordering, target binding, failure handling, shared workspace locking through validation, and release evidence. That orchestration is **not shipped here**. Retain available definitions/configuration regardless of the publishing route; a publisher gap does not imply no Git history. If the primary publisher later covers the workload, evaluate removing the extension after Test validation.
+
+See [Optional Extensions for Unsupported Items](../fabric-cicd-release-options.md#optional-extensions-for-unsupported-items). Native Deployment Pipelines and Deployment Plans are separate features.
 
 </details>
 
@@ -356,7 +359,7 @@ When all item types gain `fabric-cicd` support, you drop the Deployment Pipeline
 
 **Q - What about item types `fabric-cicd` doesn't support yet?**
 
-Use the "sandwich": deploy supported items, promote the unsupported ones via the Deployment Pipelines REST API, then deploy supported items that depend on them. As Microsoft adds support you drop the Deployment Pipeline entirely. This repo already reached that end state - everything deploys via `fabric-cicd` in a single job.
+Check Git, library/API, and native pipeline support independently. Version any available definitions and choose an approved alternate route or documented manual exception. A native pipeline is an option only with verified item/identity support and implemented release coordination — not a guaranteed fallback. The repository's default workload does not need that extension.
 
 **Q - Does `fabric-cicd` do incremental (diff) deploys?**
 
@@ -398,8 +401,8 @@ PROD STAGE  (automated + required Prod approval)
 | Branch | Workspace | Deployment method |
 |---|---|---|
 | `dev` | Dev | Git‑connected via Fabric Git integration |
-| `test` | Test | `fabric-cicd` via GitHub Actions |
-| `main` | Prod | `fabric-cicd` via GitHub Actions |
+| `test` | Test | fabric-cicd non-bulk via GitHub Actions (default) |
+| `main` | Prod | fabric-cicd non-bulk via GitHub Actions (default) |
 
 The deploy and ETL are **chained**: the ETL workflow only runs after its deploy workflow succeeds. If the deploy fails, no ETL runs.
 
@@ -422,7 +425,7 @@ This mix is deliberate: it exercises every hard case — actual IDs (Semantic Mo
 
 <div align="center">
 
-[◀ Prev](#6-the-recommended-hybrid-approach) · [▲ Agenda](#agenda) · [Next: How deployment works ▶](#8-how-the-deployment-actually-works)
+[◀ Prev](#6-repository-default-and-optional-extensions) · [▲ Agenda](#agenda) · [Next: How deployment works ▶](#8-how-the-deployment-actually-works)
 
 </div>
 
@@ -430,7 +433,7 @@ This mix is deliberate: it exercises every hard case — actual IDs (Semantic Mo
 
 ## 8. How the deployment actually works
 
-> **Takeaway:** Two mechanisms handle configuration (runtime + deploy‑time), and a two‑phase deploy solves the chicken‑and‑egg problems of a brand‑new workspace.
+> **Takeaway:** In the default fabric-cicd non-bulk route, two mechanisms handle configuration (runtime + deploy‑time), and a two‑phase deploy solves the chicken‑and‑egg problems of a brand‑new workspace.
 
 ### Configuration strategy — two complementary mechanisms
 
@@ -521,9 +524,9 @@ for every method's callers, templates, manual triggers, and ETL handoffs.
 
 ## 9. fabric-cicd versus the Bulk APIs
 
-> **Takeaway:** Inside Option 3, you can deploy with the GA **`fabric-cicd`** library or the Preview **Bulk Import/Export APIs**. Today, `fabric-cicd` is the recommendation.
+> **Takeaway:** Inside Option 3, **fabric-cicd non-bulk** is this repository's default and recommended starting point. The plan adapters and raw REST bulk route remain alternative examples with experimental/preview boundaries.
 
-Both sit inside Option 3 — branch per stage, build environment per stage, deploy from Git. The choice is: a library that solves the common CI/CD problems for you, or a lower‑level API surface you wrap yourself.
+Both sit inside Option 3 — branch per stage, build environment per stage, deploy from Git. The choice is: a library that solves the common CI/CD problems for you, or a lower‑level API surface you wrap yourself. The library's GA status does not make the experimental plan adapters or bulk publishing route GA; use the [method matrix](../README.md#choose-a-deployment-method) for their support boundaries.
 
 | Dimension | `fabric-cicd` | Bulk Import / Export APIs |
 |---|---|---|
@@ -534,10 +537,10 @@ Both sit inside Option 3 — branch per stage, build environment per stage, depl
 | **API call shape** | Non-bulk per-item calls; experimental fabric-cicd bulk also available | One or more caller-managed POSTs |
 | **Service principal coverage** | Per item (one unsupported type fails only itself) | Per request (every item must support SPNs or the call fails) |
 
-> **Recommendation today: `fabric-cicd`.** The Bulk APIs are still Preview with no parameterization or orphan‑cleanup at the API level — the caller must implement substitution, value‑set activation, and delete logic themselves. Re‑evaluate when the APIs exit Preview *and* gain parameterization/orphan‑cleanup, or when your repo is fully on logical IDs + Variable Libraries and doesn't need those features.
+> **Repository recommendation: start with fabric-cicd non-bulk.** The raw Bulk APIs are still Preview with no parameterization or orphan‑cleanup at the API level — the caller must implement substitution, value‑set activation, and delete logic themselves. Evaluate alternatives against your workload's requirements and verified item/identity support, not a universal ranking. Logical IDs + Variable Libraries or fewer import round trips can change the trade-offs.
 
 <details>
-<summary><b>▸ Deep dive: this repo demonstrates both</b></summary>
+<summary><b>▸ Deep dive: four alternative repository routes</b></summary>
 
 <br/>
 
@@ -545,10 +548,10 @@ A `DEPLOY_METHOD` repository variable selects which deploy method runs:
 
 | `DEPLOY_METHOD` | Behavior |
 |---|---|
-| `fabric-cicd` *(or unset)* | The `fabric-cicd` workflows run — the default and recommended path |
-| `fabric-cicd-bulk` | fabric-cicd bulk + client-read plan, with 1.4.x dynamic replacements; requires `DEPLOYMENT_PLAN_PATH` |
+| `fabric-cicd` *(or unset)* | fabric-cicd non-bulk — the repository default and recommended starting point |
+| `fabric-cicd-bulk` | Experimental fabric-cicd bulk + client-read plan, with 1.4.x dynamic replacements; requires `DEPLOYMENT_PLAN_PATH` |
 | `bulk` | The Bulk Import API workflows run instead (Preview) |
-| `fabric-cicd-plan` | Independent sequential non-bulk ordering adapter; requires `DEPLOYMENT_PLAN_PATH` |
+| `fabric-cicd-plan` | Experimental independent sequential non-bulk ordering adapter; requires `DEPLOYMENT_PLAN_PATH` |
 | any other value | All deploy workflows skip (safe default) |
 
 The raw REST bulk path bridges two of the API's gaps in **caller code** — substitution (`bulk-parameter.yml` + `deploy_fabric_rest_bulk.py`) and value‑set activation (a post‑deploy `PATCH`). These remain comparison workarounds. fabric-cicd bulk delegates replacements/activation to the library and preserves eligible fabric-cicd cleanup.
@@ -564,7 +567,7 @@ The isolated bulk adapter combines authored ready groups, not native plan execut
 
 **Q - Should we just wait for the Bulk APIs?**
 
-Not for production today. They are Preview (`?beta=true`), with no parameterization or orphan-cleanup at the API level - you would implement substitution, value-set activation, and delete logic yourself (~600 lines in this repo). `fabric-cicd` already provides those, maintained by Microsoft. Re-evaluate when Bulk exits Preview and gains those features.
+Not to adopt this repository's starting point: fabric-cicd non-bulk already provides parameterization, value-set activation, and orphan cleanup. Raw REST Bulk APIs are Preview (`?beta=true`); their caller must implement those capabilities. Evaluate that alternative only with ownership of the extra code and validation of its preview and item/identity boundaries.
 
 **Q - When would the Bulk APIs actually make sense?**
 
@@ -692,7 +695,7 @@ In production you use one service principal per environment, each Contributor on
 
 **Can Terraform promote content between environments?** Technically it can *create* items, but it is **not designed for CI/CD promotion**: no parameterization equivalent, state‑drift conflicts when developers edit in the UI, and no concept of "promoting" between stages. Microsoft built `fabric-cicd` specifically for content deployment.
 
-> **Recommendation:** use **Bicep** for provisioning capacities in your existing Azure IaC pipelines; use Terraform / REST / portal for workspace + pipeline + role setup; use **`fabric-cicd`** (and Deployment Pipelines) for content.
+> **Repository starting point:** use **Bicep** for provisioning capacities in your existing Azure IaC pipelines; use Terraform / REST / portal for workspace + role setup; use **fabric-cicd non-bulk** for content. Evaluate other publishers, including native Deployment Pipelines, only where workload requirements and verified support justify them; that extension is not shipped here.
 
 <div align="center">
 
@@ -751,9 +754,9 @@ Emergency overrides need a separately approved policy; none is implemented here.
 **What we covered:**
 
 1. A Fabric workspace is shared and live → work in isolation, merge through PRs.
-2. Item categories and dynamic‑vs‑static IDs drive the entire strategy.
+2. Independent source-control/publishing capabilities and dynamic‑vs‑static IDs drive the strategy.
 3. Git integration is the foundation; developers **Branch Out** for isolated work.
-4. Three release options exist; **Option 3 with `fabric-cicd`** is recommended.
+4. Three release options exist; this repo uses **Option 3** with **fabric-cicd non-bulk** as its default and recommended starting point.
 5. Three branches, three workspaces, automated deploy + ETL per stage.
 6. Configuration is handled by Variable Libraries (runtime) + `parameter.yml` (deploy‑time).
 7. Governance is GitHub‑native: least privilege, enforced promotion path, Prod approvals, full audit.
@@ -767,6 +770,7 @@ Emergency overrides need a separately approved policy; none is implemented here.
 - [ ] Create a CI/CD **service principal**; grant **Contributor** on Test and Prod.
 - [ ] Create GitHub **Environments** (`Test`, `Prod`) with scoped secrets; add Prod approval.
 - [ ] Create `dev`, `test`, `main` branches with protection + the enforced promotion path.
+- [ ] Leave `DEPLOY_METHOD` unset or set it to `fabric-cicd` for the default non-bulk route; evaluate alternatives only for specific requirements.
 - [ ] Develop on a feature branch → merge to `dev` → `test` (deploys) → `main` (deploys).
 
 <details>
@@ -779,7 +783,7 @@ Emergency overrides need a separately approved policy; none is implemented here.
 | [README](../README.md) | Reader entry points and the four-method comparison |
 | [Setup](../SETUP.md) | Ordered fork/workspace/configuration instructions |
 | [Release options](../fabric-cicd-release-options.md) | Strategy and optional architectural extensions |
-| [Shared workflow reference](../fabric-hybrid-cicd-guide.md#github-actions-workflows) | Every caller, trigger, template, runner, and ETL handoff |
+| [fabric-cicd Non-Bulk CI/CD Guide](../fabric-hybrid-cicd-guide.md#github-actions-workflows) | Default implementation and shared caller, trigger, template, runner, and ETL handoff reference |
 | [Raw REST Bulk](../fabric-bulk-cicd-guide.md) | Direct API payload/substitution implementation |
 | [Deployment Plan adapters](../fabric-deployment-plan-guide.md) | Independent fabric-cicd non-bulk/bulk ordering examples |
 | [Development process](../fabric-development-process.md) | Branch Out and the post-merge shared-Dev handoff |

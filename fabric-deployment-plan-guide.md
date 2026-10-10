@@ -3,8 +3,11 @@
 Two independent repository-owned adapters read a committed Fabric Deployment
 Plan: `fabric-cicd-plan` uses sequential non-bulk publishing, and
 `fabric-cicd-bulk` combines independent ready groups into strict fabric-cicd bulk
-selections. Each replaces hard-coded phases in its own method. The default non-bulk
-`fabric-cicd` and raw REST `bulk` implementations remain available and unchanged.
+selections. Each replaces hard-coded phases in its own method.
+**fabric-cicd non-bulk** (`fabric-cicd`) remains this repository's default and
+recommended starting point; see the
+[fabric-cicd Non-Bulk CI/CD Guide](fabric-hybrid-cicd-guide.md).
+The raw REST `bulk` method is a separate alternative example.
 
 These are ordering-only solution accelerators, not native Deployment Plan
 execution. Deployment Plans are in preview, and the fabric-cicd item-inclusion

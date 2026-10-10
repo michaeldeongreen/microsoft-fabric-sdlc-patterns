@@ -4,11 +4,15 @@ This guide takes an independent fork from empty workspaces to a working
 `dev -> test -> main` promotion flow. It assumes familiarity with Azure and
 GitHub, but no prior Microsoft Fabric setup experience.
 
-The steps below use **fabric-cicd non-bulk**, this repository's default route.
+The steps below use **fabric-cicd non-bulk**, this repository's default and
+recommended starting point.
 [fabric-cicd](https://microsoft.github.io/fabric-cicd) is the Python library
-that publishes the items. After the default route works,
-use the [four-method comparison](README.md#choose-a-deployment-method) to choose
-an alternative. The [shared workflow reference](fabric-hybrid-cicd-guide.md#github-actions-workflows)
+that publishes the items. Use the
+[fabric-cicd Non-Bulk CI/CD Guide](fabric-hybrid-cicd-guide.md) for the default
+implementation and the [four-method comparison](README.md#choose-a-deployment-method)
+to evaluate alternatives for specific workload requirements. This starting
+point does not require native Fabric Deployment Pipelines or a Deployment Plan.
+The [shared workflow reference](fabric-hybrid-cicd-guide.md#github-actions-workflows)
 explains each caller, trigger, template, and runner.
 
 ## What You Will Build
@@ -16,8 +20,8 @@ explains each caller, trigger, template, and runner.
 | Branch | Fabric workspace | Update method |
 |---|---|---|
 | `dev` | Development | Fabric Git integration |
-| `test` | Test | GitHub Actions and fabric-cicd |
-| `main` | Production | GitHub Actions and fabric-cicd |
+| `test` | Test | GitHub Actions and fabric-cicd non-bulk |
+| `main` | Production | GitHub Actions and fabric-cicd non-bulk |
 
 Only the Dev workspace is connected to Git. Test and Production receive
 deployments after pull requests are merged through `dev -> test -> main`.
@@ -225,7 +229,7 @@ repository variable** for the nonsecret settings below. Choose one method:
 
 | Method | `DEPLOY_METHOD` | `DEPLOYMENT_PLAN_PATH` |
 |---|---|---|
-| fabric-cicd non-bulk — repository default | `fabric-cicd`, or leave unset | Not used |
+| fabric-cicd non-bulk — default and recommended starting point | `fabric-cicd`, or leave unset | Not used |
 | fabric-cicd non-bulk + client-read plan | `fabric-cicd-plan` | `data/fabric/DeploymentPlan.DeploymentPlan/plan.yml` |
 | fabric-cicd bulk + client-read plan | `fabric-cicd-bulk` | `data/fabric/DeploymentPlan.DeploymentPlan/plan.yml` |
 | Raw REST bulk — custom Python caller | `bulk` | Not used |

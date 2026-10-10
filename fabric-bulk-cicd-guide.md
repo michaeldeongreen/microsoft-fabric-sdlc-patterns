@@ -5,11 +5,11 @@ For fabric-cicd bulk with library-managed replacements, use the
 [Deployment Plan guide](fabric-deployment-plan-guide.md#isolated-bulk-adapter-14x).
 Compare all four implementations in the [README matrix](README.md#choose-a-deployment-method).
 
-This repository implements a parallel deployment path for Microsoft Fabric using the **[Bulk Import Item Definitions API](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions)** (Preview), as an alternative to the [fabric-cicd path](fabric-hybrid-cicd-guide.md). It demonstrates how to deploy the same Fabric workspace items (Notebooks, Lakehouses, Variable Libraries, Semantic Models, Reports, Ontologies, Data Agents) across environments using GitHub Actions and the Fabric REST API directly.
+This repository implements an alternative deployment path for Microsoft Fabric using the **[Bulk Import Item Definitions API](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions)** (Preview). The default implementation is documented in the [fabric-cicd Non-Bulk CI/CD Guide](fabric-hybrid-cicd-guide.md). This raw REST example demonstrates how to deploy the same Fabric workspace items (Notebooks, Lakehouses, Variable Libraries, Semantic Models, Reports, Ontologies, Data Agents) across environments using GitHub Actions and the Fabric REST API directly.
 
 For the strategic comparison between fabric-cicd and the Bulk APIs (and the recommendation), see [fabric-cicd-release-options.md](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis).
 
-> **Important framing.** The Bulk Import API itself has known gaps (no parameterization, no value-set activation, no delete). This repo implements caller-side workarounds for the first two so the demo works end-to-end — they are not platform fixes. If you choose the bulk path in your own project you take on the same caller-side work. fabric-cicd remains the recommended production path; this guide exists so the bulk pattern is documented as a worked example, not an endorsement.
+> **Important framing.** The Bulk Import API itself has known gaps (no parameterization, no value-set activation, no delete). This repo implements caller-side workarounds for the first two so the demo works end-to-end — they are not platform fixes. If you choose the raw REST bulk path in your own project you take on the same caller-side work. **fabric-cicd non-bulk is this repository's default and recommended starting point**, not a universal ranking of deployment methods. This guide documents a worked alternative example; validate its preview boundaries and item/identity support before adoption.
 
 ---
 
@@ -64,14 +64,14 @@ The same pattern applies to Prod (`deploy-prod-bulk.yml` → `etl-prod.yml`), tr
 
 The shape mirrors the [default fabric-cicd non-bulk route](fabric-hybrid-cicd-guide.md#architecture-overview) deliberately. These two routes split the deploy into two phases for the same reason — the first phase creates items whose IDs the second phase needs to reference. The independent fabric-cicd bulk route instead derives batches from a plan. The differences between fabric-cicd non-bulk and this raw REST method are mechanical:
 
-| Concept | fabric-cicd | bulk |
+| Concept | fabric-cicd non-bulk (default) | Raw REST bulk |
 |---|---|---|
 | Calls per phase | One library call (`publish_all_items()`) per phase, which makes many per-item REST calls internally | One bulk POST per phase carrying the full batch |
 | Substitution | fabric-cicd library applies `parameter.yml` rules transparently | `scripts/deploy_fabric_rest_bulk.py` reads `bulk-parameter.yml` and rewrites payloads between phases |
 | Value-set activation | Library handles automatically when `environment` is passed | Caller makes a separate `PATCH /variableLibraries/{id}` call |
 | Orphan cleanup | `unpublish_all_orphan_items()` built in | Not implemented |
 
-> Other deploy routes use fabric-cicd non-bulk, fabric-cicd non-bulk + client-read plan, or fabric-cicd bulk + client-read plan. Select a route with `DEPLOY_METHOD`; fabric-cicd non-bulk is this repository's recommended starting point. See the [method matrix](README.md#choose-a-deployment-method) and [non-bulk implementation guide](fabric-hybrid-cicd-guide.md).
+> Other deploy routes use fabric-cicd non-bulk, fabric-cicd non-bulk + client-read plan, or fabric-cicd bulk + client-read plan. Select a route with `DEPLOY_METHOD`; fabric-cicd non-bulk is this repository's recommended starting point. See the [method matrix](README.md#choose-a-deployment-method) and [fabric-cicd Non-Bulk CI/CD Guide](fabric-hybrid-cicd-guide.md).
 
 **Do not conflate raw REST bulk with fabric-cicd bulk.** In 1.4.0, fabric-cicd bulk supports the
 filtered dynamic replacements in [parameter.yml](data/fabric/parameter.yml).
@@ -324,7 +324,7 @@ If any substitution rule references `$items.<Type>.<Name>.$id`, the deploy must 
 
 `DEPENDENCY_TYPES` in `scripts/deploy_fabric_rest_bulk.py` defines what counts as a dependency. The list is intentionally narrow — only types actually referenced by `$items.<Type>.*` in `bulk-parameter.yml` belong here. For this repo, that's `("Lakehouse", "Ontology")`.
 
-This mirrors the fabric-cicd path's two-phase deploy — see the [hybrid guide's chicken-and-egg gotcha](fabric-hybrid-cicd-guide.md#chicken-and-egg-lakehouse-id) for the same problem framed for fabric-cicd.
+This mirrors the default fabric-cicd non-bulk route's two-phase deploy — see the [fabric-cicd Non-Bulk CI/CD Guide](fabric-hybrid-cicd-guide.md#chicken-and-egg-lakehouse-id) for the same chicken-and-egg problem.
 
 ### When the script fails fast
 
@@ -604,7 +604,7 @@ These are deliberate non-goals for this demo repo. They can be added incremental
 ## References
 
 - [fabric-cicd-release-options.md](fabric-cicd-release-options.md) — Strategy doc with the fabric-cicd vs Bulk APIs comparison
-- [fabric-hybrid-cicd-guide.md](fabric-hybrid-cicd-guide.md) — Implementation guide for the fabric-cicd path
+- [fabric-cicd Non-Bulk CI/CD Guide](fabric-hybrid-cicd-guide.md) — Default non-bulk implementation and shared workflow reference
 - [fabric-cicd-governance-considerations.md](fabric-cicd-governance-considerations.md) — Identity, RBAC, branch protection, approval gates
 - [Fabric Bulk Import Item Definitions API (Preview)](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions) — Endpoint reference
 - [Fabric Long-Running Operations](https://learn.microsoft.com/en-us/rest/api/fabric/articles/long-running-operation) — `?async=true` semantics, polling pattern

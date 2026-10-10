@@ -232,17 +232,18 @@ The point is not that teams cannot move; it is that migration is a strategic pro
 | Question | Decide |
 |---|---|
 | **What is part of the solution?** | Inventory the Fabric items and the surrounding configuration or state required to run. |
-| **What can each mechanism move?** | Classify items as Fabric Git-tracked, supported by another deployment/API path, or manual. |
+| **What can each mechanism move?** | Record Git, publisher/API, native pipeline, and identity support independently for each item/subtype. |
 | **How portable are the references?** | Distinguish runtime values, logical IDs, and physical IDs that require replacement. |
 | **What must be provisioned?** | Map capacities, workspaces, private links, shortcuts/connections, roles, and tenant settings; select Bicep, Terraform, or APIs by coverage. |
 | **What moves beyond definitions?** | Plan for data, credentials, permissions, connections, schedules, bindings, and target settings. |
 | **Who owns the target and outcome?** | Establish one writer, post-deploy ETL or refresh, validation, and release evidence. |
 
-> **Supported does not mean complete:** item definitions are only one part of a usable environment.
+> **Supported does not mean complete:** item definitions are only one part of a usable environment. Capture definitions where possible, even when the chosen publisher cannot deploy the item.
 
 <!--
-This checklist distills the README Key Concepts: Item Tracking Categories and Variable Libraries: Dynamic vs Static Metadata.
+This checklist distills the README Key Concepts on item tracking/deployment capabilities and dynamic versus static metadata.
 Supported-item lists evolve, so link to the official lists rather than freezing a detailed matrix in the deck.
+Git tracking and publisher support are independent: a publishing gap does not imply no Git/version history.
 Bicep/ARM primarily covers the Azure control plane, including Fabric capacity. The Microsoft Fabric Terraform provider has broader Fabric-plane coverage, but support evolves.
 Shortcuts, connections, and private networking may cross content, workspace, Fabric admin, and Azure networking surfaces; verify current provider/API coverage before selecting the IaC path.
 -->
@@ -350,7 +351,7 @@ some customers report semantically insignificant or platform-generated definitio
 
 # Option 3
 
-## Common hybrid pattern: Dev Fabric Git sync + APIs for Test and Prod
+## Git-based deployment: Dev Git sync + APIs for Test and Prod
 
 ![bg right:48% contain](../assets/fabric-git-actions-deployments-flow.svg)
 
@@ -372,8 +373,10 @@ some customers report semantically insignificant or platform-generated definitio
 **Best fit:** teams needing repeatability and configuration control.
 
 <!--
-Option 3 can use a build environment for every stage. This repository uses a common hybrid variant:
+Option 3 can use a build environment for every stage. This repository uses a Git-based development/release variant:
 Dev is Fabric Git-synced; Test and Prod are deployed through APIs.
+That separation is not a multi-publisher hybrid. The default publisher is fabric-cicd non-bulk.
+Another publisher is an optional architectural extension only with verified item/identity support and implemented coordination; native Deployment Pipelines are not shipped here.
 -->
 
 ---
@@ -418,7 +421,9 @@ Git history can support every Git-backed option; the evidence row highlights the
 | Orphan cleanup / deletion | `unpublish_all_orphan_items()` | Same separate cleanup; Bulk Import is publish-only | Separate Delete Item calls |
 | Repository behavior | Two caller phases, ordered per item | Plan-derived ready groups, then remainder; failure stops later calls | Two Bulk calls here: foundations, then rewritten dependents |
 
-**Repository starting point:** `fabric-cicd` non-bulk.
+**Repository default and recommended starting point:** `fabric-cicd` non-bulk.
+
+The plan adapters are experimental alternatives; direct Bulk APIs are Preview.
 
 **Binding ≠ deletion:** binding fixes target references; orphan cleanup removes source-absent items.
 
@@ -486,7 +491,7 @@ Post-deploy: ETL + validation
 
 ---
 
-<!-- _class: compact -->
+<!-- _class: dense -->
 
 # Four selectable deployment paths
 
@@ -495,22 +500,21 @@ locate files in the [shared workflow reference](../fabric-hybrid-cicd-guide.md#g
 
 | `DEPLOY_METHOD` | Result |
 |---|---|
-| unset or `fabric-cicd` | Recommended standard path |
-| `fabric-cicd-bulk` | fabric-cicd bulk + client-read plan; requires `DEPLOYMENT_PLAN_PATH` |
-| `bulk` | Direct Bulk Import implementation |
-| `fabric-cicd-plan` | Independent sequential non-bulk plan adapter |
+| unset or `fabric-cicd` | fabric-cicd non-bulk — default and recommended starting point |
+| `fabric-cicd-bulk` | Experimental fabric-cicd bulk + client-read plan; requires `DEPLOYMENT_PLAN_PATH` |
+| `bulk` | Raw REST Bulk Import example (Preview) |
+| `fabric-cicd-plan` | Experimental independent sequential non-bulk plan adapter |
 | anything else | All deployment jobs skip |
 
 All successful paths converge on the same ETL workflow.
-
-Both plan adapters use experimental selective deployment and read ordering only.
-None of these routes invokes native Fabric Deployment Pipelines.
+Plan adapters are experimental, ordering-only examples, not native plan execution.
+Native Deployment Pipelines are separate and not invoked here; an optional
+second publisher needs verified item/identity support and shared release coordination.
 
 ### Why direct Bulk requires more code
 
-The caller must package definitions, substitute IDs, split phases when necessary, poll operations, activate the Variable Library value set, and interpret per-item results.
-
-It still does not implement full `parameter.yml` compatibility or orphan deletion.
+The caller packages definitions, substitutes IDs, polls imports, activates value sets,
+and checks item results. Full `parameter.yml` compatibility and orphan deletion remain unimplemented.
 
 ---
 

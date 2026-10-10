@@ -175,7 +175,16 @@ The repo ships agent skills in [.github/skills/](.github/skills/) that wrap the 
 - `/swap-to-dev-dryrun` — preview the revert without writing files
 - `/check-pr-ready` — run the CI-style readiness check locally
 
-Copilot will execute the script in the VS Code integrated terminal and show you the output. The `/swap-to-feature` slash command moves the `YES` confirmation into the chat UI — you click `YES` or `NO` in chat and Copilot pipes the answer to the script so the terminal never blocks. This is useful when you are already working in Copilot Chat and want to stay in the same workflow without switching to the terminal.
+Invoking a skill is the request to execute it: there is no additional `YES` or
+`NO` question in chat. Copilot runs the script and shows its output. For
+`/swap-to-feature`, the skill supplies the CLI's confirmation automatically, so
+the terminal does not wait for input. ID validation and configuration checks
+still run; missing or invalid configuration fails explicitly.
+
+The dry-run skills are optional previews, not mandatory confirmation gates.
+They never apply the swap afterward. The write-enabled swap skills are
+user-invoked, so mentioning one in an explanation does not trigger a rewrite.
+Commit, push, and Fabric sync remain separate actions.
 
 Note: Copilot cannot auto-trigger the script on branch checkout. You still need to invoke a slash command or run it yourself after pulling a feature branch.
 
@@ -192,7 +201,7 @@ Note: Copilot cannot auto-trigger the script on branch checkout. You still need 
 
 If `.env` is missing, has empty values, or is missing either key, the script exits with a clear error pointing at `.env.sample`. There is no interactive fallback — `.env` is the single source of truth for swap-to-feature.
 
-For swap-to-feature, the script always reads `.env` (the existing value-set file does not override it). The value set on disk is read by swap-to-dev (to know which feature IDs to revert) and by the recovery pass (to detect previously-applied stale IDs that need rewriting). Before any rewrite happens, the script displays the planned dev → feature change and waits for the user to type literal `YES` to confirm.
+For swap-to-feature, the script always reads `.env` (the existing value-set file does not override it). The value set on disk is read by swap-to-dev (to know which feature IDs to revert) and by the recovery pass (to detect previously-applied stale IDs that need rewriting). When running the script directly in a terminal, it displays the planned dev → feature change and waits for literal `YES`. When invoked through `/swap-to-feature`, the skill supplies that answer automatically; no further user input is required.
 
 The script intentionally does **not** auto-discover IDs via the Fabric REST API. An earlier implementation matched workspaces by display name, which could silently pick the wrong workspace (e.g. matching the dev workspace itself), causing the swap to abort with no value set written. Explicit `.env` config avoids that class of bug.
 

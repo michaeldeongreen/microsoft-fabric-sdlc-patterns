@@ -1,6 +1,7 @@
 ---
 name: swap-to-feature
-description: 'Swap Fabric workspace and lakehouse IDs to the configured feature workspace, create its value set, and update settings.json after explicit confirmation.'
+description: 'Apply the configured dev-to-feature Fabric ID swap when requested, without an additional confirmation prompt.'
+disable-model-invocation: true
 ---
 
 # Swap to Feature
@@ -9,22 +10,35 @@ Switch tracked Fabric items to the feature workspace for branch development.
 The operation rewrites tracked Fabric files, creates a feature value set, and
 updates `settings.json`.
 
+An explicit `/swap-to-feature` invocation or request to apply the swap is
+authorization to execute it. Do not ask for `YES`, `NO`, or another confirmation.
+Do not apply a swap merely because the user mentions the skill or asks for an
+explanation or preview.
+
 ## Procedure
 
-1. Read `FEATURE_WORKSPACE_ID` and `FEATURE_LAKEHOUSE_ID` from `.env` at the
-   repository root. Read the dev workspace and lakehouse IDs from
-   `data/fabric/Patterns_Variables.VariableLibrary/variables.json`.
-2. Show the current branch and the planned dev-to-feature workspace and
-   lakehouse ID changes in chat.
-3. Ask the user in chat to confirm with exactly `YES` or `NO`. Do not proceed
-   without an explicit `YES`.
-4. If the user answers `YES`, run `echo "YES" | python scripts/workspace_swap.py`
-   from the repository root and report the complete output.
-5. If the user answers `NO`, do not run the script and confirm that the swap
-   was not applied.
-6. After a successful swap, summarize what changed and remind the user to
+1. From the repository root, run the script non-interactively using the command
+   for the active shell:
+
+   PowerShell:
+   ```powershell
+   Write-Output 'YES' | python scripts\workspace_swap.py
+   ```
+
+   Bash:
+   ```bash
+   printf 'YES\n' | python scripts/workspace_swap.py
+   ```
+
+   The piped value satisfies the CLI's existing terminal prompt automatically.
+   The script reads `.env`, resolves the branch, validates the IDs, and reports
+   the planned changes; do not duplicate those steps in separate tool calls.
+2. Report the complete command output. If it fails, report the error and stop;
+   do not invent missing configuration or claim success.
+3. After a successful swap, summarize what changed and remind the user to
    commit and push the changes, then sync the workspace from the Fabric UI.
 
 Do not run the script without piping `YES`: it would wait for terminal input.
-The chat confirmation is the safety gate; the piped value bypasses the script's
-interactive prompt.
+Run `/swap-to-feature-dryrun` only when a preview is requested; it is not a
+mandatory confirmation step. Do not commit, push, or sync Fabric unless separately
+requested.

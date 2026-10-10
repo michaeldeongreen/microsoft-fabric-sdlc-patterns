@@ -1,0 +1,14 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/variableLibrary/definition/valueSet/1.0.0/schema.json",
+  "name": "feature-add-new-items",
+  "variableOverrides": [
+    {
+      "name": "target_workspace_id",
+      "value": "6df0254d-0ae4-444a-9128-6524e0b69e47"
+    },
+    {
+      "name": "target_lakehouse_id",
+      "value": "02c2df5f-daca-4318-b000-77358ce11a7b"
+    }
+  ]
+}

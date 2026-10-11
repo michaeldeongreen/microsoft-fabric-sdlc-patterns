@@ -43,5 +43,5 @@ jobs:
     with:
       environment: Prod
       deployment_plan_path: ${{ vars.DEPLOYMENT_PLAN_PATH }}
-      item_type_in_scope: '["Lakehouse", "Ontology", "VariableLibrary", "Notebook", "SemanticModel", "Report", "DataAgent"]'
+      item_type_in_scope: '["Lakehouse", "Ontology", "VariableLibrary", "Notebook", "SemanticModel", "Report", "DataAgent", "DataPipeline"]'
     secrets: inherit

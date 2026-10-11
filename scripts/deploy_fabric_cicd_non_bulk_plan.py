@@ -31,8 +31,12 @@ from fabric_cicd import (
 )
 
 from deployment_plan import DeploymentSchedule, load_schedule, validate_guid
+from pipeline_bindings import require_pipeline_connections
 
-INCLUSION_FLAGS = ("enable_experimental_features", "enable_items_to_include")
+INCLUSION_FLAGS = (
+    "enable_experimental_features", "enable_items_to_include",
+    "enable_environment_variable_replacement",
+)
 # Preserve the existing standard path's cleanup scope, independently of ordering.
 CLEANUP_EXCLUDED_TYPES = frozenset({"Lakehouse", "Ontology", "DeploymentPlan"})
 
@@ -71,6 +75,7 @@ def deploy_schedule(
 ) -> None:
     validate_item_types(schedule.item_types)
     workspace_id = validate_guid(workspace_id, "FABRIC_WORKSPACE_ID")
+    require_pipeline_connections(schedule.repository_directory)
     remove_feature_flag("enable_bulk_publish")
     for flag in INCLUSION_FLAGS:
         append_feature_flag(flag)

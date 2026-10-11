@@ -100,6 +100,7 @@ SUBSTITUTABLE_EXTENSIONS = (".json", ".yml", ".tmdl", ".py", ".platform")
 _ITEMS_PLACEHOLDER = re.compile(r"\$items\.([^.]+)\.([^$]+?)\.\$id")
 _WORKSPACE_PLACEHOLDER = "$workspace.$id"
 _ENVIRONMENT_PLACEHOLDER = "$environment"
+_ENV_PLACEHOLDER = re.compile(r"\$ENV:(\w+)")
 
 
 # ----- TypedDicts for the Fabric Bulk Import API surface ---------------------
@@ -342,6 +343,18 @@ def resolve_dynamic_value(
     Strings without placeholders pass through unchanged.
     """
     resolved = template.replace(_WORKSPACE_PLACEHOLDER, workspace_id)
+
+    def _replace_env(match: re.Match[str]) -> str:
+        from pipeline_bindings import guid_problem
+
+        name = match.group(1)
+        value = os.environ.get(name, "")
+        problem = guid_problem(value, name)
+        if problem:
+            raise ValueError(problem)
+        return value
+
+    resolved = _ENV_PLACEHOLDER.sub(_replace_env, resolved)
 
     def _replace_items(match: re.Match[str]) -> str:
         item_type = match.group(1)
@@ -723,14 +736,19 @@ def main() -> None:
     repo_dir = pathlib.Path(os.environ["REPOSITORY_DIRECTORY"]).resolve()
     environment = os.environ.get("ENVIRONMENT", "")
 
-    token = acquire_token(tenant_id, client_id, client_secret)
-    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-
     parts = build_definition_parts(repo_dir)
     print(f"Built {len(parts)} definition parts from {repo_dir}")
 
     config_path = repo_dir / BULK_PARAMETER_FILENAME
     config = load_bulk_config(config_path)
+    from pipeline_bindings import require_pipeline_connections
+
+    require_pipeline_connections(repo_dir)
+    for rule in config.substitutions:
+        if "$ENV:" in rule.replace_with:
+            resolve_dynamic_value(rule.replace_with, workspace_id, {})
+    token = acquire_token(tenant_id, client_id, client_secret)
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     if config.substitutions:
         print(
             f"Loaded {len(config.substitutions)} substitution rule(s) from {config_path}"
@@ -781,14 +799,25 @@ def main() -> None:
         item_id_map = extract_item_ids(deps_result)
         print(f"Captured {len(item_id_map)} dependency item ID(s) for substitution")
 
+        pipeline_parts = [part for part in remaining if item_type_of(part["path"]) == "DataPipeline"]
+        other_parts = [part for part in remaining if item_type_of(part["path"]) != "DataPipeline"]
         substituted_remaining = apply_substitutions(
-            remaining, config.substitutions, workspace_id, item_id_map,
+            other_parts, config.substitutions, workspace_id, item_id_map,
         )
         remaining_result = post_bulk(
             substituted_remaining, workspace_id, headers,
             tenant_id, client_id, client_secret, label="remaining items",
         )
         item_id_map.update(extract_item_ids(remaining_result))
+        if pipeline_parts:
+            substituted_pipelines = apply_substitutions(
+                pipeline_parts, config.substitutions, workspace_id, item_id_map,
+            )
+            pipeline_result = post_bulk(
+                substituted_pipelines, workspace_id, headers,
+                tenant_id, client_id, client_secret, label="DataPipeline items",
+            )
+            item_id_map.update(extract_item_ids(pipeline_result))
 
     # Post-deploy: VariableLibrary value-set activation. The bulk API has no
     # equivalent of fabric-cicd's environment-driven value-set selection, so
@@ -812,4 +841,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (OSError, ValueError, KeyError, requests.RequestException) as exc:
+        print(f"::error::{exc}", file=sys.stderr)
+        sys.exit(1)

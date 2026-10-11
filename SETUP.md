@@ -26,6 +26,21 @@ explains each caller, trigger, template, and runner.
 Only the Dev workspace is connected to Git. Test and Production receive
 deployments after pull requests are merged through `dev -> test -> main`.
 
+After publication, GitHub starts one `Patterns_Load_Validate_And_Refresh`
+DataPipeline: the existing loader → read-only validation → native model refresh.
+This workload pipeline is not a native Fabric Deployment Pipeline for promoting
+workspace content.
+
+The existing loader writes demonstration tables. Use workspaces dedicated to
+this sample; do not run it against business Production data.
+
+> **Verification boundary:** An earlier feature prototype completed all three
+> activities and a `run_label` API override with Workspace Identity activity
+> credentials under a user invoker. The current explicit-OneLake-path validation
+> revision is only offline-validated. Git sync/Branch Out binding resolution, CI
+> service-principal publication/start, and Test/Prod end-to-end execution remain
+> live checks; complete them in your approved target before promotion.
+
 ## Before You Start
 
 ### GitHub
@@ -46,6 +61,8 @@ deployments after pull requests are merged through `dev -> test -> main`.
 ### Fabric
 
 - Permission to create workspaces and assign them to the capacity.
+- A workspace administrator who can provision each required Workspace Identity
+  and grant access to its runtime connections.
 - A Fabric administrator who can enable Git integration, GitHub integration,
   and service-principal access to Fabric APIs for the appropriate security
   groups. See [Fabric tenant settings](https://learn.microsoft.com/fabric/admin/about-tenant-settings).
@@ -91,14 +108,33 @@ role.
 
 ### Post-ETL Refresh Permissions
 
-The shipped Test/Prod ETL callers reuse this service principal for
-`Patterns_Semantic_Model` refresh. Before running them, verify:
+The CI service principal publishes definitions and starts/polls the Fabric
+pipeline job. **It is not automatically the activity identity.** Both Notebook
+activities and the native Semantic model refresh activity use separately
+configured connections with authorization kind **Workspace Identity**.
 
-- The tenant permits this service principal to use Power BI APIs, and any
-  allowed security group includes it. Review the administrator's
-  [service-principal developer settings](https://learn.microsoft.com/en-us/fabric/admin/service-admin-portal-developer#service-principals-can-call-fabric-public-apis).
-- The principal can see the target workspace/model, has model *write*
-  permission to trigger refresh, and can read the refresh result.
+Before running in each environment:
+
+1. Provision that workspace's own Workspace Identity in **Workspace settings**.
+   Permit the identity through the applicable tenant service-principal settings
+   and grant it **Contributor** on the workload workspace. Do not reuse the
+   feature workspace's identity in Test or Prod.
+2. Create a **Notebook** connection and a **Power BI datasets** connection using
+   Workspace Identity authorization. Select the Notebook connection for both
+   load and validation; select the Power BI connection for native refresh.
+   Verify connection access and tests rather than switching to person-bound
+   OAuth to bypass a failure. See [Notebook activity identity setup](https://learn.microsoft.com/en-us/fabric/data-factory/notebook-activity)
+   and [native refresh settings](https://learn.microsoft.com/en-us/fabric/data-factory/semantic-model-refresh-activity).
+3. Give the CI deployment principal **User** access to both connections.
+   Connection sharing grants use; it does not change their activity credentials.
+   Verify that the runtime identity can run the notebooks and refresh the
+   actual target model on the active capacity.
+4. Record each target's connection GUIDs in the two
+   [GitHub Environment variables](#environment-variables) below. Connections
+   and credentials are runtime prerequisites, not items published from Git.
+
+Also verify:
+
 - The **model owner** has source access independently of the refresh caller.
   For Direct Lake on OneLake, verify *Read* plus *ReadAll* or the applicable
   OneLake security roles for the source tables. Direct Lake checks owner
@@ -110,12 +146,12 @@ The shipped Test/Prod ETL callers reuse this service principal for
   [Direct Lake security and connections](https://learn.microsoft.com/en-us/fabric/fundamentals/direct-lake-security-integration).
 - The target is on an active capacity that supports enhanced refresh.
 
-The refresh script uses `ClientSecretCredential` and the same Azure secrets,
-but requests a Power BI token with scope
-`https://analysis.windows.net/powerbi/api/.default`. A Fabric-scoped token
-(`https://api.fabric.microsoft.com/.default`) is not interchangeable.
-No additional GitHub secret is required. A successful refresh by an interactive
-user does **not** prove that the service principal has these permissions.
+The native activity's documentation limits it to models you create yourself.
+Verify ownership and permissions for the model **after CI deployment**; the
+feature run does not prove the service-principal-deployed model case.
+Successful user authoring or job submission does not prove CI publication/start.
+Successful refresh is not evidence of
+the report user's query permissions.
 
 ## 3. Initialize the Dev Workspace
 
@@ -157,12 +193,19 @@ Create one baseline commit with these changes:
    | `Test` | `target_workspace_id` | Test workspace ID |
    | `Prod` | `target_workspace_id` | Production workspace ID |
 
-   Keep `Default` active in the Dev workspace. The other sample variables can
-   retain their existing values or be customized for your organization.
-2. Open `Import_Patterns_Data`, select `Lakehouse` in the notebook toolbar, and
-   set the default Lakehouse to the Dev `PatternsLakehouse`.
+   Keep `Default` active in the Dev workspace. Keep `minimum_patient_count` a
+   positive **Integer**; the sample baseline is `5` in Default, Test, and Prod.
+   Environment policies need not differ artificially.
+2. Open `Import_Patterns_Data`, select `Lakehouse` in its toolbar, and set the
+   default to the Dev `PatternsLakehouse`. `Validate_Patterns_Data` does not need
+   an attached Lakehouse: like `Patterns_Demo`, it reads the active Variable
+   Library's workspace and Lakehouse IDs and loads Delta tables from their
+   explicit OneLake `abfss://.../Tables/dbo/...` paths.
 3. Open `Patterns_Semantic_Model`, edit its Direct Lake connection, and select
    the Dev `PatternsLakehouse`.
+4. Check `Patterns_Load_Validate_And_Refresh` references the local notebooks,
+   library, workspace, and model. The native activity embeds a physical model
+   ID; record the fork's Dev model ID for the replacement rules below.
 
 Save the Fabric items, then use the Dev workspace `Source control` pane to
 commit them to `dev`. Do not change any `.platform` `logicalId` values.
@@ -170,7 +213,14 @@ commit them to `dev`. Do not change any `.platform` `logicalId` values.
 Pull that commit locally. In `data/fabric/parameter.yml`, replace every
 reference-environment `find_value` with the corresponding Dev ID you recorded:
 use the Dev Lakehouse ID for Lakehouse rules and the Dev workspace ID for
-workspace rules. If you intend to evaluate the raw Bulk API path, make the
+workspace rules, and the Dev model ID for the DataPipeline model rule.
+Keep the [workspace-swap pipeline baselines](scripts/pipeline_bindings.py)
+aligned with the fork's Dev bindings too; `.env` supplies feature IDs, not a
+replacement Dev baseline.
+Retain the source connection markers `11111111-1111-4111-8111-111111111111`
+(Notebook) and `22222222-2222-4222-8222-222222222222` (refresh): deployments
+replace these with target connection variables. They are not usable connections.
+If you intend to evaluate the raw Bulk API path, make the
 equivalent changes in `data/fabric/bulk-parameter.yml`.
 
 Commit and push the parameter-file changes to `dev`. Search `data/fabric` for
@@ -183,11 +233,16 @@ Dev Lakehouse ID from the base variables as a placeholder. During deployment,
 `parameter.yml` replaces it with the ID of the `PatternsLakehouse` created in
 the target workspace.
 
-After the Dev bindings are correct, run the existing `Import_Patterns_Data`
-notebook, wait for success, then use the workspace **Refresh** icon for
-`Patterns_Semantic_Model`. Reload an already-open model/report UI and verify
-the results. This remains a manual Dev step; the notebook is an independent
-loader, not a model-refresh wrapper.
+Before a manual Dev pipeline run, configure its local runtime connections and
+select the local model in the Fabric UI. Git synchronization can restore source
+connection markers, so recheck bindings after **Update from Git**; an inert
+marker is not a ready-to-run Dev connection. Retain the canonical markers in
+reviewed source when exporting changes.
+
+Run `Patterns_Load_Validate_And_Refresh` only after those bindings are correct,
+wait for all three activities, then query the model's required date fields and
+check the report. The loader remains independently runnable for diagnostics;
+running it alone does not execute validation or model refresh.
 
 ## 5. Configure GitHub
 
@@ -212,15 +267,36 @@ setup; see [Governance](fabric-cicd-governance-considerations.md).
 
 ### Shared ETL Follow-up
 
-Both shipped ETL callers already pass
-`semantic_model_name: Patterns_Semantic_Model` to the reusable template.
-This optional workflow input defaults to empty for notebook-only callers; it
-is not a repository variable or a secret. The template passes it as
-`SEMANTIC_MODEL_NAME` to
-[refresh_semantic_model.py](scripts/refresh_semantic_model.py) on the Actions
-runner, using the existing `FABRIC_WORKSPACE_ID` for the target.
-All four deployment methods share this
-[post-ETL contract](fabric-hybrid-cicd-guide.md#post-etl-semantic-model-refresh).
+Both ETL callers select `Patterns_Load_Validate_And_Refresh` with
+`item_type: DataPipeline` and `job_type: Pipeline`. GitHub runs and polls that
+job only; native refresh has one owner inside Fabric, with no external refresh
+step or runtime fallback.
+
+The optional `run_label` input defaults to `manual`. CI supplies a non-secret
+stage/run label through `RUN_LABEL`; the runner serializes it into
+`executionData.parameters` without executable-source interpolation. The
+pipeline forwards it to validation. `minimum_patient_count` comes separately
+from the active Variable Library, not a GitHub secret or per-run label.
+All four deployment methods share the
+[pipeline contract](fabric-hybrid-cicd-guide.md#post-etl-semantic-model-refresh).
+
+### Environment Variables
+
+In **Settings > Environments > Test / Prod > Environment variables**, add:
+
+| Variable | Value in each environment |
+|---|---|
+| `NOTEBOOK_CONNECTION_ID` | That workspace's Workspace Identity Notebook connection GUID |
+| `SEMANTIC_MODEL_REFRESH_CONNECTION_ID` | That workspace's Workspace Identity Power BI datasets connection GUID |
+
+These are non-secret **Environment variables**, not repository-wide variables
+or additional secrets. The deployment runners validate their GUIDs before
+publishing and replace source markers. The fabric-cicd routes use the exact
+`$ENV:NOTEBOOK_CONNECTION_ID` and `$ENV:SEMANTIC_MODEL_REFRESH_CONNECTION_ID`
+syntax with environment replacement enabled by the runners; keep fabric-cicd
+at `>=1.4.0,<1.5.0`. The raw REST route applies its corresponding
+`bulk-parameter.yml` substitutions. Neither mechanism creates the connections
+or proves their authorization.
 
 ### Deployment Method Variables
 
@@ -249,10 +325,10 @@ For **fabric-cicd bulk + client-read plan**, enter these two repository variable
 | `DEPLOY_METHOD` | `fabric-cicd-bulk` |
 | `DEPLOYMENT_PLAN_PATH` | `data/fabric/DeploymentPlan.DeploymentPlan/plan.yml` |
 
-- Use the four [environment secrets above](#environment-secrets); `FABRIC_WORKSPACE_ID` must identify the corresponding Test or Prod target.
+- Use the four [environment secrets above](#environment-secrets) and both [connection variables](#environment-variables); `FABRIC_WORKSPACE_ID` must identify the corresponding Test or Prod target.
 - Use [parameter.yml](data/fabric/parameter.yml) for fabric-cicd replacements. `DEPLOY_METHOD=bulk` and [bulk-parameter.yml](data/fabric/bulk-parameter.yml) belong to the separate raw REST route.
 - No extra GitHub bulk-feature flag is needed: the runner enables the required fabric-cicd feature flags.
-- The shipped callers supply `ENVIRONMENT` (`Test`/`Prod`), `REPOSITORY_DIRECTORY` (`data/fabric`), and the seven-type `ITEM_TYPE_IN_SCOPE`. You do not create additional repository variables for these; customize the workflow inputs if needed.
+- The shipped callers supply `ENVIRONMENT` (`Test`/`Prod`), `REPOSITORY_DIRECTORY` (`data/fabric`), and the eight-type `ITEM_TYPE_IN_SCOPE`, including `DataPipeline`. You do not create additional repository variables for these; customize the workflow inputs if needed.
 - For a credentials-free schedule check, use the [bulk preview instructions](fabric-deployment-plan-guide.md#enable-and-preview-bulk).
 
 ### Before Switching Methods
@@ -285,7 +361,7 @@ rationale is in
 1. Open a pull request from `dev` to `test` with a qualifying definition or
    workflow change and merge it. The selected Test deployment runs, followed
    by its ETL listener on successful completion.
-2. Wait for the Test ETL notebook and its subsequent model refresh to complete,
+2. Wait for the Test pipeline's load, validation, and native refresh to complete,
    then verify Test before continuing. These completions are not a full release
    validation suite; use the [Quality Gates guide](fabric-cicd-quality-gates-and-release-controls.md)
    to define the evidence required for your workload.
@@ -299,6 +375,14 @@ deployment run. Both ETL callers support manual runs. See the
 [workflow reference](fabric-hybrid-cicd-guide.md#github-actions-workflows) before
 trying to rerun a stage.
 
+During rollout, GitHub reads `workflow_run` listeners from the default branch
+(`main` here). Until the new caller/template reaches main, an automatic Test
+listener can still use the old notebook-only definition. After old automatic
+runs finish, manually dispatch **ETL - Test** with branch **test** to validate
+the reviewed revision. Rerunning an old main run does not select that revision.
+Moving deployment and ETL into one stage with `needs` is a separate follow-up;
+the Fabric pipeline does not fix this listener coupling.
+
 On the first deployment, open the Ontology in each target workspace and bind its
 Graph Model to the local Lakehouse tables. See
 [Initial Deployment to a Clean Workspace](fabric-hybrid-cicd-guide.md#initial-deployment-to-a-clean-workspace)
@@ -308,12 +392,18 @@ for that one-time Fabric UI step and its current workaround.
 
 - Dev Source control reports branch `dev` and no pending changes.
 - `Patterns_Variables` resolves the local values in each workspace.
-- `Import_Patterns_Data` is bound to the local `PatternsLakehouse`.
+- The loader's attached Lakehouse targets the local `PatternsLakehouse`;
+  validation reads that same target through active Library IDs and explicit
+  OneLake paths, with no attached Lakehouse.
+- Each pipeline's physical model/workspace IDs, runtime connections, and
+  resolved Library values target that environment, not Dev or a feature workspace.
 - Test and Production are not Git-connected.
 - Test and Production contain the `doctors`, `patients`, and `appointments`
   Lakehouse tables after ETL.
-- The Test and Production ETL runs show notebook success followed by successful
-  refresh of `Patterns_Semantic_Model`, not just an accepted refresh request.
+- Authorized Test/Production verification shows pipeline load → validation →
+  native refresh success, with actual refresh completion—not just job acceptance.
+- Validation records the intended minimum and run label; model queries and
+  consumer checks provide separate evidence.
 - The Semantic Model, report, Ontology, and Data Agent load in each environment.
 - Pull requests can promote only through `dev -> test -> main`.
 
@@ -326,25 +416,24 @@ with the
 
 | Symptom | What to check |
 |---|---|
-| Notebook or pipeline job fails | Inspect that job's failure details and target bindings. Model refresh starts only after job success. |
-| Model is missing or the name is ambiguous | Check `FABRIC_WORKSPACE_ID` and the configured name. The Power BI dataset list must contain exactly one `Patterns_Semantic_Model` in that target; do not copy a Dev model's physical ID. |
-| Authentication or `401`/`403` failure | Check the existing secret's validity, Power BI token scope, tenant allow-list, effective workspace/model permissions, model-owner source access, and connection identity. Manual user refresh success is not service-principal authorization evidence. |
-| Refresh fails or times out | Use the safe request ID/status in the Actions logs to inspect that refresh's service details and history. Check active capacity and owner/source access; request acceptance, an older successful refresh, or a browser reload is not completion of this request. |
+| Job fails or an activity is skipped | Inspect the pipeline job and activity-level diagnostics in Actions/Fabric monitoring. Load failure prevents validation; validation failure prevents refresh. Check the actual failed activity and target bindings. |
+| Connection preflight fails | Set both target Environment variables to real connection GUIDs. Source markers and a feature connection are not Test/Prod prerequisites. Verify sharing with the CI principal and the connection's Workspace Identity credentials. |
+| Validation fails | Inspect the active Library minimum, notebook parameter input, schema/key/reference assertions, and source date types. Do not lower an agreed quality threshold merely to turn the job green. |
+| Model is missing or refresh targets another workspace | Check the native activity's physical model/workspace IDs and the deployed replacements. Do not copy a Dev model's physical ID into Test/Prod. |
+| Authentication or `401`/`403` failure | Separate CI publication/job-start access from activity connection access. Check the tenant allow-list, Workspace Identity permissions, model ownership/source access, and effective connection identity; user success does not prove CI authorization. |
+| Refresh fails or times out | Inspect this pipeline run's native activity output and model refresh history. Check capacity and owner/source access; acceptance, an older successful refresh, or browser reload is not completion. |
 
-A polling timeout stops the runner's wait and fails the workflow; it does not
-cancel the server-side refresh. Inspect the **specific request's** current
-status/history before retriggering to avoid overlapping operations.
+A GitHub polling timeout fails the workflow but does not cancel the Fabric
+pipeline or any refresh still running. Inspect the **specific run/activity**
+and refresh history before retriggering to avoid overlapping operations.
 
 If data is present but fields such as `appointment_date` or `date_of_birth`
-show errors, check that model refresh completed **after** the loader. In a
-controlled empty-Prod recovery of this sample, rerunning all jobs and reloading
-the browser left those errors in place; refreshing the semantic model from the
-workspace and then reloading the UI resolved them. This supports the explicit
-post-ETL refresh step, not a guaranteed diagnosis of every date-field error.
-Still verify the model's required fields, calculations, and report behavior.
+show errors, check that native refresh completed **after** load and validation.
+Refresh addresses Direct Lake framing, not every possible date-field error.
+Still query the model's required fields and verify calculations and report
+behavior; source Timestamp checks are not model-query evidence.
 
 For this Direct Lake on OneLake model, refresh frames Delta references; do not
 add another ETL, convert storage mode, or wait for a SQL analytics endpoint as
-a refresh workaround. Offline tests can validate orchestration, but live
-end-to-end validation of the automated refresh and date-field usability remains
-pending while the reference capacity is paused.
+a refresh workaround. Earlier prototype activity success is recorded separately
+from the current revision's pending live checks described above.

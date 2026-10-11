@@ -23,7 +23,7 @@ WORKSPACE_ID = "11111111-1111-1111-1111-111111111111"
 
 
 @pytest.fixture
-def schedule() -> DeploymentSchedule:
+def schedule(pipeline_connection_environment: dict[str, str]) -> DeploymentSchedule:
     return load_schedule(REPO_ROOT / "data" / "fabric", PLAN_PATH)
 
 
@@ -59,24 +59,22 @@ def test_exact_item_selection_fresh_state_and_single_cleanup(
     ):
         deploy.deploy_schedule(schedule, WORKSPACE_ID, "Test", credential)
 
-    assert publish_mock.call_count == 5
-    assert len(instances) == 6
-    assert len(published) == len(set(published)) == 9
-    assert [call.kwargs["items_to_include"] for call in publish_mock.call_args_list[:4]] == [
+    assert publish_mock.call_count == 9
+    assert len(instances) == 10
+    assert len(published) == len(set(published)) == 11
+    assert [call.kwargs["items_to_include"] for call in publish_mock.call_args_list[:8]] == [
         [group.item.selector] for group in schedule.groups
     ]
     cleanup.assert_called_once_with(instances[-1])
     assert instances[-1].config["item_type_in_scope"] == [
-        "DataAgent", "Notebook", "Report", "SemanticModel", "VariableLibrary"
+        "DataAgent", "DataPipeline", "Notebook", "Report", "SemanticModel", "VariableLibrary"
     ]
     for instance in instances:
         assert instance.config["repository_directory"] == str(schedule.repository_directory)
         assert instance.config["workspace_id"] == WORKSPACE_ID
         assert instance.config["environment"] == "Test"
         assert instance.config["token_credential"] is credential
-    assert enable.call_args_list == [
-        mock.call("enable_experimental_features"), mock.call("enable_items_to_include")
-    ]
+    assert enable.call_args_list == [mock.call(flag) for flag in deploy.INCLUSION_FLAGS]
     disable.assert_called_once_with("enable_bulk_publish")
 
 
@@ -322,8 +320,8 @@ def test_dry_run_has_no_credential_or_network_requirement(
     ):
         deploy.main(["--plan", str(PLAN_PATH), "--dry-run"])
     summary = json.loads(capsys.readouterr().out)
-    assert len(summary["groups"]) == 4
-    assert len(summary["remainingItems"]) == 5
+    assert len(summary["groups"]) == 8
+    assert len(summary["remainingItems"]) == 3
     credential.assert_not_called()
     workspace.assert_not_called()
 
@@ -436,7 +434,7 @@ def test_plan_workflow_wiring_and_etl_registration(environment: str, branch: str
     assert job["uses"] == "./.github/workflows/reusable-deploy-fabric-cicd-plan.yml"
     assert job["with"]["environment"] == environment
     assert job["with"]["deployment_plan_path"] == "${{ vars.DEPLOYMENT_PLAN_PATH }}"
-    assert len(json.loads(job["with"]["item_type_in_scope"])) == 7
+    assert len(json.loads(job["with"]["item_type_in_scope"])) == 8
     assert job["secrets"] == "inherit"
     assert workflow["permissions"] == {"contents": "read"}
     assert workflow["concurrency"]["cancel-in-progress"] == "false"

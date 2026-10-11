@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "DataPipeline",
+    "displayName": "Patterns_Load_Validate_And_Refresh",
+    "description": "Load, validate, and refresh the healthcare sample."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "59fbcdde-3e3e-482a-8e60-a66602f6bf8b"
+  }
+}

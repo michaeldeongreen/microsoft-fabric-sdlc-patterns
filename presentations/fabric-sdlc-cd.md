@@ -258,18 +258,20 @@ From the broader CD problems, dependencies show why copying definitions is not e
 
 | Portable / logical references | Physical references requiring replacement |
 |---|---|
-| Report → Semantic Model via [`definition.pbir`](../data/fabric/Patterns_Report.Report/definition.pbir)<br><br>Ontology → Lakehouse logical ID via its [data binding](../data/fabric/Patterns_Ontology.Ontology/EntityTypes/2525121373138/DataBindings/6e4524f9-ea6d-4535-ab49-a72f73fc08a0.json)<br><br>Data Agent → Ontology logical ID via [`datasource.json`](../data/fabric/Patterns_Data_Agent.DataAgent/Files/Config/draft/ontology-Patterns_Ontology/datasource.json) | Direct Lake Semantic Model → physical OneLake path in [`expressions.tmdl`](../data/fabric/Patterns_Semantic_Model.SemanticModel/definition/expressions.tmdl)<br><br>Notebook → physical default workspace/lakehouse IDs in [`notebook-content.py`](../data/fabric/Import_Patterns_Data.Notebook/notebook-content.py) |
+| Report → Semantic Model via [`definition.pbir`](../data/fabric/Patterns_Report.Report/definition.pbir)<br><br>Ontology → Lakehouse logical ID via its [data binding](../data/fabric/Patterns_Ontology.Ontology/EntityTypes/2525121373138/DataBindings/6e4524f9-ea6d-4535-ab49-a72f73fc08a0.json)<br><br>Data Agent → Ontology logical ID via [`datasource.json`](../data/fabric/Patterns_Data_Agent.DataAgent/Files/Config/draft/ontology-Patterns_Ontology/datasource.json) | Direct Lake model → physical OneLake path in [`expressions.tmdl`](../data/fabric/Patterns_Semantic_Model.SemanticModel/definition/expressions.tmdl)<br><br>Notebook → workspace/lakehouse IDs in [`notebook-content.py`](../data/fabric/Import_Patterns_Data.Notebook/notebook-content.py)<br><br>DataPipeline → physical model/connection IDs |
 
 ```text
 Phase 1:  Lakehouse ──▶ Variable Library / Notebooks / Semantic Model
           Ontology  ──▶ Data Agent
 
-Phase 2:  Deploy dependent items after target IDs and logical items exist
+Phase 2:  Publish non-pipeline dependents
+Phase 3:  Fresh Notebook/Model discovery → publish DataPipeline
 ```
 
 <!--
 Open the linked files if useful. The Data Agent directly references the Ontology—not the Lakehouse.
 Lakehouse and Ontology are Phase 1 foundations for different dependency chains.
+SDK state is cached within a call; phase 3 discovers the phase 2 pipeline dependencies afresh.
 This is one concrete example of the broader challenges on the earlier slide, not a new topic.
 -->
 
@@ -419,7 +421,7 @@ Git history can support every Git-backed option; the evidence row highlights the
 | Environment binding / parameterization | Full `parameter.yml` feature set | fabric-cicd-owned `parameter.yml` replacements and value-set activation | None built in; caller rewrites definitions and configures after import |
 | Dependency handling | Library order + caller phases | fabric-cicd-supported dependencies + isolated authored-plan grouping | Supported logical-ID graph; caller handles physical target IDs and explicit ordering |
 | Orphan cleanup / deletion | `unpublish_all_orphan_items()` | Same separate cleanup; Bulk Import is publish-only | Separate Delete Item calls |
-| Repository behavior | Two caller phases, ordered per item | Plan-derived ready groups, then remainder; failure stops later calls | Two Bulk calls here: foundations, then rewritten dependents |
+| Repository behavior | Three calls with DataPipeline; fresh state | Plan-derived groups; failure stops later calls | Three batches: foundations, dependents, DataPipeline |
 
 **Repository default and recommended starting point:** `fabric-cicd` non-bulk.
 
@@ -429,9 +431,9 @@ The plan adapters are experimental alternatives; direct Bulk APIs are Preview.
 
 <!--
 The repository bounds fabric-cicd to >=1.4.0,<1.5.0. The pre-1.4 dynamic-variable fallback is historical; parameter-file presence alone is not a fallback condition in 1.4.0.
-Cold/warm Test/Prod tests using actual fabric-cicd with mocked HTTP observe four bulk imports each and zero standard definition POSTs. Scope and result checks reject fallback and incomplete success.
-Bulk ordering is an independent repository-owned adapter, not native plan attachment. It combines ready groups: Lakehouse; Ontology + Semantic Model; Data Agent; remaining items. Live bindings still require Test validation, including the Report's unchanged byPath reference across imports.
-The Repository behavior row is specific to this implementation. Its direct Bulk script uses two calls because bulk-parameter.yml needs the target Lakehouse ID before rewriting dependent definitions. The service itself handles logical-ID dependencies in one bulk request.
+Offline tests using actual fabric-cicd and mocked HTTP check substitutions, bulk outcomes, and zero standard definition POSTs. These are not live Test/Prod evidence.
+Bulk ordering is an independent repository adapter, not native plan attachment. Library, Import, Validation, and Model are explicit DataPipeline prerequisites. The current 11-item sample has declared batch sizes [1,5,2] plus remainder 3: four selections and an expected four bulk definition-import POSTs in the offline contract, not four total HTTP requests or live evidence. Preview after plan/inventory changes. Live Report byPath bindings still require validation.
+The raw script first captures Lakehouse/Ontology IDs, then the model ID, then publishes the DataPipeline. These three batches handle physical references; supported logical-ID dependencies are a separate service capability.
 -->
 
 ---
@@ -462,12 +464,12 @@ The Repository behavior row is specific to this implementation. Its direct Bulk 
 **One writer per workspace**
 
 - Dev is Fabric Git-managed.
-- Test and Prod are pipeline-managed.
-- Successful deployment is followed by ETL and validation.
+- Test and Prod definitions are API-managed.
+- GitHub starts one Fabric DataPipeline: load → validate → native refresh.
 
 ---
 
-<!-- _class: compact -->
+<!-- _class: dense -->
 
 # Fabric knowledge is encoded in the delivery contract
 
@@ -475,17 +477,19 @@ The Repository behavior row is specific to this implementation. Its direct Bulk 
 |---|---|---|
 | Applied | At runtime | Before upload |
 | Handles | Values workloads can resolve dynamically | Physical IDs and metadata that cannot be deferred |
-| Examples | Workspace/lakehouse values read by notebooks | Notebook META IDs and Direct Lake paths |
+| Examples | Loader values; Library patient-minimum binding | Notebook/Direct Lake IDs; pipeline model/connections |
 
 ```text
-Phase 1 foundations: Lakehouse + Ontology
-          ↓ target IDs and logical items now exist
-Phase 2 dependents: Variable Library + Notebooks + Semantic Model + Report + Data Agent
-          ↓ orphan cleanup
-Post-deploy: ETL + validation
+Publish 1: Lakehouse + Ontology
+Publish 2: Library + Notebooks + Model + Report + Agent
+Publish 3: DataPipeline (fresh Notebook/Model discovery)
+          ↓ eligible orphan cleanup
+Post-deploy: one DataPipeline — load → validate → native refresh
 ```
 
-**Also encoded:** explicit item scope, environment names, ETL notebook lookup, orphan reconciliation, and failure behavior.
+**Also encoded:** item scope, target connection variables, pipeline name lookup,
+success dependencies, and failure behavior. Connections/credentials are
+separately provisioned; a DeploymentPlan orders publication, not these activities.
 
 > The pipeline does not need tribal Fabric knowledge when that knowledge is made explicit and testable in the repository.
 
@@ -540,16 +544,14 @@ Switch from the deck to GitHub after the next flow slide.
 Default **fabric-cicd non-bulk** walkthrough; other methods use different callers.
 
 ```text
-PR: test → main
-  ↓ branch rules + promotion-path check + unit tests
-merge creates push to main
-  ↓ DEPLOY_METHOD selects the standard deployment job
-Prod GitHub Environment supplies identity + workspace
-  ↓ reusable workflow checks out the revision + authenticates
+PR test → main: branch checks + unit tests
+  ↓ merge/push; DEPLOY_METHOD selects the publisher
+Prod Environment supplies identity + workspace
+  ↓ reusable template checks out the revision + authenticates
 deploy script + parameter.yml → Fabric APIs
-standard phases → orphan cleanup
+3 publish calls → orphan cleanup
   ↓ successful deployment
-Prod ETL starts/polls the import notebook; verify release readiness separately
+Prod ETL starts/polls DataPipeline; release checks remain separate
 ```
 
 ### Files to follow
@@ -599,24 +601,29 @@ Be explicit about current versus recommended controls when showing Settings.
 
 # Deployment is not the end
 
-[`etl-prod.yml`](../.github/workflows/etl-prod.yml) runs only after the selected deployment succeeds.
+[`etl-prod.yml`](../.github/workflows/etl-prod.yml) starts/polls
+`Patterns_Load_Validate_And_Refresh` after deployment success.
 
-It:
-
-- resolves `Import_Patterns_Data` by display name;
-- starts the notebook through the Fabric REST API;
-- polls until success, failure, or timeout;
-- can be rerun manually without redeploying definitions.
+- Fabric owns **load → read-only validation → native refresh**. No second refresh.
+- Library `minimum_patient_count`: positive Integer policy, baseline `5`.
+- Pipeline `run_label`: independent String input, default `manual`, CI override.
 
 ```text
-definitions deployed
-  → target configuration applied
-  → ETL / refresh completed
-  → solution validated
-  → environment usable
+publish definitions + target bindings
+  → pipeline terminal success (including native refresh)
+  → separate model date / DAX / consumer checks
 ```
 
-> A green deployment means the definitions arrived. A successful release means the environment can do its job.
+> Earlier prototype: Workspace Identity activities + API label succeeded.
+> Current OneLake-path revision, Git binding resolution, and CI SP/Test/Prod
+> execution still need live verification.
+
+<!--
+Model-owner source access and consumer date-field/DAX checks remain separate.
+workflow_run still uses the default-branch listener: during rollout manually
+dispatch Test ETL from test after old automatic runs finish. A same-stage needs
+chain is a separate follow-up, not solved by adding a Fabric DataPipeline.
+-->
 
 ---
 

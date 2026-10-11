@@ -33,6 +33,8 @@ jobs:
     timeout-minutes: 30
     environment: ${{ inputs.environment }}
     env:
+      NOTEBOOK_CONNECTION_ID: ${{ vars.NOTEBOOK_CONNECTION_ID }}
+      SEMANTIC_MODEL_REFRESH_CONNECTION_ID: ${{ vars.SEMANTIC_MODEL_REFRESH_CONNECTION_ID }}
       REPOSITORY_DIRECTORY: ${{ inputs.repository_directory }}
       DEPLOYMENT_PLAN_PATH: ${{ inputs.deployment_plan_path }}
       ENVIRONMENT: ${{ inputs.environment }}

@@ -67,6 +67,11 @@ At PR, inspect source definitions/code. After publication, inspect effective tar
 
 - Validate definition structure, connections, parameters, and dependency references against the target configuration.
 - Run critical paths on controlled Test input; check terminal execution, failure handling, and expected outputs. Verify the runtime source/destination identity, not just the deployer's access. [Connections](https://learn.microsoft.com/en-us/fabric/data-factory/data-source-management).
+- For this sample, verify both Workspace Identity connections, physical
+  model/workspace substitutions, the active Library's positive Integer minimum,
+  and the independent String run label. User-authored/user-started feature
+  activity success does not prove CI service-principal publication/start or
+  the ownership compatibility of its deployed model.
 
 ### Notebooks and Spark environments
 
@@ -128,12 +133,36 @@ Source-only tests run at PR. Integration, data, and consumer tests run after Tes
 
 ### Execution and completion
 
-- In this repository's [shared Test/Prod follow-up](fabric-hybrid-cicd-guide.md#post-etl-semantic-model-refresh), a green ETL workflow requires the existing notebook job and the configured `Patterns_Semantic_Model` refresh to complete successfully, in that order. Missing/ambiguous models, authorization errors, refresh failure, and timeout block success. This implemented orchestration gate is not the full business-result or consumer-validation suite.
-- A refresh polling timeout is not server-side cancellation. Check the specific request's status/history before retriggering; a failed workflow can leave a service operation running.
+- In this repository's [shared Test/Prod follow-up](fabric-hybrid-cicd-guide.md#post-etl-semantic-model-refresh), GitHub starts and polls `Patterns_Load_Validate_And_Refresh` only. Fabric owns load → read-only validation → native refresh; failed validation skips refresh, and refresh failure fails the pipeline. No external refresh fallback or second ETL is wired. The schema/key/reference/source-date/minimum checks are not the full model/business-result or consumer-validation suite.
+- The pipeline job wait is bounded at 60 minutes; load, validation, and refresh
+  activity limits are 20, 10, and 10 minutes, respectively. A GitHub polling
+  timeout is not server-side cancellation. Check the specific pipeline/activity
+  and refresh history before retrying; a failed workflow can leave work running.
 - Share a lock/concurrency policy across all routes targeting the same workspace; hold it through deployment, required workload execution, and smoke checks. Do not interrupt an in-progress release with a competing one.
 - Limit Production writes to approved deployment/operational identities. Keep secrets outside code; separate deployment, runtime, and consumer access. See [Governance Considerations](fabric-cicd-governance-considerations.md) for identity controls.
 - Prefer OIDC/workload identity federation for CI where supported; constrain trust and deployment branch policies and verify Fabric permissions. This repository currently uses client-secret authentication; the [OIDC example is planned](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns/issues/84).
 - Retain approvals, target configuration, per-item outcomes, job/refresh/test IDs, deletions, and run links with restricted access and masked results. Keep failed/partial attempts separate from the last fully validated Production release.
+
+### Small failure demonstration
+
+Use an isolated feature or approved nonproduction target with disposable sample
+data, not Production: this pipeline's loader writes the sample tables.
+
+1. Record the active Library's `minimum_patient_count`, then raise it above the
+   observed patient count while keeping it a positive Integer. Run the pipeline.
+2. Confirm the validation activity fails and native refresh is skipped. Inspect
+   the passed threshold and independent `run_label`; do not require exact seed
+   counts in the runtime gate.
+3. Restore the original minimum and run once again. Require actual native
+   refresh completion, then separately query the model's date fields and check
+   consumer results.
+
+This demonstrates an environment policy versus per-run input, not a complete
+workshop or enterprise certification. The earlier feature prototype completed
+all three activities and an API parameter override. The current
+explicit-OneLake-path validation revision is only offline-validated; Git
+sync/Branch Out binding resolution, CI service-principal execution, and Test/Prod
+end-to-end evidence remain separate pending gates.
 
 ## 5. Support inventory and exceptions
 

@@ -1,11 +1,12 @@
 """Deploy supported Fabric items via non-bulk fabric-cicd.
 
-Two-phase deployment to satisfy item dependencies:
+Staged publication to satisfy item dependencies:
 
 - Phase 1: Lakehouse + Ontology
     - Lakehouse must exist so parameter.yml ``$items.Lakehouse`` rules resolve.
     - Ontology must exist so DataAgent's logicalId reference resolves.
-- Phase 2: All remaining items (DataAgent, Notebook, SemanticModel, etc.).
+- Phase 2: Remaining items except DataPipeline.
+- Phase 3, when selected: DataPipeline after its notebooks and model exist.
 
 fabric-cicd caches workspace state once at the start of each
 ``publish_all_items()`` call, so items deployed within the same call are not
@@ -26,13 +27,17 @@ from __future__ import annotations
 
 import json
 import os
+import sys
+from pathlib import Path
 
 from azure.identity import ClientSecretCredential
 from fabric_cicd import (
     FabricWorkspace,
+    append_feature_flag,
     publish_all_items,
     unpublish_all_orphan_items,
 )
+from pipeline_bindings import require_pipeline_connections
 
 PHASE1_TYPES = ["Lakehouse", "Ontology"]
 
@@ -59,12 +64,6 @@ def remaining_types_for_phase2(item_type_in_scope: list[str] | None) -> list[str
 
 
 def main() -> None:
-    credential = ClientSecretCredential(
-        tenant_id=os.environ["AZURE_TENANT_ID"],
-        client_id=os.environ["AZURE_CLIENT_ID"],
-        client_secret=os.environ["AZURE_CLIENT_SECRET"],
-    )
-
     # If item_type_in_scope is provided as a JSON array (e.g., '["Notebook"]'),
     # only those item types will be deployed. Otherwise, all types are in scope.
     item_type_in_scope: list[str] | None = None
@@ -75,6 +74,13 @@ def main() -> None:
     repo_dir = os.environ["REPOSITORY_DIRECTORY"]
     workspace_id = os.environ["FABRIC_WORKSPACE_ID"]
     environment = os.environ["ENVIRONMENT"]
+    require_pipeline_connections(repo_dir)
+    credential = ClientSecretCredential(
+        tenant_id=os.environ["AZURE_TENANT_ID"],
+        client_id=os.environ["AZURE_CLIENT_ID"],
+        client_secret=os.environ["AZURE_CLIENT_SECRET"],
+    )
+    append_feature_flag("enable_environment_variable_replacement")
 
     print("Phase 1: Deploying Lakehouse + Ontology...")
     phase1_ws = FabricWorkspace(
@@ -88,17 +94,48 @@ def main() -> None:
 
     # Phase 2: Deploy all remaining item types.
     remaining = remaining_types_for_phase2(item_type_in_scope)
-    print("Phase 2: Deploying remaining items: " + str(remaining or "all") + "...")
-    workspace = FabricWorkspace(
-        repository_directory=repo_dir,
-        workspace_id=workspace_id,
-        environment=environment,
-        token_credential=credential,
-        item_type_in_scope=remaining,
-    )
-    publish_all_items(workspace)
+    pipelines = list(Path(repo_dir).glob("*.DataPipeline/pipeline-content.json"))
+    include_pipelines = bool(pipelines) and (remaining is None or "DataPipeline" in remaining)
+    phase2_types = remaining
+    if include_pipelines:
+        phase2_types = [
+            item_type for item_type in (
+                remaining or sorted({p.parent.name.rsplit(".", 1)[-1] for p in Path(repo_dir).glob("*/.platform")})
+            ) if item_type not in ("DataPipeline", "DeploymentPlan", *PHASE1_TYPES)
+        ]
+    if not include_pipelines or phase2_types:
+        print("Phase 2: Deploying remaining items: " + str(phase2_types or "all") + "...")
+        workspace = FabricWorkspace(
+            repository_directory=repo_dir,
+            workspace_id=workspace_id,
+            environment=environment,
+            token_credential=credential,
+            item_type_in_scope=phase2_types,
+        )
+        publish_all_items(workspace)
+    if include_pipelines:
+        print("Phase 3: Deploying DataPipeline after notebook and Semantic Model publication...")
+        pipeline_workspace = FabricWorkspace(
+            repository_directory=repo_dir,
+            workspace_id=workspace_id,
+            environment=environment,
+            token_credential=credential,
+            item_type_in_scope=["DataPipeline"],
+        )
+        publish_all_items(pipeline_workspace)
+        workspace = FabricWorkspace(
+            repository_directory=repo_dir,
+            workspace_id=workspace_id,
+            environment=environment,
+            token_credential=credential,
+            item_type_in_scope=[*(phase2_types or []), "DataPipeline"],
+        )
     unpublish_all_orphan_items(workspace)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (OSError, ValueError, KeyError) as exc:
+        print(f"::error::{exc}", file=sys.stderr)
+        sys.exit(1)

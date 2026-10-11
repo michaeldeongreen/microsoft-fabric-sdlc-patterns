@@ -43,16 +43,16 @@
   <!-- What the swap-to-dev does -->
   <rect x="20" y="135" width="450" height="75" rx="6" fill="#f0f0f0" stroke="#ccc"/>
   <text x="30" y="157" font-weight="bold" fill="#333">workspace_swap.py --swap-to-dev:</text>
-  <text x="30" y="177" fill="#555">• Reverts semantic model and notebooks to dev IDs</text>
+  <text x="30" y="177" fill="#555">• Restores model/Notebook/pipeline Dev/source bindings</text>
   <text x="30" y="197" fill="#555">• Deletes feature value set and cleans settings.json</text>
 
   <!-- What the action checks -->
   <rect x="490" y="135" width="450" height="75" rx="6" fill="#f0f0f0" stroke="#ccc"/>
   <text x="500" y="157" font-weight="bold" fill="#333">check-pr-ready.yml checks:</text>
-  <text x="500" y="177" fill="#555">• Semantic model and notebooks contain dev IDs</text>
+  <text x="500" y="177" fill="#555">• Registered physical fields match Dev/source baselines</text>
   <text x="500" y="197" fill="#555">• No feature value set files exist (only Test/Prod allowed)</text>
 
   <!-- Post merge -->
   <rect x="20" y="235" width="920" height="30" rx="6" fill="#e8f4fd" stroke="#b8daef"/>
-  <text x="480" y="255" text-anchor="middle" fill="#1a5276" font-weight="bold">After merge: delete feature branch (local + remote) and optionally delete the feature workspace in Fabric</text>
+  <text x="480" y="255" text-anchor="middle" fill="#1a5276" font-weight="bold">Dev sync restores connection markers: bind real Dev runtime connections before a manual pipeline run.</text>
 </svg>

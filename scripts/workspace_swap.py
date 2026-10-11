@@ -9,15 +9,20 @@ Swap back to dev (revert tracked files before opening a PR):
     python scripts/workspace_swap.py --swap-to-dev
     python scripts/workspace_swap.py --swap-to-dev --dry-run
 
-Check the branch is PR-ready (CI gate; confirms dev IDs are present):
+Check the branch is PR-ready (CI gate; confirms dev IDs are present and the
+pipeline's model and connections are at their committed baselines):
     python scripts/workspace_swap.py --check-ready
 
 No arguments required — reads the current git branch automatically.
 
 Feature workspace IDs (one-time setup):
-    Copy .env.sample to .env at the repo root and fill in the two GUIDs.
-    The script reads them on first swap-to-feature, then caches them in
-    the branch's value set file so subsequent runs need no input.
+    Copy .env.sample to .env at the repo root and fill in the GUIDs. The
+    script reads .env on every swap-to-feature (never a cached copy), and
+    --swap-to-dev never reads it. FEATURE_WORKSPACE_ID and
+    FEATURE_LAKEHOUSE_ID are always required. When the repo has a pipeline with
+    a native semantic-model refresh activity, FEATURE_SEMANTIC_MODEL_ID,
+    FEATURE_NOTEBOOK_CONNECTION_ID and FEATURE_REFRESH_CONNECTION_ID are
+    required too (see pipeline_bindings.py for the committed baselines).
 
 Future enhancement (intentionally not implemented):
     The script could auto-discover feature workspace IDs by calling the
@@ -35,8 +40,21 @@ import json
 import re
 import subprocess
 import sys
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Callable, TypedDict
+
+from pipeline_bindings import (
+    BASELINE_VALUES,
+    PIPELINE_BINDINGS,
+    PIPELINE_FILE_PATTERN,
+    REFRESH_ACTIVITY_TYPE,
+    PipelineBindingError,
+    locate_fields,
+    mismatches,
+    read_binding_values,
+    rewrite,
+)
 
 # Force UTF-8 for stdout/stderr so the Unicode box-drawing characters used
 # in section headers and the summary banner don't crash on Windows consoles
@@ -111,6 +129,16 @@ ITEM_TYPES: list[ItemTypeRegistryEntry] = [
         "needs_rewrite": False,
         "id_keys": [],
         "content_filter": None,
+    },
+    {
+        # Only the native refresh activity's literal groupId holds the workspace ID.
+        # Notebook activities stay portable (logical ID + zero workspace), and the
+        # model/connection GUIDs are rewritten per key by PIPELINE_BINDINGS.
+        "name": "DataPipeline",
+        "file_patterns": [PIPELINE_FILE_PATTERN],
+        "needs_rewrite": True,
+        "id_keys": ["workspace"],
+        "content_filter": lambda text: REFRESH_ACTIVITY_TYPE in text,
     },
 ]
 
@@ -227,6 +255,8 @@ def _confirm_swap_to_feature(
     dev_lh_id: str,
     new_ws_id: str,
     new_lh_id: str,
+    *,
+    pipeline_changes: Sequence[tuple[str, str, str]] = (),
 ) -> None:
     """Show the planned swap and require the user to type ``YES`` to proceed.
 
@@ -236,6 +266,9 @@ def _confirm_swap_to_feature(
     any files change. Case-sensitive ``YES`` is required — ``yes``, ``y``, or
     a blank line all abort.
 
+    ``pipeline_changes`` lists (binding name, baseline, feature value) for a
+    pipeline's model and connections so those GUIDs are reviewed too.
+
     Skipped when the script is invoked with --dry-run (the dry-run is itself
     the verification step).
     """
@@ -243,6 +276,8 @@ def _confirm_swap_to_feature(
     print(f"  Branch       : {branch}")
     print(f"  Workspace ID : {dev_ws_id} → {new_ws_id}")
     print(f"  Lakehouse ID : {dev_lh_id} → {new_lh_id}")
+    for name, baseline, feature in pipeline_changes:
+        print(f"  {name} : {baseline} → {feature}")
     print(
         "\nThis will rewrite tracked Fabric files and create a per-branch "
         "value set.\nType YES (uppercase) to apply, anything else to abort."
@@ -396,6 +431,96 @@ def validate_no_stray_value_sets() -> list[str]:
     return errors
 
 
+# ── Pipeline bindings ──────────────────────────────────────────────────────
+# A native pipeline's model and connection GUIDs can't be swapped by value like
+# the workspace and lakehouse IDs: the connection baselines are placeholders and
+# any stale value must be recoverable. pipeline_bindings.py rewrites them per
+# key, only in pipelines the DataPipeline registry entry covers (those with a
+# native refresh activity).
+
+def _pipeline_paths() -> list[Path]:
+    """Pipeline definitions the DataPipeline registry entry covers."""
+    entry = next(item_type for item_type in ITEM_TYPES if item_type["name"] == "DataPipeline")
+    paths: list[Path] = []
+    for pattern in entry["file_patterns"]:
+        for path in sorted(FABRIC_DIR.glob(pattern)):
+            text = path.read_text(encoding="utf-8")
+            if entry["content_filter"] is None or entry["content_filter"](text):
+                paths.append(path)
+    return paths
+
+
+def _preflight_pipelines() -> None:
+    """Exit before any file is written when a pipeline can't be rewritten safely."""
+    for path in _pipeline_paths():
+        try:
+            locate_fields(path.read_text(encoding="utf-8"))
+        except PipelineBindingError as exc:
+            sys.exit(f"ERROR: {path.relative_to(REPO_ROOT)}: {exc}")
+
+
+def resolve_pipeline_feature_values() -> dict[str, str]:
+    """Resolve the feature model and connection GUIDs from .env.
+
+    Returns {binding name: GUID}, or {} when no pipeline with a native refresh
+    activity exists so repos without one keep the two-key .env contract. Exits
+    with every problem listed when a key is missing, malformed, all zeros, a
+    committed baseline or repeated.
+    """
+    if not _pipeline_paths():
+        return {}
+    values, problems = read_binding_values(_read_env_file(ENV_FILE), "feature_env_key")
+    if problems:
+        sys.exit(
+            f"ERROR: {ENV_FILE.name} has invalid pipeline values (required because a "
+            "pipeline with a native semantic-model refresh exists):\n"
+            + "\n".join(f"  - {problem}" for problem in problems)
+            + "\nSee .env.sample for the expected shape."
+        )
+    print(f"  Loaded pipeline binding IDs from {ENV_FILE.name}")
+    return values
+
+
+def repoint_pipeline_bindings(values: Mapping[str, str], *, dry_run: bool) -> list[str]:
+    """Set each pipeline binding to ``values[binding name]`` whatever it holds now.
+
+    Bytes are read and written as-is, so line endings and formatting survive.
+    """
+    changed: list[str] = []
+    for path in _pipeline_paths():
+        rel = path.relative_to(REPO_ROOT)
+        original = path.read_bytes().decode("utf-8")
+        try:
+            updated = rewrite(original, values)
+        except PipelineBindingError as exc:
+            sys.exit(f"ERROR: {rel}: {exc}")
+        if updated == original:
+            continue
+        if dry_run:
+            print(f"  [dry-run] Would repoint (DataPipeline bindings): {rel}")
+        else:
+            path.write_bytes(updated.encode("utf-8"))
+            print(f"  Repointed (DataPipeline bindings): {rel}")
+        changed.append(str(rel))
+    if not changed:
+        print("  No pipeline bindings to change.")
+    return changed
+
+
+def validate_pipeline_bindings(expected: Mapping[str, str]) -> list[str]:
+    """Describe every pipeline binding that doesn't hold its ``expected`` value."""
+    problems: list[str] = []
+    for path in _pipeline_paths():
+        rel = path.relative_to(REPO_ROOT)
+        try:
+            found = mismatches(path.read_text(encoding="utf-8"), expected)
+        except PipelineBindingError as exc:
+            problems.append(f"  {rel}: {exc}")
+            continue
+        problems.extend(f"  {rel}: {message}" for message in found)
+    return problems
+
+
 def remove_value_set(value_set_path: Path, *, dry_run: bool) -> bool:
     if not value_set_path.exists():
         print("  Value set already removed.")
@@ -469,13 +594,26 @@ def _run_swap_to_feature(branch: str, branch_label: str, value_set_path: Path,
     if new_ws_id == dev_ws_id and new_lh_id == dev_lh_id:
         sys.exit("ERROR: Feature IDs are identical to dev IDs. Nothing to do.")
 
+    # A pipeline with a native refresh also needs its model and connection IDs.
+    # Shape-check it and resolve them now so any problem exits before a file changes.
+    _preflight_pipelines()
+    pipeline_values = resolve_pipeline_feature_values()
+    pipeline_changes = [
+        (binding["name"], binding["baseline"], pipeline_values[binding["name"]])
+        for binding in PIPELINE_BINDINGS
+    ] if pipeline_values else []
+    for name, _baseline, feature_value in pipeline_changes:
+        print(f"  Feature {name.lower()} : {feature_value}")
+
     # Capture the previously-applied feature IDs (if any) BEFORE the value set
     # gets rewritten in step 3. Used in step 4 to recover from a prior swap
     # that applied wrong IDs.
     stale_ws_id, stale_lh_id = _read_previous_feature_ids(value_set_path)
 
     if not dry_run:
-        _confirm_swap_to_feature(branch, dev_ws_id, dev_lh_id, new_ws_id, new_lh_id)
+        _confirm_swap_to_feature(
+            branch, dev_ws_id, dev_lh_id, new_ws_id, new_lh_id, pipeline_changes=pipeline_changes,
+        )
 
     changes: list[str] = []
 
@@ -506,6 +644,12 @@ def _run_swap_to_feature(branch: str, branch_label: str, value_set_path: Path,
         for r in recovered:
             changes.append(f"Recovered: {r}")
 
+    # Pipeline model and connection GUIDs are set per key, so a stale value
+    # needs no recovery pass.
+    if pipeline_values:
+        for r in repoint_pipeline_bindings(pipeline_values, dry_run=dry_run):
+            changes.append(f"Pipeline:  {r} (pipeline bindings)")
+
     print("\n5. Validating...")
     if dry_run:
         print("  [dry-run] Skipping validation (files unchanged).")
@@ -517,8 +661,19 @@ def _run_swap_to_feature(branch: str, branch_label: str, value_set_path: Path,
                 print(w)
         else:
             print("  Clean — no dev IDs in critical files.")
+        if pipeline_values:
+            unapplied = validate_pipeline_bindings(pipeline_values)
+            if unapplied:
+                print("  WARNINGS — pipeline bindings not at the feature values:")
+                for w in unapplied:
+                    print(w)
+            else:
+                print("  Clean — pipeline bindings use the feature values.")
 
-    _print_summary(branch, dev_ws_id, dev_lh_id, new_ws_id, new_lh_id, changes, dry_run=dry_run)
+    _print_summary(
+        branch, dev_ws_id, dev_lh_id, new_ws_id, new_lh_id, changes, dry_run=dry_run,
+        pipeline_lines=[f"{name}: {baseline} → {feature}" for name, baseline, feature in pipeline_changes],
+    )
 
 
 def _run_swap_to_dev(branch: str, branch_label: str, value_set_path: Path,
@@ -534,12 +689,22 @@ def _run_swap_to_dev(branch: str, branch_label: str, value_set_path: Path,
     print(f"  Feature workspace : {feature_ws_id}")
     print(f"  Feature lakehouse : {feature_lh_id}")
 
+    # Exit before anything is reverted when a pipeline can't be rewritten safely.
+    _preflight_pipelines()
+
     changes: list[str] = []
 
     print("\n3. Reverting items to dev...")
     reverted = repoint_items(feature_ws_id, feature_lh_id, dev_ws_id, dev_lh_id, dry_run=dry_run)
     for r in reverted:
         changes.append(f"Reverted:  {r}")
+
+    # Model and connections go back to their committed baselines by key, so
+    # swap-to-dev needs no .env and no record of what the feature run applied.
+    has_pipeline = bool(_pipeline_paths())
+    if has_pipeline:
+        for r in repoint_pipeline_bindings(BASELINE_VALUES, dry_run=dry_run):
+            changes.append(f"Reverted:  {r} (pipeline bindings)")
 
     print("\n4. Removing feature value set...")
     if remove_value_set(value_set_path, dry_run=dry_run):
@@ -558,12 +723,24 @@ def _run_swap_to_dev(branch: str, branch_label: str, value_set_path: Path,
                 print(w)
         else:
             print("  Clean — no feature IDs in critical files.")
+        if has_pipeline:
+            unreverted = validate_pipeline_bindings(BASELINE_VALUES)
+            if unreverted:
+                print("  WARNINGS — pipeline bindings not at baseline:")
+                for w in unreverted:
+                    print(w)
+            else:
+                print("  Clean — pipeline bindings use baseline values.")
 
-    _print_summary(branch, feature_ws_id, feature_lh_id, dev_ws_id, dev_lh_id, changes, dry_run=dry_run, swap_to_dev=True)
+    _print_summary(
+        branch, feature_ws_id, feature_lh_id, dev_ws_id, dev_lh_id, changes,
+        dry_run=dry_run, swap_to_dev=True,
+        pipeline_lines=[f"{name}: reset to {baseline}" for name, baseline in BASELINE_VALUES.items()] if has_pipeline else [],
+    )
 
 
 def _run_check_ready() -> None:
-    """CI check: confirm dev IDs are present in rewritable files and no stray value sets exist."""
+    """CI check: dev IDs present, pipeline bindings at baseline, no stray value sets."""
     print("Check PR ready: confirming repo state is safe to merge...\n")
 
     dev_ws_id, dev_lh_id = get_dev_ids()
@@ -588,6 +765,17 @@ def _run_check_ready() -> None:
     if not stray:
         print("  OK — no stray value sets.")
 
+    print("\n3. Checking pipeline bindings use baseline values...")
+    if _pipeline_paths():
+        unbound = validate_pipeline_bindings(BASELINE_VALUES)
+        errors.extend(unbound)
+        for u in unbound:
+            print(u)
+        if not unbound:
+            print("  OK — semantic model and connections use baseline values.")
+    else:
+        print("  OK — no pipeline with a native refresh activity.")
+
     if errors:
         print(f"\nCHECK FAILED — {len(errors)} error(s) found.")
         print("Run 'python scripts/workspace_swap.py --swap-to-dev' to fix.")
@@ -598,12 +786,15 @@ def _run_check_ready() -> None:
 
 def _print_summary(branch: str, old_ws_id: str, old_lh_id: str,
                    new_ws_id: str, new_lh_id: str, changes: list[str],
-                   *, dry_run: bool, swap_to_dev: bool = False) -> None:
+                   *, dry_run: bool, swap_to_dev: bool = False,
+                   pipeline_lines: Sequence[str] = ()) -> None:
     mode = "SWAP-TO-DEV" if swap_to_dev else "SWAP-TO-FEATURE"
     print(f"\n── Summary ({mode}) ──────────────────────────────")
     print(f"  Branch:            {branch}")
     print(f"  Workspace ID:      {old_ws_id} → {new_ws_id}")
     print(f"  Lakehouse ID:      {old_lh_id} → {new_lh_id}")
+    for line in pipeline_lines:
+        print(f"  {line}")
     print(f"  Files {'that would change' if dry_run else 'changed'}:")
     for c in changes:
         print(f"    {c}")

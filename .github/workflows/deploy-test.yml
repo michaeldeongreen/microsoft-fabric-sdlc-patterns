@@ -28,5 +28,5 @@ jobs:
     uses: ./.github/workflows/reusable-deploy-fabric-cicd.yml
     with:
       environment: Test
-      item_type_in_scope: '["Lakehouse", "Ontology", "VariableLibrary", "Notebook", "SemanticModel", "Report", "DataAgent"]'
+      item_type_in_scope: '["Lakehouse", "Ontology", "VariableLibrary", "Notebook", "SemanticModel", "Report", "DataAgent", "DataPipeline"]'
     secrets: inherit

@@ -6,7 +6,6 @@ import base64
 import hashlib
 import importlib
 import json
-import shutil
 import sys
 import time
 from collections.abc import Iterator
@@ -27,13 +26,13 @@ from deployment_plan_bulk import BulkDeploymentSchedule, DeploymentGroup, Reposi
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PLAN_PATH = REPO_ROOT / "data" / "fabric" / "DeploymentPlan.DeploymentPlan" / "plan.yml"
 WORKSPACE_ID = "11111111-1111-1111-1111-111111111111"
-SCOPE = ["Lakehouse", "Ontology", "VariableLibrary", "Notebook", "SemanticModel", "Report", "DataAgent"]
+SCOPE = ["Lakehouse", "Ontology", "VariableLibrary", "Notebook", "SemanticModel", "Report", "DataAgent", "DataPipeline"]
 SOURCE_WORKSPACE_ID = "d7270f11-feba-4990-baa6-d45e47f23737"
 SOURCE_LAKEHOUSE_ID = "c185283c-9dd9-4e40-a17c-aa6303e3a2e9"
 
 
 @pytest.fixture
-def schedule() -> BulkDeploymentSchedule:
+def schedule(pipeline_connection_environment: dict[str, str]) -> BulkDeploymentSchedule:
     return load_schedule(REPO_ROOT / "data" / "fabric", PLAN_PATH, SCOPE)
 
 
@@ -95,18 +94,17 @@ def test_exact_grouped_selections_fresh_state_and_single_cleanup(schedule: BulkD
     ):
         deploy.deploy_schedule(schedule, WORKSPACE_ID, "Test", credential)
     assert [call.kwargs["items_to_include"] for call in publish_mock.call_args_list] == [
-        ["PatternsLakehouse.Lakehouse"],
-        ["Patterns_Ontology.Ontology", "Patterns_Semantic_Model.SemanticModel"],
-        ["Patterns_Data_Agent.DataAgent"],
+        [group.item.selector for group in batch] for batch in schedule.batches
+    ] + [
         [item.selector for item in schedule.remaining_items],
     ]
-    assert len(published) == len(set(published)) == 9
+    assert len(published) == len(set(published)) == 11
     assert len(instances) == 6
     assert [instance.config["item_type_in_scope"] for instance in instances] == [
         sorted(SCOPE),
-        ["Lakehouse"], ["Ontology", "SemanticModel"], ["DataAgent"],
-        ["Notebook", "Report", "VariableLibrary"],
-        ["DataAgent", "Notebook", "Report", "SemanticModel", "VariableLibrary"],
+        ["Lakehouse"], ["Notebook", "Ontology", "SemanticModel", "VariableLibrary"],
+        ["DataAgent", "DataPipeline"], ["Notebook", "Report"],
+        ["DataAgent", "DataPipeline", "Notebook", "Report", "SemanticModel", "VariableLibrary"],
     ]
     cleanup.assert_called_once_with(instances[-1])
     assert enable.call_args_list == [mock.call(flag) for flag in deploy.BULK_FEATURE_FLAGS]
@@ -306,8 +304,8 @@ def test_preview_is_independent_and_does_not_authenticate(
         ):
             deploy.main(["--plan", str(PLAN_PATH), "--dry-run"])
     summary = json.loads(capsys.readouterr().out)
-    assert [len(batch) for batch in summary["batches"]] == [1, 2, 1]
-    assert len(summary["remainingItems"]) == 5
+    assert [len(batch) for batch in summary["batches"]] == [1, 5, 2]
+    assert len(summary["remainingItems"]) == 3
     assert "DeploymentPlan" not in summary["cleanupItemTypes"]
     credential.assert_not_called()
     workspace.assert_not_called()
@@ -492,12 +490,14 @@ class OfflineFabric:
 
 
 @pytest.fixture
-def offline_fabric(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[OfflineFabric]:
+def offline_fabric(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    canonical_fabric_repository: Path, pipeline_connection_environment: dict[str, str],
+) -> Iterator[OfflineFabric]:
     import fabric_cicd.constants as constants
     from fabric_cicd._common._fabric_endpoint import FabricEndpoint
 
-    repository = tmp_path / "fabric"
-    shutil.copytree(REPO_ROOT / "data" / "fabric", repository)
+    repository = canonical_fabric_repository
     fabric = OfflineFabric(repository)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(constants, "FEATURE_FLAG", set())
@@ -523,6 +523,7 @@ def _offline_schedule(fabric: OfflineFabric) -> BulkDeploymentSchedule:
 @pytest.mark.parametrize("warm", [False, True], ids=["cold", "warm"])
 def test_real_sdk_parameterized_transport_never_falls_back(
     offline_fabric: OfflineFabric, environment: str, warm: bool,
+    pipeline_connection_environment: dict[str, str],
 ) -> None:
     fabric = offline_fabric
     if warm:
@@ -538,11 +539,15 @@ def test_real_sdk_parameterized_transport_never_falls_back(
     deploy.deploy_schedule(_offline_schedule(fabric), WORKSPACE_ID, environment, _credential())
     assert (fabric.repository / "parameter.yml").is_file()
     assert len(fabric.bulk_requests) == 4
-    assert [len(selection) for selection in fabric.selections] == [1, 2, 1, 5]
+    assert [len(selection) for selection in fabric.selections] == [1, 5, 2, 3]
     assert [set(selection) for selection in fabric.selections[:3]] == [
         {"PatternsLakehouse.Lakehouse"},
-        {"Patterns_Ontology.Ontology", "Patterns_Semantic_Model.SemanticModel"},
-        {"Patterns_Data_Agent.DataAgent"},
+        {
+            "Import_Patterns_Data.Notebook", "Patterns_Ontology.Ontology",
+            "Patterns_Semantic_Model.SemanticModel", "Validate_Patterns_Data.Notebook",
+            "Patterns_Variables.VariableLibrary",
+        },
+        {"Patterns_Data_Agent.DataAgent", "Patterns_Load_Validate_And_Refresh.DataPipeline"},
     ]
     assert fabric.standard_definition_requests == 0
     assert fabric.activations == [environment]
@@ -565,6 +570,18 @@ def test_real_sdk_parameterized_transport_never_falls_back(
     )
     assert report["datasetReference"] == source_report["datasetReference"]
     assert report["datasetReference"]["byPath"]["path"] == "../Patterns_Semantic_Model.SemanticModel"
+    pipeline = json.loads(fabric.content("Patterns_Load_Validate_And_Refresh.DataPipeline", "pipeline-content.json"))
+    activities = pipeline["properties"]["activities"]
+    for activity in activities[:2]:
+        assert activity["externalReferences"]["connection"] == pipeline_connection_environment["NOTEBOOK_CONNECTION_ID"]
+        assert activity["typeProperties"]["workspaceId"] == "00000000-0000-0000-0000-000000000000"
+        notebook_name = activity["name"]
+        assert activity["typeProperties"]["notebookId"] == fabric.metadata[f"{notebook_name}.Notebook"]["config"]["logicalId"]
+    refresh = activities[2]
+    assert refresh["typeProperties"]["groupId"] == WORKSPACE_ID
+    assert refresh["typeProperties"]["datasetId"] == fabric.ids["Patterns_Semantic_Model.SemanticModel"]
+    assert refresh["typeProperties"]["waitOnCompletion"] is True
+    assert refresh["externalReferences"]["connection"] == pipeline_connection_environment["SEMANTIC_MODEL_REFRESH_CONNECTION_ID"]
     after = {
         path.relative_to(fabric.repository): hashlib.sha256(path.read_bytes()).hexdigest()
         for path in fabric.repository.rglob("*") if path.is_file()
@@ -583,7 +600,7 @@ def test_real_sdk_combined_batch_failure_stops_dependencies(
         deploy.deploy_schedule(_offline_schedule(fabric), WORKSPACE_ID, "Test", _credential())
     assert len(fabric.bulk_requests) == 2
     assert fabric.standard_definition_requests == 0
-    assert fabric.activations == []
+    assert fabric.activations == ["Test"]
     assert fabric.deleted == []
 
 
@@ -594,7 +611,7 @@ def test_real_sdk_missing_response_stops_dependencies(offline_fabric: OfflineFab
         deploy.deploy_schedule(_offline_schedule(fabric), WORKSPACE_ID, "Test", _credential())
     assert len(fabric.bulk_requests) == 2
     assert fabric.deleted == []
-    assert fabric.activations == []
+    assert fabric.activations == ["Test"]
 
 
 def test_real_sdk_api_error_stops_dependencies(offline_fabric: OfflineFabric) -> None:
@@ -611,7 +628,10 @@ def test_unfiltered_items_rule_is_rejected_before_definition_writes(offline_fabr
     fabric = offline_fabric
     path = fabric.repository / "parameter.yml"
     parameters = yaml.safe_load(path.read_text(encoding="utf-8"))
-    del parameters["find_replace"][0]["item_type"]
+    lakehouse_rule = next(
+        rule for rule in parameters["find_replace"] if rule.get("item_type") == "VariableLibrary"
+    )
+    del lakehouse_rule["item_type"]
     path.write_text(yaml.safe_dump(parameters), encoding="utf-8")
     with pytest.raises(deploy.BulkDeploymentError, match="unfiltered"):
         deploy.deploy_schedule(_offline_schedule(fabric), WORKSPACE_ID, "Test", _credential())

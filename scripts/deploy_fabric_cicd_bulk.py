@@ -35,12 +35,14 @@ from fabric_cicd import (
 from fabric_cicd.constants import BULK_ACCEPTED_ITEM_TYPES
 
 from deployment_plan_bulk import BulkDeploymentSchedule, RepositoryItem, load_schedule, validate_guid
+from pipeline_bindings import require_pipeline_connections
 
 BULK_FEATURE_FLAGS = (
     "enable_experimental_features",
     "enable_bulk_publish",
     "enable_items_to_include",
     "enable_response_collection",
+    "enable_environment_variable_replacement",
 )
 CLEANUP_EXCLUDED_TYPES = frozenset({"Lakehouse", "Ontology", "DeploymentPlan"})
 
@@ -253,6 +255,7 @@ def deploy_schedule(
     if not schedule.batches and not schedule.remaining_items:
         raise BulkDeploymentError("No selected items; publishing and orphan cleanup are forbidden.")
     workspace_id = validate_guid(workspace_id, "FABRIC_WORKSPACE_ID")
+    require_pipeline_connections(schedule.repository_directory)
     if not environment.strip():
         raise ValueError("ENVIRONMENT must not be empty.")
     validate_value_sets(schedule, environment)

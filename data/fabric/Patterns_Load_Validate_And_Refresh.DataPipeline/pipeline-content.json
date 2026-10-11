@@ -2,42 +2,26 @@
   "properties": {
     "activities": [
       {
-        "name": "Import_Patterns_Data",
         "type": "TridentNotebook",
-        "dependsOn": [],
-        "policy": {
-          "timeout": "0.00:20:00",
-          "retry": 0,
-          "retryIntervalInSeconds": 30,
-          "secureOutput": false,
-          "secureInput": false
-        },
         "typeProperties": {
           "notebookId": "3f21b546-f49f-9fef-4881-99b654a6701e",
           "workspaceId": "00000000-0000-0000-0000-000000000000"
         },
         "externalReferences": {
           "connection": "4546aab3-2060-41b8-8989-96a32163f32b"
-        }
-      },
-      {
-        "name": "Validate_Patterns_Data",
-        "type": "TridentNotebook",
-        "dependsOn": [
-          {
-            "activity": "Import_Patterns_Data",
-            "dependencyConditions": [
-              "Succeeded"
-            ]
-          }
-        ],
+        },
         "policy": {
-          "timeout": "0.00:10:00",
+          "timeout": "0.00:20:00",
           "retry": 0,
           "retryIntervalInSeconds": 30,
-          "secureOutput": false,
-          "secureInput": false
+          "secureInput": false,
+          "secureOutput": false
         },
+        "name": "Import_Patterns_Data",
+        "dependsOn": []
+      },
+      {
+        "type": "TridentNotebook",
         "typeProperties": {
           "notebookId": "decdcb11-8770-4216-8a28-eadf505d2679",
           "workspaceId": "00000000-0000-0000-0000-000000000000",
@@ -60,11 +44,46 @@
         },
         "externalReferences": {
           "connection": "4546aab3-2060-41b8-8989-96a32163f32b"
-        }
+        },
+        "policy": {
+          "timeout": "0.00:10:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "Validate_Patterns_Data",
+        "dependsOn": [
+          {
+            "activity": "Import_Patterns_Data",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
       },
       {
-        "name": "Refresh_Patterns_Semantic_Model",
         "type": "PBISemanticModelRefresh",
+        "typeProperties": {
+          "method": "POST",
+          "groupId": "6df0254d-0ae4-444a-9128-6524e0b69e47",
+          "datasetId": "bed063f7-20b1-49df-b3aa-72af4fafd4ec",
+          "commitMode": "Transactional",
+          "waitOnCompletion": true,
+          "operationType": "SemanticModelRefresh",
+          "timeout": "00:10:00"
+        },
+        "externalReferences": {
+          "connection": "8e05e9e3-9dc7-49af-b9d4-2217b10e8325"
+        },
+        "policy": {
+          "timeout": "0.00:10:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "Refresh_Patterns_Semantic_Model",
         "dependsOn": [
           {
             "activity": "Validate_Patterns_Data",
@@ -72,26 +91,7 @@
               "Succeeded"
             ]
           }
-        ],
-        "policy": {
-          "timeout": "0.00:10:00",
-          "retry": 0,
-          "retryIntervalInSeconds": 30,
-          "secureOutput": false,
-          "secureInput": false
-        },
-        "typeProperties": {
-          "method": "POST",
-          "operationType": "SemanticModelRefresh",
-          "groupId": "6df0254d-0ae4-444a-9128-6524e0b69e47",
-          "datasetId": "bed063f7-20b1-49df-b3aa-72af4fafd4ec",
-          "waitOnCompletion": true,
-          "timeout": "00:10:00",
-          "commitMode": "Transactional"
-        },
-        "externalReferences": {
-          "connection": "8e05e9e3-9dc7-49af-b9d4-2217b10e8325"
-        }
+        ]
       }
     ],
     "parameters": {

@@ -1,0 +1,62 @@
+name: Bootstrap Dev Connections
+run-name: Bootstrap Dev Connections ${{ inputs.request_id || github.run_id }}
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - ".github/workflows/bootstrap-dev.yml"
+      - "scripts/bootstrap_dev_connections.py"
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: "Non-secret correlation ID supplied by the local preparation helper"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fabric-deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    name: Ensure Dev connections and export non-secret IDs
+    if: github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: Dev
+    steps:
+      - name: Checkout reviewed bootstrap code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Install authentication dependency
+        run: pip install "azure-identity>=1.15"
+
+      - name: Bootstrap Dev runtime connections
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          FABRIC_WORKSPACE_ID: ${{ secrets.FABRIC_WORKSPACE_ID }}
+          NOTEBOOK_CONNECTION_ID: ${{ vars.NOTEBOOK_CONNECTION_ID }}
+          SEMANTIC_MODEL_REFRESH_CONNECTION_ID: ${{ vars.SEMANTIC_MODEL_REFRESH_CONNECTION_ID }}
+        run: python scripts/bootstrap_dev_connections.py --output bootstrap-output/dev-bindings.json
+
+      - name: Upload non-secret Dev binding metadata
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: fabric-dev-bindings
+          path: bootstrap-output/dev-bindings.json
+          if-no-files-found: error
+          retention-days: 30

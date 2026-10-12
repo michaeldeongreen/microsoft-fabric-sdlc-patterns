@@ -1,81 +1,61 @@
 ---
 name: prepare-dev-workspace
-description: 'Prepare canonical Fabric Dev pipeline bindings: create or reuse Dev activity connections, discover the model, record real baseline IDs, and align parameter files without swapping feature source.'
+description: 'Import canonical non-secret Dev binding metadata from the reviewed GitHub bootstrap Action and align parameter files without swapping feature source or using local SPN credentials.'
 disable-model-invocation: true
 ---
 
-# Prepare Dev Workspace
+# Import Dev Workspace Bindings
 
-Run the Dev mode of [prepare_fabric_workspace.py](../../../scripts/prepare_fabric_workspace.py)
-for deliberate standalone setup or troubleshooting. The everyday
-`/swap-to-dev` skill already handles first-time preparation before restoring
-source. Normally, there is no need to invoke this preparation-only skill.
+This advanced preparation-only tool is for deliberate setup or troubleshooting.
+The everyday `/swap-to-dev` skill already imports the first baseline before
+restoring source; normally there is no reason to run this skill separately.
 
-An explicit invocation authorizes preparation. Do not ask for another `YES` or
-`NO`, or execute merely because the user asks for an explanation.
-Preparation changes Dev runtime resources, the tracked
-[Dev manifest](../../../data/fabric-dev-bindings.json), and both parameter
-files. It does not switch the active feature definitions to Dev.
+The [Dev bootstrap Action](../../workflows/bootstrap-dev.yml) owns connection
+creation using the Dev Environment's SPN secrets. This skill imports only its
+non-secret IDs into the tracked [Dev manifest](../../../data/fabric-dev-bindings.json)
+and aligns both parameter files. It does not rewrite the active feature
+definitions or remove their value set.
+
+An explicit invocation authorizes metadata retrieval, waiting for an approved
+run, and dispatching the registered Dev workflow if no run exists. Do not ask
+for an additional `YES` or `NO`, or execute when the user only asks for an
+explanation.
 
 ## Procedure
 
-1. For a requested preview, run the script with `--dev --dry-run` and report
-   the result. Skip credentials and live preparation. Do not perform setup
-   after the preview; it does not prove remote resources or permissions.
-2. Use the user's approved Azure CLI identity for local Fabric API calls.
-   Reuse a valid session; otherwise sign in through device code as described
-   below. For default ServicePrincipal activity credentials, the local
-   process still needs `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and
-   `AZURE_CLIENT_SECRET`. GitHub Environment secrets are not automatically
-   downloaded to a local shell. Check presence without printing values;
-   if missing, report the names and stop. Never request a secret in chat.
-3. From the repository root, run preparation only:
+1. For a preview, use `--dev --dry-run`. This stays completely local: no
+   GitHub discovery/dispatch/download, Azure authentication, or file writes.
+   Do not perform the import after the preview.
+2. Use the developer's authenticated `gh` access to the repository. Do not
+   read Azure credential values, request secrets in chat, or use Azure
+   device-code login for Dev metadata import.
+3. Run the import-only command from the repository root:
 
    PowerShell:
    ```powershell
-   python scripts\prepare_fabric_workspace.py --dev --use-azure-cli
+   python scripts\prepare_fabric_workspace.py --dev
    ```
 
    Bash:
    ```bash
-   python scripts/prepare_fabric_workspace.py --dev --use-azure-cli
+   python scripts/prepare_fabric_workspace.py --dev
    ```
 
-   The script reads the explicit Dev workspace from the Variable Library,
-   discovers its existing model, ensures its connections, records real
-   non-secret IDs, and aligns both parameter files. It reuses recorded IDs
-   rather than silently replacing a deleted canonical connection.
-4. Report the command output and generated source-configuration changes.
-   On failure, report the error and stop; never claim the branch is PR-ready
-   just because resource preparation succeeded.
-5. After success, explain that `/swap-to-dev` restores the tracked references
-   and removes the feature value set. It verifies local readiness itself; no
-   separate readiness skill invocation is required.
+   The helper verifies the registered workflow, reviewed Dev source, successful
+   run and artifact provenance, then matches its workspace/model against local
+   configuration. Unknown or invalid source/resource metadata fails before
+   recording IDs.
+4. If the bootstrap workflow is not available, explain the facilitator's
+   bootstrap-only infrastructure rollout prerequisite and stop. If Environment
+   approval is pending, report the canonical run URL; never approve it or
+   ignore a failed run. Never fall back to local SPN credentials.
+5. Report the import output and generated non-secret configuration changes.
+   Preparation alone does not make the branch PR-ready. Explain that the
+   ordinary `/swap-to-dev` skill performs restoration and verifies readiness.
 
-Do not add `--swap-to-dev` automatically: this skill is preparation-only.
-Do not add `--replace-dev-bindings` without an explicit request to regenerate
-canonical resources. Do not commit, push, sync Git, run the pipeline, or start
-a capacity unless separately requested.
+Do not automatically add `--swap-to-dev` or `--replace-dev-bindings`, commit,
+push, sync Fabric Git, run a pipeline, or start a capacity. A changed canonical
+GUID requires deliberate recovery and a reviewed source change.
 
-## Local device-code authentication
-
-Use `--use-azure-cli` by default. If the user session needs authentication,
-use device-code login with a validated approved tenant:
-
-```powershell
-az login --tenant "<approved-tenant-guid>" --allow-no-subscriptions --scope https://api.fabric.microsoft.com/.default --use-device-code --output none
-```
-
-These are separate operations: do not log in again when the correct user session
-is already valid. Never display an access token or full credential response.
-Device-code user sign-in does not authenticate the Actions SPN or replace its
-runtime connection credentials. For default ServicePrincipal connections,
-the Azure SPN credential values are still required. User-created connections
-also need the Actions SPN's appropriate management access for automatic
-credential reconciliation. Explain this prerequisite rather than claiming
-that user sign-in gives the SPN permission to manage those connections.
-Unattended Actions continues using the SPN; do not introduce a device-code
-prompt into CI or switch local identities silently.
-
-See the [first-time and recurring development steps](../../../fabric-development-process.md)
-and [setup/permission contract](../../../SETUP.md#post-etl-refresh-permissions).
+See the [facilitator and participant steps](../../../fabric-development-process.md)
+and [setup contract](../../../SETUP.md).

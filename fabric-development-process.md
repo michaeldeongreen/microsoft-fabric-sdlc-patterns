@@ -87,7 +87,9 @@ separate jobs, so the scripts remain easy to test and troubleshoot:
 
 | Job | Script | Purpose | When needed |
 |---|---|---|---|
-| **Prepare resources** | [prepare_fabric_workspace.py](scripts/prepare_fabric_workspace.py) | Call Fabric APIs to discover items and create/reuse runtime connections; save the IDs needed by the swap | Dev's first pipeline setup; each new feature workspace |
+| **Prepare feature resources** | [prepare_fabric_workspace.py](scripts/prepare_fabric_workspace.py) | Use the developer's Fabric API session to discover feature items and ensure its runtime connections | Each new feature workspace |
+| **Bootstrap Dev resources** | [bootstrap-dev.yml](.github/workflows/bootstrap-dev.yml) | Use GitHub Environment secrets to create/reuse Dev connections; export only non-secret bindings | Facilitator setup or deliberate resource recovery |
+| **Import Dev metadata** | [prepare_fabric_workspace.py](scripts/prepare_fabric_workspace.py) | Obtain and validate the bootstrap artifact through `gh`; no local SPN credentials or Fabric calls | First local return while the canonical baseline is uninitialized |
 | **Swap references** | [workspace_swap.py](scripts/workspace_swap.py) | Rewrite local tracked references and add/remove the feature value set; no Fabric API calls | Going to feature or returning to Dev |
 
 Use this decision guide:
@@ -96,7 +98,7 @@ Use this decision guide:
 |---|---|---|
 | New feature workspace after Branch Out | `/swap-to-feature` | Prepare the selected feature resources, discover IDs, then swap local references |
 | Returning from feature, with real Dev bindings already initialized | `/swap-to-dev` | Restore references offline and verify local readiness |
-| First return while the Dev manifest is absent or entirely uninitialized | `/swap-to-dev` | Prepare Dev first, record its real IDs, then restore references and verify readiness |
+| First return while the Dev manifest is absent or entirely uninitialized | `/swap-to-dev` | Import trusted Actions-created IDs, then restore references and verify readiness |
 | Resuming the same known prepared feature workspace | `/swap-to-feature` | Use the complete valid local bindings; no new setup is needed |
 | Optional preview | `/swap-to-feature-dryrun` or `/swap-to-dev-dryrun` | Local preview only; unknown IDs are reported, never invented |
 
@@ -104,6 +106,39 @@ Preparation establishes the connections; swapping changes which connections
 the tracked pipeline references. Neither skill commits, pushes, syncs Fabric,
 activates a value set, or runs the pipeline. Invalid or partially initialized
 Dev configuration fails explicitly rather than being silently regenerated.
+
+#### Facilitator Setup: Dev Connection Bootstrap
+
+Complete this once before participants need to return their first pipeline
+feature to Dev. Participants never need the application's client secret:
+
+1. Configure the `Dev` GitHub Environment with the existing service principal's
+   `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, and the explicit
+   Dev `FABRIC_WORKSPACE_ID`. Restrict it to branch `dev`. Give that SP the
+   documented workspace/tenant access and keep the sample capacity active.
+   The Dev Semantic Model must already exist from initial Git setup.
+2. Run [Bootstrap Dev Connections](.github/workflows/bootstrap-dev.yml) from
+   the reviewed `dev` branch. It discovers the model, creates/reuses the two
+   supported ServicePrincipal activity connections, and uploads
+   `fabric-dev-bindings` containing `dev-bindings.json`. Only resource IDs and
+   run provenance are exported; no SPN credentials or access tokens are included.
+3. For this repository's initial migration only, introduce that workflow and
+   its source-independent helpers through a **bootstrap-only PR to Dev**.
+   Its merge triggers the first bootstrap through `push`; it does not include
+   the Fabric feature definitions, new readiness requirements, or automatic
+   Dev sync. Do not promote an older workload through Test/Prod just to make
+   the setup workflow available. A fork of the completed sample already has
+   this infrastructure; future pipeline features do not need another setup PR.
+4. Let the first `/swap-to-dev` import the output. The helper verifies the
+   repository, exact workflow, Dev ref, approved source commit, successful run,
+   artifact provenance, and agreement with the local Dev workspace/model.
+   If no run exists but the workflow is registered, it can dispatch the Dev
+   bootstrap and wait. Missing setup, failed runs, approval waits, or invalid
+   metadata are surfaced; there is no fallback to local SPN credentials.
+
+Bootstrap does not publish items, perform Update from Git, or start the
+pipeline. Those belong to the later workload deployment. This separates the
+one-time facilitator prerequisite from the participant's two commands.
 
 #### Step-by-Step: Swap to Feature Workspace
 
@@ -184,19 +219,18 @@ Before merging back to `dev`, all feature-specific changes must be reverted so d
      offline swap. No login or Fabric API calls.
    - **First migration:** when the
      [Dev manifest](data/fabric-dev-bindings.json) is absent or has its expected
-     resource IDs all null, prepare Dev first using the approved Azure CLI
-     user identity. Use device-code login only if required. Discover the
-     existing model, ensure Dev's connections, record real IDs, and align both
-     parameter files; then invoke the existing swap.
+     resource IDs all null, obtain the trusted bootstrap metadata through the
+     developer's authenticated GitHub CLI. Record its real IDs and align both
+     parameter files, then invoke the existing swap. No Azure login or local
+     SPN credentials are needed.
    - **Invalid or partially initialized Dev configuration:** report the error
      and stop. Do not silently replace canonical connections or generate fake
      GUIDs.
 
-   No separate preparation command is needed for the first migration.
-   Default ServicePrincipal activity connections still need the local SPN
-   credential values and the Actions SPN's appropriate connection-management
-   access. User device-code login does not supply either automatically; see
-   [Setup](SETUP.md#post-etl-refresh-permissions).
+   No separate participant preparation command is needed. Actions uses the
+   SPN credentials stored in GitHub; the local helper downloads only its
+   non-secret output. If the facilitator's bootstrap prerequisite is missing,
+   the skill reports it and stops before swapping.
 
    The underlying swap:
    - Reads feature IDs from the branch value set.
@@ -266,7 +300,8 @@ The repo ships agent skills in [.github/skills/](.github/skills/) that wrap the 
 - [/swap-to-feature](.github/skills/swap-to-feature/SKILL.md) — prepare a new
   feature target when needed, then swap its local references
 - [/swap-to-dev](.github/skills/swap-to-dev/SKILL.md) — prepare Dev only on the
-  first migration, restore references, and verify readiness
+  first migration by importing Actions metadata, restore references, and
+  verify readiness
 - [/swap-to-feature-dryrun](.github/skills/swap-to-feature-dryrun/SKILL.md) and
   [/swap-to-dev-dryrun](.github/skills/swap-to-dev-dryrun/SKILL.md) — optional
   local previews, never login/API/write operations
@@ -279,10 +314,10 @@ Advanced standalone tools remain available:
 - [workspace_swap.py](scripts/workspace_swap.py) with `--check-ready` — optional
   local diagnostic using the same check as the PR Action
 
-Local API setup uses the approved user's Azure CLI identity and device-code
-login when needed. Actions continues authenticating unattended as the SPN.
-Default ServicePrincipal runtime connections need SPN credentials and
-appropriate connection-management access independently of that user login.
+Feature API setup uses the approved user's Azure CLI identity and device-code
+login when needed. Dev uses GitHub metadata retrieval, not a local Fabric
+session. SPN credentials remain in GitHub Environment secrets; Actions creates
+and manages the SPN activity connections.
 
 Invoking a skill is the request to execute it: there is no additional `YES` or
 `NO` question in chat. Copilot runs the script and shows its output. For
@@ -344,11 +379,11 @@ python scripts\prepare_fabric_workspace.py --feature --use-azure-cli
 python scripts\workspace_swap.py
 ```
 
-For the first return to Dev, the explicit CLI convenience performs preparation
-followed by the existing swap:
+For the first return to Dev, obtain validated Actions metadata and invoke the
+existing swap:
 
 ```powershell
-python scripts\prepare_fabric_workspace.py --dev --use-azure-cli --swap-to-dev
+python scripts\prepare_fabric_workspace.py --dev --swap-to-dev
 ```
 
 For later returns with an initialized Dev baseline:
@@ -357,10 +392,12 @@ For later returns with an initialized Dev baseline:
 python scripts\workspace_swap.py --swap-to-dev
 ```
 
-The live preparation commands use an already valid approved Azure CLI session.
-If sign-in is needed, use `az login --use-device-code` with the approved tenant
-and Fabric scope; see the skill authentication instructions. No interactive
-login is used in Actions.
+Only feature API preparation needs the approved Azure CLI session. If its
+sign-in is needed, use device code with the approved tenant and Fabric scope.
+Dev import uses authenticated `gh` access and never loads local Azure/SPN
+credentials. No interactive login is used in Actions. Advanced recovery can
+select a reviewed output with `--bootstrap-run-id <run-id>`; changing a recorded
+canonical GUID also requires the deliberate `--replace-dev-bindings` option.
 
 Add `--dry-run` to either preparation mode for a local setup preview. Add
 `--dry-run` to the ordinary swap for an exact local diff only when the required

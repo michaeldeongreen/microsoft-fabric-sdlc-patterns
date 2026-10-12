@@ -10,6 +10,7 @@ import pytest
 
 import pipeline_bindings as pb
 import prepare_fabric_workspace as prepare
+from bootstrap_dev_connections import BootstrapArtifact, BootstrapProvenance
 
 TARGET_WORKSPACE = "99999999-9999-4999-8999-999999999999"
 TARGET_CONNECTIONS = {
@@ -32,6 +33,13 @@ def runtime_identity(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def pipeline_path(repository: Path) -> Path:
     return next(iter(pb.pipeline_files(repository)))
+
+
+def bootstrap_metadata(bindings: pb.DevPipelineBindings, *, model_name: str = "Patterns_Semantic_Model") -> BootstrapArtifact:
+    return BootstrapArtifact(
+        bindings,
+        BootstrapProvenance("example/workshop", "123", 1, "a" * 40, "refs/heads/dev", "push", model_name),
+    )
 
 
 def test_recording_updates_both_rules_manifest_and_source_without_platform_changes(
@@ -119,11 +127,11 @@ def test_parameter_disagreement_fails_before_provisioning(
             bindings.refresh_connection_id, TARGET_CONNECTIONS[pb.REFRESH_CONNECTION_ENV],
         ), encoding="utf-8",
     )
-    ensure = Mock()
-    monkeypatch.setattr(prepare, "ensure_pipeline_connections", ensure)
+    record = Mock()
+    monkeypatch.setattr(prepare, "record_dev_bindings", record)
     with pytest.raises(pb.PipelineBindingError, match="must agree"):
-        prepare.prepare_dev(repository, Mock(spec=prepare.FabricRestClient))
-    ensure.assert_not_called()
+        prepare.prepare_dev(repository, bootstrap_metadata(bindings))
+    record.assert_not_called()
 
 
 def test_deleted_or_recreated_dev_model_is_not_silently_rebaselined(
@@ -131,16 +139,13 @@ def test_deleted_or_recreated_dev_model_is_not_silently_rebaselined(
 ) -> None:
     repository = canonical_fabric_repository
     old = pb.dev_bindings_path(repository).read_bytes()
-    client = Mock(spec=prepare.FabricRestClient)
-    client.list.return_value = [{
-        "displayName": "Patterns_Semantic_Model", "type": "SemanticModel",
-        "id": "77777777-1111-4777-8777-777777777777",
-    }]
-    ensure = Mock()
-    monkeypatch.setattr(prepare, "ensure_pipeline_connections", ensure)
-    with pytest.raises(pb.PipelineBindingError, match="recreated"):
-        prepare.prepare_dev(repository, client)
-    ensure.assert_not_called()
+    bindings = pb.load_dev_bindings(repository)
+    changed = pb.DevPipelineBindings(
+        bindings.workspace_id, "77777777-1111-4777-8777-777777777777",
+        bindings.notebook_connection_id, bindings.refresh_connection_id,
+    )
+    with pytest.raises(pb.PipelineBindingError, match="differ from the recorded"):
+        prepare.prepare_dev(repository, bootstrap_metadata(changed))
     assert pb.dev_bindings_path(repository).read_bytes() == old
 
 
@@ -149,22 +154,14 @@ def test_existing_dev_connection_ids_are_pinned_during_repeat_preparation(
 ) -> None:
     repository = canonical_fabric_repository
     bindings = pb.load_dev_bindings(repository)
-    client = Mock(spec=prepare.FabricRestClient)
-    client.list.return_value = [{
-        "displayName": "Patterns_Semantic_Model", "type": "SemanticModel", "id": bindings.semantic_model_id,
-    }]
-    ensure = Mock(return_value={
-        pb.NOTEBOOK_CONNECTION_ENV: bindings.notebook_connection_id,
-        pb.REFRESH_CONNECTION_ENV: bindings.refresh_connection_id,
-    })
+    ensure = Mock(side_effect=AssertionError("Dev import must not access Fabric"))
+    credentials = Mock(side_effect=AssertionError("Dev import must not read local SPN credentials"))
     monkeypatch.setattr(prepare, "ensure_pipeline_connections", ensure)
+    monkeypatch.setattr(prepare, "runtime_credentials", credentials)
     for _ in range(2):
-        assert prepare.prepare_dev(repository, client) == bindings
-    for call in ensure.call_args_list:
-        assert call.kwargs["notebook_connection_id"] == bindings.notebook_connection_id
-        assert call.kwargs["refresh_connection_id"] == bindings.refresh_connection_id
-        assert call.kwargs["authentication"] == "ServicePrincipal"
-        assert call.kwargs["credentials"]["servicePrincipalSecret"] == "unit-test-only-never-log"
+        assert prepare.prepare_dev(repository, bootstrap_metadata(bindings)) == bindings
+    ensure.assert_not_called()
+    credentials.assert_not_called()
 
 
 def test_explicit_replacement_updates_source_under_review_not_github(
@@ -172,17 +169,75 @@ def test_explicit_replacement_updates_source_under_review_not_github(
 ) -> None:
     repository = canonical_fabric_repository
     old = pb.load_dev_bindings(repository)
-    client = Mock(spec=prepare.FabricRestClient)
     model = "77777777-1111-4777-8777-777777777777"
-    client.list.return_value = [{"displayName": "Patterns_Semantic_Model", "type": "SemanticModel", "id": model}]
-    ensure = Mock(return_value=REPLACEMENT_CONNECTIONS)
-    monkeypatch.setattr(prepare, "ensure_pipeline_connections", ensure)
-    bindings = prepare.prepare_dev(repository, client, replace_bindings=True, rewrite_source=True)
+    changed = pb.DevPipelineBindings(
+        old.workspace_id, model, REPLACEMENT_CONNECTIONS[pb.NOTEBOOK_CONNECTION_ENV],
+        REPLACEMENT_CONNECTIONS[pb.REFRESH_CONNECTION_ENV],
+    )
+    bindings = prepare.prepare_dev(
+        repository, bootstrap_metadata(changed), replace_bindings=True, rewrite_source=True,
+    )
     assert bindings.workspace_id == old.workspace_id
     assert bindings.semantic_model_id == model
-    assert ensure.call_args.kwargs["notebook_connection_id"] is None
-    assert ensure.call_args.kwargs["refresh_connection_id"] is None
     assert prepare.validate_deployment_source(repository) == bindings
+
+
+@pytest.mark.parametrize("changed", ["workspace", "model-name", "connection"])
+def test_import_target_and_existing_binding_mismatches_fail_before_local_writes(
+    canonical_fabric_repository: Path, changed: str,
+) -> None:
+    directory = canonical_fabric_repository
+    original = {path: path.read_bytes() for path in (
+        pb.dev_bindings_path(directory), directory / "parameter.yml", directory / "bulk-parameter.yml",
+    )}
+    bindings = pb.load_dev_bindings(directory)
+    model_name = "Patterns_Semantic_Model"
+    if changed == "workspace":
+        bindings = pb.DevPipelineBindings(
+            TARGET_WORKSPACE, bindings.semantic_model_id,
+            bindings.notebook_connection_id, bindings.refresh_connection_id,
+        )
+    elif changed == "model-name":
+        model_name = "Different_Model"
+    else:
+        bindings = pb.DevPipelineBindings(
+            bindings.workspace_id, bindings.semantic_model_id,
+            REPLACEMENT_CONNECTIONS[pb.NOTEBOOK_CONNECTION_ENV], bindings.refresh_connection_id,
+        )
+    with pytest.raises(pb.PipelineBindingError):
+        prepare.prepare_dev(directory, bootstrap_metadata(bindings, model_name=model_name))
+    assert all(path.read_bytes() == contents for path, contents in original.items())
+
+
+def test_local_dev_cli_needs_neither_azure_login_nor_local_spn_secrets(
+    canonical_fabric_repository: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    directory = canonical_fabric_repository
+    artifact = bootstrap_metadata(pb.load_dev_bindings(directory))
+    for name in ("AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"):
+        monkeypatch.delenv(name, raising=False)
+    github = Mock(return_value=artifact)
+    azure = Mock(side_effect=AssertionError("Dev mode must not authenticate to Azure"))
+    monkeypatch.setattr(prepare, "get_bootstrap_artifact", github)
+    monkeypatch.setattr(prepare, "create_client", azure)
+    prepare.main(["--dev", "--repository-directory", str(directory), "--bootstrap-run-id", "123"])
+    github.assert_called_once_with(prepare.REPO_ROOT, run_id="123")
+    azure.assert_not_called()
+    assert pb.load_dev_bindings(directory) == artifact.bindings
+
+
+def test_dev_dry_run_does_not_contact_github_either(
+    canonical_fabric_repository: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    github = Mock(side_effect=AssertionError("Preview must stay local"))
+    azure = Mock(side_effect=AssertionError("Preview must not authenticate"))
+    monkeypatch.setattr(prepare, "get_bootstrap_artifact", github)
+    monkeypatch.setattr(prepare, "create_client", azure)
+    prepare.main([
+        "--dev", "--repository-directory", str(canonical_fabric_repository), "--dry-run",
+    ])
+    github.assert_not_called()
+    azure.assert_not_called()
 
 
 def test_auto_mode_needs_no_manually_entered_target_ids(monkeypatch: pytest.MonkeyPatch) -> None:

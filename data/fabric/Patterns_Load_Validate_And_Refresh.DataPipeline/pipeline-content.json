@@ -8,7 +8,7 @@
           "workspaceId": "00000000-0000-0000-0000-000000000000"
         },
         "externalReferences": {
-          "connection": "4546aab3-2060-41b8-8989-96a32163f32b"
+          "connection": "3385b34a-d547-4ff8-991a-d7acbc693d79"
         },
         "policy": {
           "timeout": "0.00:20:00",
@@ -43,7 +43,7 @@
           }
         },
         "externalReferences": {
-          "connection": "4546aab3-2060-41b8-8989-96a32163f32b"
+          "connection": "3385b34a-d547-4ff8-991a-d7acbc693d79"
         },
         "policy": {
           "timeout": "0.00:10:00",
@@ -66,15 +66,15 @@
         "type": "PBISemanticModelRefresh",
         "typeProperties": {
           "method": "POST",
-          "groupId": "6df0254d-0ae4-444a-9128-6524e0b69e47",
-          "datasetId": "bed063f7-20b1-49df-b3aa-72af4fafd4ec",
+          "groupId": "d7270f11-feba-4990-baa6-d45e47f23737",
+          "datasetId": "62112b80-9cb4-4d65-befa-a8e9e6271ef0",
           "commitMode": "Transactional",
           "waitOnCompletion": true,
           "operationType": "SemanticModelRefresh",
           "timeout": "00:10:00"
         },
         "externalReferences": {
-          "connection": "8e05e9e3-9dc7-49af-b9d4-2217b10e8325"
+          "connection": "4acc0609-d422-45ee-b461-c90c04c52014"
         },
         "policy": {
           "timeout": "0.00:10:00",

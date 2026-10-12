@@ -243,11 +243,14 @@ After setup, use the [Development Process](fabric-development-process.md) for
 day-to-day feature work and the [Governance Considerations](fabric-cicd-governance-considerations.md)
 for production control decisions.
 
-The first Dev preparation command discovers real connection/model IDs, records
+The first Dev bootstrap Action discovers real connection/model IDs and exports
+only non-secret metadata. The local swap workflow imports it, records
 [fabric-dev-bindings.json](data/fabric-dev-bindings.json), and aligns both
 parameter files. Later swaps restore those real values offline. The manifest
-is deliberately uninitialized until that command runs; fake GUIDs do not pass
-PR readiness. Test/Prod bootstrap runs automatically in every publisher,
+is deliberately uninitialized until that import runs; fake GUIDs do not pass
+PR readiness. SPN credentials stay in GitHub, never on participant machines.
+See [facilitator setup](SETUP.md#first-time-dev-bootstrap). Test/Prod bootstrap
+runs automatically in every publisher,
 reusing connections on repeat and injecting their IDs in memory rather than
 requiring manual GitHub-variable entry.
 

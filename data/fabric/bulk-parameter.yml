@@ -25,13 +25,13 @@ substitutions:
 
   # Replace the Dev Notebook connection with the automatically resolved target connection.
   # Dev preparation replaces this initial template; the runner supplies NOTEBOOK_CONNECTION_ID.
-  - find: "11111111-1111-4111-8111-111111111111"
+  - find: "3385b34a-d547-4ff8-991a-d7acbc693d79"
     replace_with: "$ENV:NOTEBOOK_CONNECTION_ID"
     item_types: [DataPipeline]
 
   # Replace the Dev refresh connection with the automatically resolved target connection.
   # Dev preparation replaces this initial template; the runner supplies SEMANTIC_MODEL_REFRESH_CONNECTION_ID.
-  - find: "22222222-2222-4222-8222-222222222222"
+  - find: "4acc0609-d422-45ee-b461-c90c04c52014"
     replace_with: "$ENV:SEMANTIC_MODEL_REFRESH_CONNECTION_ID"
     item_types: [DataPipeline]
 

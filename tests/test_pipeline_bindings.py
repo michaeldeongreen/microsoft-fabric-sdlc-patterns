@@ -187,6 +187,12 @@ class TestDevManifest:
         with pytest.raises(pb.DevBindingsNotInitialized, match="uninitialized"):
             pb.load_dev_bindings(repository)
 
+    def test_partial_initialization_is_an_error_not_a_setup_fallback(self, repository: Path):
+        self.write(repository, {**self.bindings().document(), "notebookConnectionId": None})
+        with pytest.raises(pb.PipelineBindingError, match="partially initialized") as result:
+            pb.load_dev_bindings(repository)
+        assert not isinstance(result.value, pb.DevBindingsNotInitialized)
+
     @pytest.mark.parametrize("version", [True, "1", 2, None])
     def test_rejects_unknown_schema(self, repository: Path, version: object):
         self.write(repository, {**self.bindings().document(), "schemaVersion": version})
@@ -687,12 +693,20 @@ def assert_names_a_repository_model(tokens: set[str], where: str) -> None:
 class TestParameterFilesPinTheBaselines:
     """parameter.yml (fabric-cicd) and bulk-parameter.yml (raw REST) must replace the same baselines."""
 
+    @pytest.fixture()
+    def source_baselines(self) -> dict[str, str]:
+        try:
+            return pb.load_dev_bindings(FABRIC_DIR).values
+        except pb.DevBindingsNotInitialized:
+            return pb.BASELINE_VALUES
+
     @pytest.mark.parametrize("binding", pb.PIPELINE_BINDINGS, ids=BINDING_IDS)
-    def test_parameter_yml_replaces_the_baseline_in_pipelines(self, binding):
-        rules = parameter_rules(binding["baseline"])
+    def test_parameter_yml_replaces_the_baseline_in_pipelines(self, binding, source_baselines):
+        baseline = source_baselines[binding["name"]]
+        rules = parameter_rules(baseline)
         assert rules, (
             f"data/fabric/parameter.yml needs a find_replace rule with find_value "
-            f"'{binding['baseline']}' and item_type DataPipeline ({binding['name']} baseline)"
+            f"'{baseline}' and item_type DataPipeline ({binding['name']} baseline)"
         )
         replacements = {value for rule in rules for value in rule["replace_value"].values()}
         if binding["deploy_env_key"]:
@@ -701,10 +715,11 @@ class TestParameterFilesPinTheBaselines:
             assert_names_a_repository_model(replacements, "parameter.yml")
 
     @pytest.mark.parametrize("binding", pb.PIPELINE_BINDINGS, ids=BINDING_IDS)
-    def test_bulk_parameter_replaces_the_baseline_in_pipelines(self, binding):
-        rules = bulk_rules(binding["baseline"])
+    def test_bulk_parameter_replaces_the_baseline_in_pipelines(self, binding, source_baselines):
+        baseline = source_baselines[binding["name"]]
+        rules = bulk_rules(baseline)
         assert rules, (
-            f"data/fabric/bulk-parameter.yml needs a substitution with find '{binding['baseline']}' "
+            f"data/fabric/bulk-parameter.yml needs a substitution with find '{baseline}' "
             f"and DataPipeline in item_types ({binding['name']} baseline)"
         )
         replacements = {rule["replace_with"] for rule in rules}

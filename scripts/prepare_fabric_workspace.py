@@ -1,18 +1,18 @@
-"""Prepare native-pipeline runtime resources and source-consistent Dev bindings.
+"""Prepare feature resources or import Actions-created Dev binding metadata.
 
-Uses the documented Fabric connection/identity APIs, not Git-synced credentials.
-Live setup needs azure-identity (already in requirements-dev.txt); updating YAML
-needs the existing PyYAML dependency. Normal workspace swaps remain stdlib-only.
+Feature setup uses the documented Fabric APIs with the selected developer
+identity. Dev setup runs in GitHub Actions: the local command obtains only its
+validated, non-secret artifact through gh. No local SP credentials are required
+or used by --dev. PyYAML validates existing replacement rules; azure-identity
+is needed only for feature setup and existing CI publisher helpers.
 
     python scripts/prepare_fabric_workspace.py --dev --swap-to-dev
     python scripts/prepare_fabric_workspace.py --feature --use-azure-cli
 
-Dev setup should authenticate as the same service principal used by Actions,
-so it owns the created connections. By default those connections reuse the
-approved SP's credentials; WI is an explicit secretless alternative with extra
-bootstrap/trust requirements. --use-azure-cli is an explicit alternative for
-a developer's feature workspace or an approved administrator. Sharing an
-admin-created connection with another publisher remains an authorization task.
+The Dev bootstrap workflow must be available on the reviewed Dev branch.
+For the repository's first migration, merge only that setup infrastructure
+before the workload PR. A missing prerequisite fails explicitly; there is no
+fallback to local credentials, user-created SP connections, or fake GUIDs.
 No commits, pushes, Git sync, capacity changes, or ETL jobs are performed here.
 """
 
@@ -30,6 +30,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from fabric_connections import FabricRestClient, ensure_pipeline_connections
+from bootstrap_dev_connections import BootstrapArtifact
+from github_bootstrap import get_bootstrap_artifact
 from pipeline_bindings import (
     BASELINE_VALUES,
     DEV_BINDINGS_FILENAME,
@@ -352,36 +354,30 @@ def record_dev_bindings(
 
 
 def prepare_dev(
-    repo_dir: Path, client: FabricRestClient, *, replace_bindings: bool = False,
+    repo_dir: Path, artifact: BootstrapArtifact, *, replace_bindings: bool = False,
     rewrite_source: bool = False,
 ) -> DevPipelineBindings:
     sources = [parameter_sources(repo_dir, bulk=bulk) for bulk in (False, True)]
     if sources[0].values != sources[1].values or sources[0].model_name != sources[1].model_name:
-        raise PipelineBindingError("Both parameter files must agree before any resources are provisioned.")
+        raise PipelineBindingError("Both parameter files must agree before Dev metadata is imported.")
     for path in pipeline_files(repo_dir):
         locate_fields(path.read_text(encoding="utf-8"))
         locate_refresh_workspace(path.read_text(encoding="utf-8"))
     workspace_id = dev_workspace_id(repo_dir)
+    bindings = artifact.bindings
+    if bindings.workspace_id != workspace_id:
+        raise PipelineBindingError("Bootstrap metadata does not target the local Variable Library's Dev workspace.")
+    if artifact.provenance.model_name != sources[0].model_name:
+        raise PipelineBindingError("Bootstrap metadata names a different Semantic Model than the replacement rules.")
     try:
         previous = load_dev_bindings(repo_dir)
     except DevBindingsNotInitialized:
         previous = None
-    model_id = item_id(client, workspace_id, "SemanticModel", sources[0].model_name)
-    if previous and not replace_bindings and model_id != previous.semantic_model_id:
+    if previous and not replace_bindings and bindings != previous:
         raise PipelineBindingError(
-            "The canonical Dev model was recreated. Use --replace-dev-bindings deliberately, "
-            "then review the generated source changes."
+            "Bootstrap IDs differ from the recorded canonical Dev resources. "
+            "Use --replace-dev-bindings only for a deliberate recovery, then review the generated source changes."
         )
-    connections = ensure_pipeline_connections(
-        client, workspace_id, mode="auto",
-        notebook_connection_id=previous.notebook_connection_id if previous and not replace_bindings else None,
-        refresh_connection_id=previous.refresh_connection_id if previous and not replace_bindings else None,
-        authentication=runtime_authentication(),
-        credentials=runtime_credentials(runtime_authentication()),
-    )
-    bindings = DevPipelineBindings(
-        workspace_id, model_id, connections[NOTEBOOK_CONNECTION_ENV], connections[REFRESH_CONNECTION_ENV],
-    )
     record_dev_bindings(repo_dir, bindings, rewrite_source=rewrite_source)
     return bindings
 
@@ -445,13 +441,18 @@ def main(argv: list[str] | None = None) -> None:
     target.add_argument("--dev", action="store_true", help="Record stable Dev IDs automatically.")
     target.add_argument("--feature", action="store_true", help="Discover bindings for .env's explicit feature workspace.")
     parser.add_argument("--repository-directory", type=Path, default=REPO_ROOT / "data" / "fabric")
-    parser.add_argument("--use-azure-cli", action="store_true", help="Explicitly use the signed-in Azure CLI identity.")
+    parser.add_argument("--use-azure-cli", action="store_true", help="Use the signed-in Azure CLI identity for feature setup.")
+    parser.add_argument("--bootstrap-run-id", help="Import metadata from a specific trusted Dev bootstrap run.")
     parser.add_argument("--swap-to-dev", action="store_true", help="Also restore feature source IDs and remove its value set.")
     parser.add_argument("--replace-dev-bindings", action="store_true", help="Deliberately regenerate a deleted/recreated Dev baseline.")
     parser.add_argument("--dry-run", action="store_true", help="Validate/preview local setup without credentials or Fabric calls.")
     args = parser.parse_args(argv)
     if not args.dev and (args.swap_to_dev or args.replace_dev_bindings):
         parser.error("--swap-to-dev and --replace-dev-bindings require --dev.")
+    if args.dev and args.use_azure_cli:
+        parser.error("--dev imports GitHub metadata; --use-azure-cli is only for feature API setup.")
+    if args.feature and args.bootstrap_run_id:
+        parser.error("--bootstrap-run-id requires --dev.")
     directory = args.repository_directory.resolve()
     try:
         parameter_sources(directory, bulk=False)
@@ -459,14 +460,24 @@ def main(argv: list[str] | None = None) -> None:
         for path in pipeline_files(directory):
             locate_fields(path.read_text(encoding="utf-8"))
             locate_refresh_workspace(path.read_text(encoding="utf-8"))
+        if args.dev:
+            dev_workspace_id(directory)
+            try:
+                load_dev_bindings(directory)
+            except DevBindingsNotInitialized:
+                pass
         if args.dry_run:
-            print("Setup preview: ensure identity/permissions/connections; record non-secret IDs.")
+            if args.dev:
+                print("Dev preview: obtain reviewed Actions metadata, validate its target, and record non-secret IDs.")
+                print("First-time connection creation is performed by the Dev bootstrap Action, never locally.")
+            else:
+                print("Feature preview: ensure Workspace Identity connections and discover item IDs.")
             print("No credentials loaded, no API calls, and no files changed.")
             return
-        client = create_client(use_azure_cli=args.use_azure_cli)
         if args.dev:
+            artifact = get_bootstrap_artifact(REPO_ROOT, run_id=args.bootstrap_run_id)
             prepare_dev(
-                directory, client, replace_bindings=args.replace_dev_bindings,
+                directory, artifact, replace_bindings=args.replace_dev_bindings,
                 rewrite_source=args.swap_to_dev,
             )
             if args.swap_to_dev:
@@ -482,6 +493,7 @@ def main(argv: list[str] | None = None) -> None:
                     [sys.executable, str(REPO_ROOT / "scripts" / "workspace_swap.py"), flag], check=True,
                 )
         else:
+            client = create_client(use_azure_cli=args.use_azure_cli)
             prepare_feature(directory, client, ENV_FILE)
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as exc:
         print(f"::error::{exc}", file=sys.stderr)

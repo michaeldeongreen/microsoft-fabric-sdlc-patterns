@@ -48,7 +48,10 @@ this sample; do not run it against business Production data.
 - Permission to fork the repository and administer the fork.
 - A fine-grained personal access token (PAT) scoped to the fork with
   `Contents: Read and write`. Fabric uses this user-specific token for Git
-  integration. Do not store it in the repository or as a GitHub Actions secret.
+  authoring integration. Do not commit it. The separate read-only automation
+  PAT used by Dev's SP Git connection is stored only as the approved
+  `FABRIC_GITHUB_TOKEN` Environment secret; do not reuse a broader authoring
+  token for automation.
 - GitHub Actions enabled on the fork.
 
 ### Azure
@@ -223,20 +226,20 @@ commit them to `dev`. Do not change any `.platform` `logicalId` values.
 Pull that commit locally. In `data/fabric/parameter.yml`, replace every
 reference-environment `find_value` with the corresponding Dev ID you recorded:
 use the Dev Lakehouse ID for Lakehouse rules and the Dev workspace ID for
-workspace rules. When making this migration on a feature branch, invoke
-`/swap-to-dev`: it detects the uninitialized Dev baseline, performs API
-preparation through your approved Azure CLI user session, and restores the
-source references. No separate preparation or readiness skill is needed.
+workspace rules. Complete the Actions bootstrap prerequisite below. Then, on
+a feature branch, invoke `/swap-to-dev`: it imports the trusted non-secret
+metadata and restores the source references. No separate participant
+preparation/readiness command or local SPN credential is needed.
 
 During initial fork setup directly on Dev without a feature value set, use
 the existing explicit CLI convenience:
 
 ```powershell
-python scripts\prepare_fabric_workspace.py --dev --use-azure-cli --swap-to-dev
+python scripts\prepare_fabric_workspace.py --dev --swap-to-dev
 ```
 
-The existing Dev model must be present. The command resolves that model and
-both activity connections automatically, records non-secret canonical IDs in
+The existing Dev model must be present for the bootstrap Action. The local
+command validates and imports its model/connection metadata, records canonical IDs in
 [fabric-dev-bindings.json](data/fabric-dev-bindings.json), aligns both parameter
 files, and applies the Dev bindings through the existing swap path. On a
 feature branch it also removes the feature value set. On later feature
@@ -246,10 +249,10 @@ automatically. GitHub repeats the check on the PR to Dev; the script's
 No Python constants, connection GUIDs, or pipeline UI bindings need manual edits.
 Use `--dry-run` for an offline preview; it never loads credentials or calls Fabric.
 The initial null manifest deliberately fails readiness until setup has run.
-Local API setup reuses a valid Azure CLI session or signs in with device code.
-The default SPN activity credentials and Actions connection-management rights
-are separate prerequisites: user sign-in does not supply them. Do not put a
-device-code prompt in unattended Actions.
+Feature API setup reuses a valid Azure CLI session or signs in with device
+code. Dev setup uses Actions' Environment secrets; local Dev import uses `gh`
+and never requests the SPN secret. Do not put a device-code prompt in
+unattended Actions.
 See the [decision table and guided steps](fabric-development-process.md#the-solution-workspace_swappy)
 for when preparation is needed versus an ordinary offline swap.
 If you intend to evaluate the raw Bulk API path, make the
@@ -271,6 +274,38 @@ evaluate parameter files, provision connections, or require recurring UI
 rebinding. A deleted canonical Dev connection fails explicitly; deliberately
 regenerate it with `--replace-dev-bindings` and review the corresponding source
 change rather than silently introducing workspace/Git drift.
+
+### First-Time Dev Bootstrap
+
+This is facilitator/platform setup, not an extra command every workshop
+participant must learn.
+
+- Configure the four [Dev Environment secrets](#environment-secrets), the
+  approved SP's workspace/tenant permissions, and an active capacity.
+- Run [Bootstrap Dev Connections](.github/workflows/bootstrap-dev.yml) on
+  branch `dev`. It uses [bootstrap_dev_connections.py](scripts/bootstrap_dev_connections.py)
+  without reading reference workspace IDs or requiring the new pipeline in
+  Git. It discovers the existing model and creates/reuses the two SP connections.
+- The successful run uploads `fabric-dev-bindings` / `dev-bindings.json`.
+  This whitelisted output contains non-secret resource IDs and provenance,
+  not credentials. It is retained for 30 days; initialized source baselines
+  do not need to download it on every feature return.
+- For this repository's initial rollout, merge a small bootstrap-only PR to
+  Dev first. Its narrowly filtered push starts setup without a default-branch
+  registration dependency. Keep the actual pipeline migration and Dev sync
+  out of that PR. Forks of the completed workshop sample already ship the
+  workflow, so this extra rollout PR is not repeated for each new pipeline.
+- `/swap-to-dev` obtains the approved output automatically when the local
+  manifest is uninitialized. [github_bootstrap.py](scripts/github_bootstrap.py)
+  validates run/workflow/repository/commit provenance; the importer checks
+  the explicit Dev workspace and model before touching source.
+- If the workflow/run is unavailable, failed, waiting for Environment approval,
+  or its artifact is expired/mismatched, resolve that prerequisite. Never
+  download GitHub secrets or substitute local SPN credentials.
+
+Bootstrap and Dev sync share a concurrency group. Bootstrap does not update
+Git-connected items, load data, run the pipeline, or change the capacity state.
+Later Dev deployment still synchronizes and runs after each qualifying merge.
 
 ### Automated Dev Sync Policy
 

@@ -20,8 +20,9 @@ The committed values are the baseline:
 Used by workspace_swap.py (swap and readiness check) and by the deploy scripts,
 which validate canonical source fields before automated connection setup.
 
-Fork setup: run prepare_fabric_workspace.py --dev to discover and record your
-Dev bindings. Do not edit Python constants or copy connection GUIDs manually.
+Fork setup: the Dev bootstrap Action discovers the resources; run
+prepare_fabric_workspace.py --dev to import its validated non-secret metadata.
+Do not edit Python constants, copy connection GUIDs, or supply SP secrets locally.
 """
 
 from __future__ import annotations
@@ -111,8 +112,10 @@ def load_dev_bindings(repo_dir: str | os.PathLike[str]) -> DevPipelineBindings:
     keys = ("workspaceId", "semanticModelId", "notebookConnectionId", "semanticModelRefreshConnectionId")
     if set(document) != {"schemaVersion", *keys}:
         raise PipelineBindingError(f"{path.name} must contain exactly schemaVersion and {', '.join(keys)}.")
-    if any(document[key] is None for key in keys):
+    if all(document[key] is None for key in keys):
         raise DevBindingsNotInitialized(f"{path.name} has uninitialized Dev IDs. {instructions}")
+    if any(document[key] is None for key in keys):
+        raise PipelineBindingError(f"{path.name} is partially initialized; restore a complete reviewed baseline.")
     values: dict[str, str] = {}
     for key in keys:
         value = document[key]

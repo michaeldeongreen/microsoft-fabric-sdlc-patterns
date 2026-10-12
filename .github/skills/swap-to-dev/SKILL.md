@@ -1,17 +1,19 @@
 ---
 name: swap-to-dev
-description: 'Return a Fabric feature branch to Dev: initialize real Dev bindings only if missing, then restore local references and verify readiness; repeated returns stay offline.'
+description: 'Return a Fabric feature branch to Dev: import trusted Actions-created IDs only if uninitialized, then restore references and verify readiness; no local SPN credentials and repeated returns stay offline.'
 disable-model-invocation: true
 ---
 
 # Swap to Dev
 
 Use this one skill after feature work, including the first pipeline migration.
-It conditionally prepares Dev, restores local references, and checks readiness.
-The preparation and swap scripts remain separate.
+It imports trusted Dev metadata when needed, restores local references, and
+checks readiness. GitHub Actions owns Dev connection setup and SPN credentials;
+the local skill never calls Fabric or requests those credentials.
 
 An explicit `/swap-to-dev` invocation or request to restore dev IDs is
-authorization for first-time preparation when needed and the local swap. Do
+authorization to obtain first-time Actions metadata when needed and apply the
+local swap. Do
 not ask for an additional `YES` or `NO`. For a preview request, follow the
 [dry-run procedure](../swap-to-dev-dryrun/SKILL.md) instead; do not perform live
 setup or automatically apply a preview.
@@ -22,7 +24,7 @@ setup or automatically apply a preview.
    detached HEAD. For the native pipeline, inspect the non-secret
    [Dev manifest](../../../data/fabric-dev-bindings.json):
    - An absent manifest or schemaVersion 1 with the expected resource keys
-     and all resource IDs null means first-time preparation is needed.
+     and all resource IDs null means first-time metadata import is needed.
    - A populated manifest means use the ordinary offline path. The swap
      script validates its GUIDs and agreement with the Dev Variable Library.
    - Malformed JSON, missing/unexpected keys, an unknown schema, partially
@@ -46,44 +48,39 @@ setup or automatically apply a preview.
    branch value set, not `.env`. If the feature value set is already absent,
    skip the swap and run the readiness check in step 4 to distinguish an
    already restored branch from inconsistent source.
-3. Only for an uninitialized Dev baseline, prepare and swap through the
-   existing explicit combined CLI option:
-   - Default local authentication is the user's approved Azure CLI session.
-     Reuse it if valid. If sign-in is needed, use device code with the validated
-     approved tenant:
-
-     ```powershell
-     az account get-access-token --resource https://api.fabric.microsoft.com --query expiresOn --output tsv
-     az login --tenant "<approved-tenant-guid>" --allow-no-subscriptions --scope https://api.fabric.microsoft.com/.default --use-device-code --output none
-     ```
-
-     Run login only when required, allow the user to finish it, and never
-     display an access token or full credential response.
-   - For default ServicePrincipal runtime connections, the local process
-     still needs `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and
-     `AZURE_CLIENT_SECRET`. These are runtime connection configuration, not
-     the user sign-in. Check presence without printing values. If missing,
-     report the required names and stop; never request a secret in chat or
-     assume GitHub Environment secrets are available locally.
-   - User-created connections must give the Actions SPN sufficient management
-     access for subsequent credential reconciliation. Device-code login does
-     not grant that access. Apply the approved permission contract in
-     [Setup](../../../SETUP.md#post-etl-refresh-permissions); do not claim CI
-     authorization merely because local source readiness passes.
+3. Only for an uninitialized Dev baseline, obtain the bootstrap metadata and
+   swap through the existing combined CLI option:
+   - Use the developer's authenticated GitHub CLI access. If authentication is
+     missing, explain the required `gh` sign-in; never request a GitHub token
+     or SPN secret in chat. Azure login and local Azure credential variables
+     are not needed for this direction.
+   - The reviewed [Dev bootstrap Action](../../workflows/bootstrap-dev.yml)
+     must already be available on Dev. It creates connections with the Dev
+     Environment's SPN credentials and uploads only non-secret IDs/provenance.
+     For this repository's initial migration, a facilitator merges the
+     bootstrap-only infrastructure PR first. If that prerequisite is missing,
+     report it and stop; do not bypass PR checks or fall back to local setup.
    - Run the appropriate command:
 
      PowerShell:
      ```powershell
-     python scripts\prepare_fabric_workspace.py --dev --use-azure-cli --swap-to-dev
+     python scripts\prepare_fabric_workspace.py --dev --swap-to-dev
      ```
 
      Bash:
      ```bash
-     python scripts/prepare_fabric_workspace.py --dev --use-azure-cli --swap-to-dev
+     python scripts/prepare_fabric_workspace.py --dev --swap-to-dev
      ```
 
-     This records real Dev IDs, aligns both parameter files, and invokes the
-     existing swap. Do not invoke the swap a second time afterward.
+     The helper selects a trusted reviewed Dev run, waits if necessary, or
+     dispatches the registered Dev bootstrap when no run exists. It validates
+     repository/workflow/ref/commit/run provenance and the local target before
+     importing metadata, aligning both parameter files, and invoking the
+     existing swap. SPN credentials are never downloaded.
+   - If an Environment reviewer approval is required, report the run URL and
+     approval state without approving it. A failed, expired, or mismatched
+     artifact is an error, not permission to use stale values or an arbitrary
+     older run. Do not invoke the swap a second time after this command.
 4. After the selected path succeeds, verify local readiness automatically:
 
    PowerShell:

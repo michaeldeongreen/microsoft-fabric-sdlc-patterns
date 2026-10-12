@@ -33,8 +33,8 @@ automatically follow it with the write-enabled swap.
    workspace mismatches are errors, not reasons to bootstrap automatically.
    A repository without the native pipeline also uses this ordinary preview.
 3. Only if the manifest is absent or schemaVersion 1 with expected resource
-   keys has all resource IDs null, describe first-time preparation using local
-   validation only:
+   keys has all resource IDs null, describe first-time Actions metadata import
+   using local validation only:
 
    PowerShell:
    ```powershell
@@ -48,9 +48,9 @@ automatically follow it with the write-enabled swap.
 
    Do not run the ordinary swap preview against missing baseline IDs.
    Explain which setup and restoration steps would be needed, but say that
-   real connection/model GUIDs and exact replacements are unknown until live
-   preparation. Do not present templates or invented GUIDs as runnable Dev
-   bindings.
+   real connection/model GUIDs and exact replacements are unknown until a
+   trusted bootstrap artifact is obtained. Do not query or dispatch GitHub,
+   download artifacts, authenticate, or present templates as runnable Dev IDs.
 4. Report the command output, the known changes, and any unavailable exact
    diff. A malformed or partially initialized manifest or local-template
    error must be reported as a failure, not a successful setup preview.

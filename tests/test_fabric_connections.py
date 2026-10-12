@@ -16,7 +16,7 @@ from urllib.request import Request
 
 import pytest
 
-from scripts import fabric_connections as fabric
+import fabric_connections as fabric
 
 WORKSPACE = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 APPLICATION = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import time
 from pathlib import Path
 from unittest import mock
@@ -23,8 +24,13 @@ WORKSPACE_ID = "11111111-1111-1111-1111-111111111111"
 
 
 @pytest.fixture
-def schedule(pipeline_connection_environment: dict[str, str]) -> DeploymentSchedule:
-    return load_schedule(REPO_ROOT / "data" / "fabric", PLAN_PATH)
+def schedule(
+    pipeline_connection_environment: dict[str, str], canonical_fabric_repository: Path,
+) -> DeploymentSchedule:
+    return load_schedule(
+        canonical_fabric_repository,
+        canonical_fabric_repository / "DeploymentPlan.DeploymentPlan" / "plan.yml",
+    )
 
 
 def test_exact_item_selection_fresh_state_and_single_cleanup(
@@ -438,19 +444,19 @@ def test_plan_workflow_wiring_and_etl_registration(environment: str, branch: str
     assert job["secrets"] == "inherit"
     assert workflow["permissions"] == {"contents": "read"}
     assert workflow["concurrency"]["cancel-in-progress"] == "false"
-    etl = _workflow(f"etl-{stage}.yml")
-    listeners = etl["on"]["workflow_run"]["workflows"]
-    assert listeners.count(workflow["name"]) == 1
-    assert len(listeners) == len(set(listeners)) == 4
-    assert "github.event.workflow_run.conclusion == 'success'" in etl["jobs"]["run-etl"]["if"]
-    assert etl["jobs"]["run-etl"]["uses"] == "./.github/workflows/reusable-fabric-etl.yml"
+    etl = workflow["jobs"]["run-etl"]
+    assert etl["needs"] == "deploy-fabric-cicd-plan"
+    assert etl["uses"] == "./.github/workflows/reusable-fabric-etl.yml"
+    assert "workflow_run" not in _workflow(f"etl-{stage}.yml")["on"]
 
 
 def test_test_manual_deployment_is_restricted_to_test_branch() -> None:
     workflow = _workflow("deploy-test-fabric-cicd-plan.yml")
     assert "workflow_dispatch" in workflow["on"]
     assert "github.ref == 'refs/heads/test'" in workflow["jobs"]["deploy-fabric-cicd-plan"]["if"]
-    assert "workflow_dispatch" not in _workflow("deploy-prod-fabric-cicd-plan.yml")["on"]
+    prod = _workflow("deploy-prod-fabric-cicd-plan.yml")
+    assert "workflow_dispatch" in prod["on"]
+    assert "github.ref == 'refs/heads/main'" in prod["jobs"]["deploy-fabric-cicd-plan"]["if"]
 
 
 def test_reusable_workflow_validates_before_loading_azure_secrets() -> None:
@@ -480,9 +486,11 @@ def test_deployment_method_selects_one_route(stage: str, method: str) -> None:
     for suffix in suffixes:
         workflow = _workflow(f"deploy-{stage}{suffix}.yml")
         job = next(iter(workflow["jobs"].values()))
-        condition = job["if"].split(" && ")[0]
-        alternatives = condition.split(" || ")
-        if any(alternative == f"vars.DEPLOY_METHOD == '{method}'" for alternative in alternatives):
+        condition = job["if"]
+        branch = "test" if stage == "test" else "main"
+        assert f"github.ref == 'refs/heads/{branch}'" in condition
+        alternatives = re.findall(r"vars\.DEPLOY_METHOD == '([^']*)'", condition)
+        if method in alternatives:
             selected.append(suffix)
     expected = {
         "": "", "fabric-cicd": "", "bulk": "-bulk",

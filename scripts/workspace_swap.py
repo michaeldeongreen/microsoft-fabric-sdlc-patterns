@@ -10,7 +10,7 @@ Swap back to dev (revert tracked files before opening a PR):
     python scripts/workspace_swap.py --swap-to-dev --dry-run
 
 Check the branch is PR-ready (CI gate; confirms dev IDs are present and the
-pipeline's model and connections are at their committed baselines):
+pipeline's model and connections match the real Dev manifest):
     python scripts/workspace_swap.py --check-ready
 
 No arguments required — reads the current git branch automatically.
@@ -22,7 +22,14 @@ Feature workspace IDs (one-time setup):
     FEATURE_LAKEHOUSE_ID are always required. When the repo has a pipeline with
     a native semantic-model refresh activity, FEATURE_SEMANTIC_MODEL_ID,
     FEATURE_NOTEBOOK_CONNECTION_ID and FEATURE_REFRESH_CONNECTION_ID are
-    required too (see pipeline_bindings.py for the committed baselines).
+    required too. Automated preparation can discover these feature IDs.
+
+First-time Dev pipeline preparation (API setup, then an offline source swap):
+    python scripts/prepare_fabric_workspace.py --dev --swap-to-dev
+
+That command records real Dev resources in data/fabric-dev-bindings.json and
+aligns the parameter files. Subsequent swaps and readiness checks stay offline;
+they never restore fake connection IDs or silently recreate deleted resources.
 
 Future enhancement (intentionally not implemented):
     The script could auto-discover feature workspace IDs by calling the
@@ -49,8 +56,11 @@ from pipeline_bindings import (
     PIPELINE_BINDINGS,
     PIPELINE_FILE_PATTERN,
     REFRESH_ACTIVITY_TYPE,
+    DevBindingsNotInitialized,
     PipelineBindingError,
+    load_dev_bindings,
     locate_fields,
+    locate_refresh_workspace,
     mismatches,
     read_binding_values,
     rewrite,
@@ -433,7 +443,7 @@ def validate_no_stray_value_sets() -> list[str]:
 
 # ── Pipeline bindings ──────────────────────────────────────────────────────
 # A native pipeline's model and connection GUIDs can't be swapped by value like
-# the workspace and lakehouse IDs: the connection baselines are placeholders and
+# the workspace and lakehouse IDs: the baselines are recorded separately and
 # any stale value must be recoverable. pipeline_bindings.py rewrites them per
 # key, only in pipelines the DataPipeline registry entry covers (those with a
 # native refresh activity).
@@ -454,7 +464,9 @@ def _preflight_pipelines() -> None:
     """Exit before any file is written when a pipeline can't be rewritten safely."""
     for path in _pipeline_paths():
         try:
-            locate_fields(path.read_text(encoding="utf-8"))
+            text = path.read_text(encoding="utf-8")
+            locate_fields(text)
+            locate_refresh_workspace(text)
         except PipelineBindingError as exc:
             sys.exit(f"ERROR: {path.relative_to(REPO_ROOT)}: {exc}")
 
@@ -469,7 +481,13 @@ def resolve_pipeline_feature_values() -> dict[str, str]:
     """
     if not _pipeline_paths():
         return {}
-    values, problems = read_binding_values(_read_env_file(ENV_FILE), "feature_env_key")
+    try:
+        baseline_values = load_dev_bindings(FABRIC_DIR).values
+    except DevBindingsNotInitialized:
+        baseline_values = None
+    values, problems = read_binding_values(
+        _read_env_file(ENV_FILE), "feature_env_key", baseline_values=baseline_values,
+    )
     if problems:
         sys.exit(
             f"ERROR: {ENV_FILE.name} has invalid pipeline values (required because a "
@@ -598,8 +616,13 @@ def _run_swap_to_feature(branch: str, branch_label: str, value_set_path: Path,
     # Shape-check it and resolve them now so any problem exits before a file changes.
     _preflight_pipelines()
     pipeline_values = resolve_pipeline_feature_values()
+    try:
+        dev_pipeline_values = load_dev_bindings(FABRIC_DIR).values if pipeline_values else {}
+    except DevBindingsNotInitialized:
+        dev_pipeline_values = BASELINE_VALUES
+        print("  Dev connections are not initialized; prepare Dev before returning for a PR.")
     pipeline_changes = [
-        (binding["name"], binding["baseline"], pipeline_values[binding["name"]])
+        (binding["name"], dev_pipeline_values[binding["name"]], pipeline_values[binding["name"]])
         for binding in PIPELINE_BINDINGS
     ] if pipeline_values else []
     for name, _baseline, feature_value in pipeline_changes:
@@ -647,7 +670,9 @@ def _run_swap_to_feature(branch: str, branch_label: str, value_set_path: Path,
     # Pipeline model and connection GUIDs are set per key, so a stale value
     # needs no recovery pass.
     if pipeline_values:
-        for r in repoint_pipeline_bindings(pipeline_values, dry_run=dry_run):
+        for r in repoint_pipeline_bindings(
+            {**pipeline_values, "Refresh workspace": new_ws_id}, dry_run=dry_run,
+        ):
             changes.append(f"Pipeline:  {r} (pipeline bindings)")
 
     print("\n5. Validating...")
@@ -662,7 +687,7 @@ def _run_swap_to_feature(branch: str, branch_label: str, value_set_path: Path,
         else:
             print("  Clean — no dev IDs in critical files.")
         if pipeline_values:
-            unapplied = validate_pipeline_bindings(pipeline_values)
+            unapplied = validate_pipeline_bindings({**pipeline_values, "Refresh workspace": new_ws_id})
             if unapplied:
                 print("  WARNINGS — pipeline bindings not at the feature values:")
                 for w in unapplied:
@@ -691,6 +716,11 @@ def _run_swap_to_dev(branch: str, branch_label: str, value_set_path: Path,
 
     # Exit before anything is reverted when a pipeline can't be rewritten safely.
     _preflight_pipelines()
+    has_pipeline = bool(_pipeline_paths())
+    try:
+        dev_pipeline_values = load_dev_bindings(FABRIC_DIR).values if has_pipeline else {}
+    except PipelineBindingError as exc:
+        sys.exit(f"ERROR: {exc}")
 
     changes: list[str] = []
 
@@ -699,11 +729,12 @@ def _run_swap_to_dev(branch: str, branch_label: str, value_set_path: Path,
     for r in reverted:
         changes.append(f"Reverted:  {r}")
 
-    # Model and connections go back to their committed baselines by key, so
+    # Model and connections go back to their recorded Dev baselines by key, so
     # swap-to-dev needs no .env and no record of what the feature run applied.
-    has_pipeline = bool(_pipeline_paths())
     if has_pipeline:
-        for r in repoint_pipeline_bindings(BASELINE_VALUES, dry_run=dry_run):
+        for r in repoint_pipeline_bindings(
+            {**dev_pipeline_values, "Refresh workspace": dev_ws_id}, dry_run=dry_run,
+        ):
             changes.append(f"Reverted:  {r} (pipeline bindings)")
 
     print("\n4. Removing feature value set...")
@@ -724,7 +755,7 @@ def _run_swap_to_dev(branch: str, branch_label: str, value_set_path: Path,
         else:
             print("  Clean — no feature IDs in critical files.")
         if has_pipeline:
-            unreverted = validate_pipeline_bindings(BASELINE_VALUES)
+            unreverted = validate_pipeline_bindings({**dev_pipeline_values, "Refresh workspace": dev_ws_id})
             if unreverted:
                 print("  WARNINGS — pipeline bindings not at baseline:")
                 for w in unreverted:
@@ -735,7 +766,7 @@ def _run_swap_to_dev(branch: str, branch_label: str, value_set_path: Path,
     _print_summary(
         branch, feature_ws_id, feature_lh_id, dev_ws_id, dev_lh_id, changes,
         dry_run=dry_run, swap_to_dev=True,
-        pipeline_lines=[f"{name}: reset to {baseline}" for name, baseline in BASELINE_VALUES.items()] if has_pipeline else [],
+        pipeline_lines=[f"{name}: reset to {baseline}" for name, baseline in dev_pipeline_values.items()],
     )
 
 
@@ -767,7 +798,11 @@ def _run_check_ready() -> None:
 
     print("\n3. Checking pipeline bindings use baseline values...")
     if _pipeline_paths():
-        unbound = validate_pipeline_bindings(BASELINE_VALUES)
+        try:
+            expected = {**load_dev_bindings(FABRIC_DIR).values, "Refresh workspace": dev_ws_id}
+            unbound = validate_pipeline_bindings(expected)
+        except PipelineBindingError as exc:
+            unbound = [f"  {exc}"]
         errors.extend(unbound)
         for u in unbound:
             print(u)

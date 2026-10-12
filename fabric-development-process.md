@@ -78,7 +78,32 @@ Branch Out does not provision its own unattended runtime connections for you.
 
 ### The Solution: `workspace_swap.py`
 
-A Python script at `scripts/workspace_swap.py` handles the full lifecycle of feature branch environment management.
+The everyday workflow has **two commands to remember**:
+
+> After Branch Out: `/swap-to-feature`. Before the PR back to Dev: `/swap-to-dev`.
+
+Each skill handles preparation when needed. The implementation still has two
+separate jobs, so the scripts remain easy to test and troubleshoot:
+
+| Job | Script | Purpose | When needed |
+|---|---|---|---|
+| **Prepare resources** | [prepare_fabric_workspace.py](scripts/prepare_fabric_workspace.py) | Call Fabric APIs to discover items and create/reuse runtime connections; save the IDs needed by the swap | Dev's first pipeline setup; each new feature workspace |
+| **Swap references** | [workspace_swap.py](scripts/workspace_swap.py) | Rewrite local tracked references and add/remove the feature value set; no Fabric API calls | Going to feature or returning to Dev |
+
+Use this decision guide:
+
+| Situation | Copilot command | What happens |
+|---|---|---|
+| New feature workspace after Branch Out | `/swap-to-feature` | Prepare the selected feature resources, discover IDs, then swap local references |
+| Returning from feature, with real Dev bindings already initialized | `/swap-to-dev` | Restore references offline and verify local readiness |
+| First return while the Dev manifest is absent or entirely uninitialized | `/swap-to-dev` | Prepare Dev first, record its real IDs, then restore references and verify readiness |
+| Resuming the same known prepared feature workspace | `/swap-to-feature` | Use the complete valid local bindings; no new setup is needed |
+| Optional preview | `/swap-to-feature-dryrun` or `/swap-to-dev-dryrun` | Local preview only; unknown IDs are reported, never invented |
+
+Preparation establishes the connections; swapping changes which connections
+the tracked pipeline references. Neither skill commits, pushes, syncs Fabric,
+activates a value set, or runs the pipeline. Invalid or partially initialized
+Dev configuration fails explicitly rather than being silently regenerated.
 
 #### Step-by-Step: Swap to Feature Workspace
 
@@ -90,26 +115,35 @@ A Python script at `scripts/workspace_swap.py` handles the full lifecycle of fea
    git fetch origin
    git checkout <feature-branch-name>
    ```
-3. **Set up the feature runtime and `.env`:** provision this workspace's own
-   Workspace Identity with the tenant permissions and Contributor access
-   described in [Setup](SETUP.md#post-etl-refresh-permissions). Create Notebook
-   and Power BI datasets connections using that identity, not a personal OAuth
-   fallback. Copy `.env.sample` to the gitignored `.env` and fill in the feature
-   workspace, Lakehouse, Semantic Model, and two connection GUIDs. Update these
-   values for each new feature workspace.
-4. **Run the swap-to-feature script** (preview first with `--dry-run`):
-   ```
-   python scripts/workspace_swap.py --dry-run
-   python scripts/workspace_swap.py
-   ```
-   The script automatically:
+3. **Select the feature target:** use the gitignored `.env` with the explicit
+   `FEATURE_WORKSPACE_ID`. For a different workspace, start with fresh feature
+   values from `.env.sample`; do not retain the previous workspace's connection
+   IDs. Preserve unrelated local settings. If the target is missing, the skill
+   asks for its GUID, not an additional confirmation to proceed.
+4. **Run `/swap-to-feature`.** For a new target, it:
+   - Uses the approved Azure CLI user identity. Reuses a valid sign-in or
+     requests device-code login when needed; it never displays access tokens.
+   - Discovers the Lakehouse and model, provisions/reuses the feature's
+     Workspace Identity connections, and writes the remaining IDs to `.env`.
+   - Stops before swapping if setup fails. Existing valid connections
+     intentionally supplied for the same target are preserved.
+   - Runs the local swap, satisfying its terminal `YES` prompt automatically.
+
+   No separate preparation skill is required. The API setup needs the
+   bootstrap permissions documented in
+   [Setup](SETUP.md#post-etl-refresh-permissions).
+   For an optional preview, use `/swap-to-feature-dryrun`; it performs no login,
+   API calls, or writes. It reports unknown IDs if setup has not yet run.
+
+   The underlying swap script:
    - Detects the current branch name (no arguments needed).
    - Reads dev IDs from `variables.json` (the default value set).
-   - Uses the registered pipeline's canonical Dev model and source connection
-     markers as restoration baselines.
+   - Uses real canonical Dev model/connection IDs from the generated
+     [Dev manifest](data/fabric-dev-bindings.json) as restoration baselines.
    - Reads feature workspace/item/connection IDs from `.env`. Missing, empty,
      or malformed required GUIDs fail explicitly; there is no interactive discovery fallback.
-   - Displays the planned swap and asks `Type YES (uppercase) to apply, anything else to abort.` Type `YES` (case-sensitive) to proceed; the run is dry only when `--dry-run` is also passed.
+   - Displays the planned changes; direct terminal callers still type `YES`,
+     while the skill supplies it automatically.
    - Creates a feature branch value set (e.g., `valueSets/<branch-name>.json`).
    - Adds the value set to `settings.json`.
    - Rewrites the semantic model Direct Lake connection in `expressions.tmdl`.
@@ -126,7 +160,7 @@ A Python script at `scripts/workspace_swap.py` handles the full lifecycle of fea
    ```
 6. **Sync** the feature workspace from the Fabric UI (Update from Git).
    Use the pipeline definition supplied by Git, not a manually recreated copy;
-   its runtime connections are the separate prerequisites from step 3.
+   its runtime connections were prepared by the skill in step 4.
 7. **Activate the feature value set** in the Fabric UI: open the Variable Library → select the feature value set → activate it.
 8. **Verify the pipeline bindings, then run `Patterns_Load_Validate_And_Refresh`:**
    check both Notebook connections, the native refresh connection, and the
@@ -145,38 +179,62 @@ A Python script at `scripts/workspace_swap.py` handles the full lifecycle of fea
 
 Before merging back to `dev`, all feature-specific changes must be reverted so dev IDs are restored:
 
-1. **Run the swap-to-dev script** (preview first with `--dry-run`):
-   ```
-   python scripts/workspace_swap.py --swap-to-dev --dry-run
-   python scripts/workspace_swap.py --swap-to-dev
-   ```
-   The script automatically:
+1. **Run `/swap-to-dev`.** The skill chooses the correct path:
+   - **Initialized Dev:** use the recorded real IDs and perform the ordinary
+     offline swap. No login or Fabric API calls.
+   - **First migration:** when the
+     [Dev manifest](data/fabric-dev-bindings.json) is absent or has its expected
+     resource IDs all null, prepare Dev first using the approved Azure CLI
+     user identity. Use device-code login only if required. Discover the
+     existing model, ensure Dev's connections, record real IDs, and align both
+     parameter files; then invoke the existing swap.
+   - **Invalid or partially initialized Dev configuration:** report the error
+     and stop. Do not silently replace canonical connections or generate fake
+     GUIDs.
+
+   No separate preparation command is needed for the first migration.
+   Default ServicePrincipal activity connections still need the local SPN
+   credential values and the Actions SPN's appropriate connection-management
+   access. User device-code login does not supply either automatically; see
+   [Setup](SETUP.md#post-etl-refresh-permissions).
+
+   The underlying swap:
    - Reads feature IDs from the branch value set.
    - Reverts the semantic model connection to dev IDs.
    - Reverts notebook META blocks to dev IDs.
-   - Restores the DataPipeline's Dev model/workspace references and canonical
-     connection markers, not the feature's live connections.
+   - Restores the DataPipeline's real Dev model/workspace/connection references,
+     not feature GUIDs or fake source markers.
    - Deletes the feature value set file.
    - Removes the feature entry from `settings.json`.
    - Validates no feature IDs remain in critical files.
-2. **Commit and push**:
+   The skill verifies local readiness automatically after restoration. If
+   verification fails, it reports the error instead of claiming PR readiness.
+   For diagnostics, run the readiness script directly with `--check-ready`;
+   this is not a required extra development step.
+   `/swap-to-dev-dryrun` is an optional local preview; it never prepares Dev and
+   cannot calculate exact replacements while real baseline IDs are unknown.
+2. **Review, commit, and push**:
    ```
    git add -A
    git commit -m "Swap to dev for merge"
    git push
    ```
-3. **Open a PR** to `dev`.
+3. **Open a PR** to `dev`. GitHub automatically runs the readiness check again.
+   Configure it as a required branch-protection status check to block an unsafe
+   merge; workflow YAML alone does not enforce that policy.
 
-After merge, the shared Dev workspace owner uses **Update from Git** to bring
-that workspace to the merged `dev` revision before the next Branch Out.
-This repository does not include an automatic Dev-sync workflow; a separately
-implemented Update-from-Git API workflow is an architectural option, not a
-step performed by the included deployment callers.
+After merge, the [Dev sync workflow](.github/workflows/sync-dev.yml) uses the
+SP's own approved GitHub credential connection to update the existing
+Git-connected workspace, then starts the same load/validate/refresh pipeline.
+The credential connection is created/reused through documented APIs from an
+approved read-only PAT; the SP does not inherit the human's Git credentials.
+See [Dev environment secrets](SETUP.md#environment-secrets).
 
-Before a manual Dev pipeline run, configure the Dev runtime connections and
-check the local model binding in the UI. **Update from Git** can restore inert
-source connection markers; a successful readiness check does not configure
-them. Retain the markers in reviewed source when exporting changes.
+Git sync reapplies the real Dev IDs recorded in source; there is no post-sync
+patching or recurring manual connection selection. A missing canonical
+connection fails without silently changing its GUID. Deliberately regenerate
+changed resources with `--replace-dev-bindings`, restore source, and submit the
+generated changes through the normal reviewed Git process.
 
 Use the same load → validation → native refresh pipeline for Dev/feature
 execution after binding checks. The loader remains independently runnable,
@@ -197,17 +255,34 @@ A GitHub Actions workflow (`.github/workflows/check-pr-ready.yml`) runs on every
   Dev/source baselines, with no feature model or connection IDs left behind.
 - No feature branch value set files exist (only `Test.json` and `Prod.json` are allowed).
 
-If any check fails, the PR is blocked until the developer runs `workspace_swap.py --swap-to-dev`.
+When the readiness status is required by branch protection, a failed check
+blocks the PR. Resolve the reported issue; the local `/swap-to-dev` skill
+handles normal restoration and first-time preparation.
 
 #### Running the Script with GitHub Copilot Chat
 
 The repo ships agent skills in [.github/skills/](.github/skills/) that wrap the CLI and are also available as slash commands. In Copilot Chat (Agent mode) you can type:
 
-- `/swap-to-feature` — swap repo IDs to your feature workspace
-- `/swap-to-feature-dryrun` — preview the swap without writing files
-- `/swap-to-dev` — swap IDs back to dev (run before opening a PR)
-- `/swap-to-dev-dryrun` — preview the revert without writing files
-- `/check-pr-ready` — run the CI-style readiness check locally
+- [/swap-to-feature](.github/skills/swap-to-feature/SKILL.md) — prepare a new
+  feature target when needed, then swap its local references
+- [/swap-to-dev](.github/skills/swap-to-dev/SKILL.md) — prepare Dev only on the
+  first migration, restore references, and verify readiness
+- [/swap-to-feature-dryrun](.github/skills/swap-to-feature-dryrun/SKILL.md) and
+  [/swap-to-dev-dryrun](.github/skills/swap-to-dev-dryrun/SKILL.md) — optional
+  local previews, never login/API/write operations
+
+Advanced standalone tools remain available:
+
+- [/prepare-feature-workspace](.github/skills/prepare-feature-workspace/SKILL.md)
+  and [/prepare-dev-workspace](.github/skills/prepare-dev-workspace/SKILL.md) —
+  deliberate preparation-only setup or troubleshooting
+- [workspace_swap.py](scripts/workspace_swap.py) with `--check-ready` — optional
+  local diagnostic using the same check as the PR Action
+
+Local API setup uses the approved user's Azure CLI identity and device-code
+login when needed. Actions continues authenticating unattended as the SPN.
+Default ServicePrincipal runtime connections need SPN credentials and
+appropriate connection-management access independently of that user login.
 
 Invoking a skill is the request to execute it: there is no additional `YES` or
 `NO` question in chat. Copilot runs the script and shows its output. For
@@ -218,18 +293,22 @@ still run; missing or invalid configuration fails explicitly.
 The dry-run skills are optional previews, not mandatory confirmation gates.
 They never apply the swap afterward. The write-enabled swap skills are
 user-invoked, so mentioning one in an explanation does not trigger a rewrite.
-Commit, push, and Fabric sync remain separate actions.
+The standalone preparation skills do not swap; the two normal swap skills
+orchestrate preparation when needed. A preparation failure stops before
+rewriting item references. Commit, push, and Fabric sync remain separate actions.
 
 Note: Copilot cannot auto-trigger the script on branch checkout. You still need to invoke a slash command or run it yourself after pulling a feature branch.
 
 ### Local `.env` Setup
 
 `workspace_swap.py` reads feature bindings from `.env` at the repo root.
-This file is gitignored; each developer maintains it for the current feature
-workspace. Connections must already exist with the intended runtime identity.
+This file is gitignored; each developer maintains its explicit feature
+workspace target. Preparation discovers the remaining IDs and ensures the
+intended runtime identity without display-name workspace guessing.
 
 1. Copy `.env.sample` to `.env`.
-2. Open the feature workspace and connection settings in Fabric. Record:
+2. Set `FEATURE_WORKSPACE_ID` from the explicitly selected Branch Out workspace.
+   Invoke `/swap-to-feature`; its preparation phase discovers:
 
    | `.env` key | Feature binding |
    |---|---|
@@ -239,17 +318,53 @@ workspace. Connections must already exist with the intended runtime identity.
    | `FEATURE_NOTEBOOK_CONNECTION_ID` | Workspace Identity Notebook connection GUID |
    | `FEATURE_REFRESH_CONNECTION_ID` | Workspace Identity Power BI datasets connection GUID |
 
-3. Paste the values into `.env`. Use physical item IDs, not `.platform`
-   `logicalId` values or the Dev source connection markers.
-4. Run `python scripts/workspace_swap.py` (or `/swap-to-feature` in Copilot Chat).
+3. If using preexisting connections, supply their physical GUIDs before
+   preparation. Do not substitute `.platform` logical IDs.
+4. The same `/swap-to-feature` invocation applies the local swap after successful
+   preparation. There is no second skill to run.
 
-If `.env` is missing or a required value is absent/invalid, the script fails
-explicitly. There is no interactive fallback; `.env` is the source of truth
-for swap-to-feature, not a connection-provisioning tool.
+The Python swap script still fails on absent/invalid values and never calls
+Fabric. The skill first invokes the separate preparation script when needed;
+`.env` remains the offline swap script's source of truth.
 
 For swap-to-feature, the script always reads `.env` (the existing value-set file does not override it). The value set on disk is read by swap-to-dev (to know which feature IDs to revert) and by the recovery pass (to detect previously-applied stale IDs that need rewriting). When running the script directly in a terminal, it displays the planned dev → feature change and waits for literal `YES`. When invoked through `/swap-to-feature`, the skill supplies that answer automatically; no further user input is required.
 
-The script intentionally does **not** auto-discover IDs via the Fabric REST API. An earlier implementation matched workspaces by display name, which could silently pick the wrong workspace (e.g. matching the dev workspace itself), causing the swap to abort with no value set written. Explicit `.env` config avoids that class of bug.
+The swap intentionally performs no API discovery. Preparation uses an explicit
+workspace GUID and exact, unambiguous item names; it does not repeat the earlier
+unsafe substring matching of workspace names. It rejects Dev as a feature
+target and refuses duplicate item/connection matches.
+
+### Standalone CLI (Advanced)
+
+The CLI scripts remain independently usable, without Copilot. For a new
+feature workspace:
+
+```powershell
+python scripts\prepare_fabric_workspace.py --feature --use-azure-cli
+python scripts\workspace_swap.py
+```
+
+For the first return to Dev, the explicit CLI convenience performs preparation
+followed by the existing swap:
+
+```powershell
+python scripts\prepare_fabric_workspace.py --dev --use-azure-cli --swap-to-dev
+```
+
+For later returns with an initialized Dev baseline:
+
+```powershell
+python scripts\workspace_swap.py --swap-to-dev
+```
+
+The live preparation commands use an already valid approved Azure CLI session.
+If sign-in is needed, use `az login --use-device-code` with the approved tenant
+and Fabric scope; see the skill authentication instructions. No interactive
+login is used in Actions.
+
+Add `--dry-run` to either preparation mode for a local setup preview. Add
+`--dry-run` to the ordinary swap for an exact local diff only when the required
+IDs are already known. Previewing cannot create missing baseline resources.
 
 ### Scope of Metadata Rewriting
 
@@ -277,7 +392,7 @@ activity connection GUIDs are physical bindings and require replacement.
 |-----------|-------|---------|--------------------------|-------------------------|-------|
 | **SemanticModel** | `*.SemanticModel/definition/expressions.tmdl` | Actual workspace + lakehouse IDs | Yes | Yes | Direct Lake connection URL contains real GUIDs |
 | **Notebook** | `*.Notebook/notebook-content.py` | Actual workspace + lakehouse IDs | Yes (only if `default_lakehouse` present) | Yes | META dependency blocks reference real GUIDs |
-| **DataPipeline** | `*.DataPipeline/pipeline-content.json` | Physical workspace/model/connection IDs; portable logical references retained | Yes — registered physical fields | Yes — target model and connection replacements | Connections are separately provisioned; canonical source connection markers are not runnable |
+| **DataPipeline** | `*.DataPipeline/pipeline-content.json` | Physical workspace/model/connection IDs; portable logical references retained | Yes — real recorded Dev baselines | Yes — target model and automatically resolved connections | Bootstrap manages runtime resources; Git-synced Dev retains runnable source bindings |
 | **Ontology** | `*.Ontology/**/DataBindings/*.json`, `*.Ontology/**/Contextualizations/*.json` | Lakehouse logicalId (`b36b3bda-...`) + zeroed workspaceId | No — logicalIds are portable | Yes — logicalId replaced with `$items.Lakehouse...` for CI/CD | Uses `.platform` logicalId, resolved by Fabric at runtime |
 | **DataAgent** | `*.DataAgent/**/datasource.json` | Ontology logicalId (`58a6c8ed-...`) + zeroed workspaceId | No — logicalIds are portable | No — references Ontology by logicalId | Cross-item logicalId reference, no environment-specific IDs |
 | **VariableLibrary** | `valueSets/*.json`, `settings.json` | Dev lakehouse ID in default value set | Managed (creates/deletes value sets) | Yes — default value set lakehouse ID replaced | Value set files are created/deleted, not rewritten |

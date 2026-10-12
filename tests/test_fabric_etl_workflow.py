@@ -61,7 +61,7 @@ def test_pipeline_run_uses_environment_secrets_without_inline_input_interpolatio
 
 
 @pytest.mark.parametrize("stage", ["test", "prod"])
-def test_all_deployment_methods_share_the_native_pipeline_gate(stage: str) -> None:
+def test_manual_recovery_has_no_automatic_listener_or_duplicate_etl(stage: str) -> None:
     etl = workflow(f"etl-{stage}.yml")
     job = etl["jobs"]["run-etl"]
     assert job["uses"] == "./.github/workflows/reusable-fabric-etl.yml"
@@ -73,13 +73,40 @@ def test_all_deployment_methods_share_the_native_pipeline_gate(stage: str) -> No
         "run_label": f"{stage.capitalize()}-${{{{ github.run_id }}}}",
     }
     assert job["secrets"] == "inherit"
-    assert "github.event.workflow_run.conclusion == 'success'" in job["if"]
-    assert "github.event_name == 'workflow_dispatch'" in job["if"]
-    deployments = [
-        workflow(f"deploy-{stage}{suffix}.yml")["name"]
-        for suffix in ("", "-bulk", "-fabric-cicd-bulk", "-fabric-cicd-plan")
-    ]
-    assert set(etl["on"]["workflow_run"]["workflows"]) == set(deployments)
+    assert set(etl["on"]) == {"workflow_dispatch"}
+    assert job["if"] == f"github.ref == 'refs/heads/{'test' if stage == 'test' else 'main'}'"
+
+
+@pytest.mark.parametrize("stage", ["test", "prod"])
+@pytest.mark.parametrize("suffix,deploy_job", [
+    ("", "deploy-fabric-cicd"), ("-bulk", "deploy-bulk"),
+    ("-fabric-cicd-bulk", "deploy-fabric-cicd-bulk"),
+    ("-fabric-cicd-plan", "deploy-fabric-cicd-plan"),
+])
+def test_every_publisher_runs_one_same_revision_dependent_pipeline(
+    stage: str, suffix: str, deploy_job: str,
+) -> None:
+    definition = workflow(f"deploy-{stage}{suffix}.yml")
+    assert definition["name"].startswith(f"Deploy and Run Pipeline - {stage.capitalize()} (")
+    job = definition["jobs"]["run-etl"]
+    assert job["needs"] == deploy_job
+    assert job["uses"] == "./.github/workflows/reusable-fabric-etl.yml"
+    assert job["with"] == {
+        "environment": stage.capitalize(),
+        "item_name": "Patterns_Load_Validate_And_Refresh",
+        "item_type": "DataPipeline", "job_type": "Pipeline",
+        "run_label": f"{stage.capitalize()}-${{{{ github.run_id }}}}",
+    }
+    assert job["secrets"] == "inherit"
+    assert "always()" not in job.get("if", "")
+    assert "continue-on-error" not in job
+    assert "workflow_run" not in definition["on"]
+    branch = "test" if stage == "test" else "main"
+    assert f"github.ref == 'refs/heads/{branch}'" in definition["jobs"][deploy_job]["if"]
+    assert definition["concurrency"]["cancel-in-progress"] == "false"
+    assert f"'fabric-deploy-{stage}'" in definition["concurrency"]["group"]
+    assert "fabric-skipped" in definition["concurrency"]["group"]
+    assert "data/fabric-dev-bindings.json" in definition["on"]["push"]["paths"]
 
 
 def test_loader_notebook_remains_independent_of_model_refresh() -> None:
@@ -95,8 +122,39 @@ def test_loader_notebook_remains_independent_of_model_refresh() -> None:
     "reusable-deploy-fabric-cicd.yml", "reusable-deploy-fabric-cicd-plan.yml",
     "reusable-deploy-fabric-cicd-bulk.yml", "reusable-deploy-bulk.yml",
 ])
-def test_all_publishers_receive_environment_connection_variables(name: str) -> None:
+def test_all_publishers_use_automatic_connections_with_optional_existing_ids(name: str) -> None:
     job = workflow(name)["jobs"]["deploy"]
     assert job["environment"] == "${{ inputs.environment }}"
+    assert job["env"]["FABRIC_CONNECTION_MODE"] == "${{ vars.FABRIC_CONNECTION_MODE || 'auto' }}"
+    assert job["env"]["FABRIC_RUNTIME_AUTHENTICATION"] == "${{ vars.FABRIC_RUNTIME_AUTHENTICATION || 'ServicePrincipal' }}"
     for variable in ("NOTEBOOK_CONNECTION_ID", "SEMANTIC_MODEL_REFRESH_CONNECTION_ID"):
         assert job["env"][variable] == f"${{{{ vars.{variable} }}}}"
+
+
+def test_dev_git_sync_is_serialized_and_runs_pipeline_only_after_success() -> None:
+    definition = workflow("sync-dev.yml")
+    assert definition["permissions"] == {"contents": "read"}
+    assert definition["on"]["push"]["branches"] == ["dev"]
+    assert "data/fabric-dev-bindings.json" in definition["on"]["push"]["paths"]
+    assert definition["concurrency"]["cancel-in-progress"] == "false"
+    sync = definition["jobs"]["sync"]
+    assert sync["environment"] == "Dev"
+    assert sync["if"] == "github.ref == 'refs/heads/dev'"
+    assert int(sync["timeout-minutes"]) == 30
+    assert sync["env"]["GIT_SYNC_POLICY"] == "${{ vars.DEV_GIT_SYNC_POLICY || 'source-authoritative' }}"
+    execute = next(step for step in sync["steps"] if "scripts/sync_fabric_git.py" in step.get("run", ""))
+    assert execute["env"]["FABRIC_GIT_COMMIT"] == "${{ github.sha }}"
+    assert execute["env"]["FABRIC_GIT_REPOSITORY"] == "${{ github.repository }}"
+    assert execute["env"]["FABRIC_GITHUB_TOKEN"] == "${{ secrets.FABRIC_GITHUB_TOKEN }}"
+    assert "GITHUB_TOKEN" not in execute["env"]
+    assert "${{" not in execute["run"]
+    assert "--rotate-git-token" in execute["run"]
+    assert not any("git push" in step.get("run", "") or "git commit" in step.get("run", "") for step in sync["steps"])
+    for step in sync["steps"]:
+        if "uses" in step:
+            sha = step["uses"].split("@")[1]
+            assert len(sha) == 40
+            int(sha, 16)
+    assert definition["jobs"]["run-etl"]["needs"] == "sync"
+    assert definition["jobs"]["run-etl"]["with"]["environment"] == "Dev"
+    assert definition["jobs"]["run-etl"]["with"]["item_type"] == "DataPipeline"

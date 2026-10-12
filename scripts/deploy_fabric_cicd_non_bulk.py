@@ -37,7 +37,9 @@ from fabric_cicd import (
     publish_all_items,
     unpublish_all_orphan_items,
 )
-from pipeline_bindings import require_pipeline_connections
+from prepare_fabric_workspace import (
+    FABRIC_SCOPE, connection_mode, prepare_pipeline_connections, validate_deployment_source,
+)
 
 PHASE1_TYPES = ["Lakehouse", "Ontology"]
 
@@ -74,12 +76,19 @@ def main() -> None:
     repo_dir = os.environ["REPOSITORY_DIRECTORY"]
     workspace_id = os.environ["FABRIC_WORKSPACE_ID"]
     environment = os.environ["ENVIRONMENT"]
-    require_pipeline_connections(repo_dir)
+    remaining = remaining_types_for_phase2(item_type_in_scope)
+    pipelines = list(Path(repo_dir).glob("*.DataPipeline/pipeline-content.json"))
+    include_pipelines = bool(pipelines) and (remaining is None or "DataPipeline" in remaining)
+    if include_pipelines:
+        validate_deployment_source(repo_dir, target_workspace_id=workspace_id)
+        connection_mode()
     credential = ClientSecretCredential(
         tenant_id=os.environ["AZURE_TENANT_ID"],
         client_id=os.environ["AZURE_CLIENT_ID"],
         client_secret=os.environ["AZURE_CLIENT_SECRET"],
     )
+    if include_pipelines:
+        prepare_pipeline_connections(repo_dir, workspace_id, lambda: credential.get_token(FABRIC_SCOPE).token)
     append_feature_flag("enable_environment_variable_replacement")
 
     print("Phase 1: Deploying Lakehouse + Ontology...")
@@ -93,9 +102,6 @@ def main() -> None:
     publish_all_items(phase1_ws)
 
     # Phase 2: Deploy all remaining item types.
-    remaining = remaining_types_for_phase2(item_type_in_scope)
-    pipelines = list(Path(repo_dir).glob("*.DataPipeline/pipeline-content.json"))
-    include_pipelines = bool(pipelines) and (remaining is None or "DataPipeline" in remaining)
     phase2_types = remaining
     if include_pipelines:
         phase2_types = [
@@ -136,6 +142,6 @@ def main() -> None:
 if __name__ == "__main__":
     try:
         main()
-    except (OSError, ValueError, KeyError) as exc:
+    except (OSError, ValueError, KeyError, RuntimeError) as exc:
         print(f"::error::{exc}", file=sys.stderr)
         sys.exit(1)

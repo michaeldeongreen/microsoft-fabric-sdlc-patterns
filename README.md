@@ -79,7 +79,7 @@ and consumer permissions are separate checks, not interchangeable evidence.
 ## Architecture
 
 The default fabric-cicd non-bulk route is shown below. The other methods replace its
-deployment implementation and share the Test/Prod ETL listeners. GitHub starts
+deployment implementation and share the same-revision ETL template. GitHub starts
 `Patterns_Load_Validate_And_Refresh` and polls its pipeline job. Fabric owns the
 success-dependent activities and the only model refresh.
 
@@ -94,14 +94,15 @@ Feature branch (feature/*)
   │  PR → dev branch
   ▼
 Git repo (dev branch)
+  │  sync-dev.yml → Git update → one Dev pipeline job
   │
   │  PR merge → test branch (source must be dev)
   ▼
 ┌─────────────────────────────────────────────────────┐
 │  deploy-test.yml                                    │
 │    └─ fabric-cicd: publish_all_items()              │
-│                    ↓ on success                     │
-│  etl-test.yml                                       │
+│                    ↓ needs: deploy                  │
+│  run-etl (same workflow revision)                   │
 │    └─ Fabric REST API: run DataPipeline + wait      │
 └─────────────────────────────────────────────────────┘
   │
@@ -110,8 +111,8 @@ Git repo (dev branch)
 ┌─────────────────────────────────────────────────────┐
 │  deploy-prod.yml                                    │
 │    └─ fabric-cicd: publish_all_items()              │
-│                    ↓ on success                     │
-│  etl-prod.yml                                       │
+│                    ↓ needs: deploy                  │
+│  run-etl (same workflow revision)                   │
 │    └─ Fabric REST API: run DataPipeline + wait      │
 └─────────────────────────────────────────────────────┘
 ```
@@ -143,11 +144,12 @@ date-field queries, DAX results, or consumer access.
 See the [shared follow-up contract](fabric-hybrid-cicd-guide.md#post-etl-semantic-model-refresh)
 and [refresh permissions](SETUP.md#post-etl-refresh-permissions).
 
-`workflow_run` still loads the listener from GitHub's default branch. While
-rolling out changed callers, validate with a manual ETL dispatch from `test`
-after older automatic runs finish; rerunning an old run does not select new
-branch code. A same-stage `needs` chain is a separate follow-up, not a benefit
-provided by adopting a Fabric DataPipeline.
+Each deployment workflow runs the shared pipeline job through `needs` after
+successful publication. Deployment and ETL use the same branch revision:
+Test no longer depends on an ETL listener stored on `main`. The separately
+dispatchable ETL workflows are recovery tools, not automatic listeners.
+The deployment workflow display names changed to `Deploy and Run Pipeline`
+so legacy default-branch listeners do not trigger a second ETL during rollout.
 
 Branch protection (PR required, source-branch restrictions, status checks) is enforced by GitHub branch rulesets and the [enforce-promotion-path.yml](.github/workflows/enforce-promotion-path.yml) workflow — see the [Governance Considerations](fabric-cicd-governance-considerations.md).
 
@@ -227,9 +229,9 @@ When designing your development and CI/CD processes, identify which items in you
 
 1. **Fabric Capacity** — A Fabric or Power BI Premium capacity for all workspaces
 2. **Three Fabric Workspaces** — Dev (Git-connected), Test, and Prod
-3. **Service Principal and Runtime Connections** — CI Contributor access on Test/Prod, plus separately configured Workspace Identity notebook/refresh connections and model-owner source access; see [Setup](SETUP.md#post-etl-refresh-permissions)
-4. **GitHub Environments** — `Test` and `Prod` with environment-scoped secrets and both runtime connection variables
-5. **Fabric Admin Setting** — Service principal access to Fabric APIs enabled in the Fabric Admin portal under Developer settings (see [developer tenant settings](https://learn.microsoft.com/en-us/fabric/admin/service-admin-portal-developer))
+3. **Service Principal** — Contributor on Dev/Test/Prod; the default bootstrap automatically creates/reconciles its activity connections. Shared deployment/runtime authority is a documented sample compromise; see [Setup](SETUP.md#post-etl-refresh-permissions)
+4. **GitHub Environments** — `Dev`, `Test`, and `Prod` with environment-scoped secrets; Dev additionally needs an approved GitHub read-only PAT connection
+5. **Fabric Admin Settings** — Authorize public APIs and connection creation for the approved principal; GitHub Git integration must also be enabled (see [developer tenant settings](https://learn.microsoft.com/en-us/fabric/admin/service-admin-portal-developer))
 
 ### Setup
 
@@ -240,6 +242,14 @@ ID replacement, GitHub configuration, and first deployment.
 After setup, use the [Development Process](fabric-development-process.md) for
 day-to-day feature work and the [Governance Considerations](fabric-cicd-governance-considerations.md)
 for production control decisions.
+
+The first Dev preparation command discovers real connection/model IDs, records
+[fabric-dev-bindings.json](data/fabric-dev-bindings.json), and aligns both
+parameter files. Later swaps restore those real values offline. The manifest
+is deliberately uninitialized until that command runs; fake GUIDs do not pass
+PR readiness. Test/Prod bootstrap runs automatically in every publisher,
+reusing connections on repeat and injecting their IDs in memory rather than
+requiring manual GitHub-variable entry.
 
 Use the [method matrix](#choose-a-deployment-method) when evaluating an
 alternative after the default non-bulk route works. The [plan guide](fabric-deployment-plan-guide.md)

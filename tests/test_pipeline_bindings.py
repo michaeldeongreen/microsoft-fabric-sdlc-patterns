@@ -149,6 +149,92 @@ class TestGuidHelpers:
         assert pb.guid_problem(OTHER["Semantic model"], "MY_ID") is None
 
 
+class TestDevManifest:
+    @pytest.fixture()
+    def repository(self, tmp_path: Path) -> Path:
+        directory = tmp_path / "fabric"
+        variables = directory / "Patterns_Variables.VariableLibrary" / "variables.json"
+        variables.parent.mkdir(parents=True)
+        variables.write_text(json.dumps({"variables": [
+            {"name": "target_workspace_id", "value": DEV_WS_ID},
+        ]}), encoding="utf-8")
+        return directory
+
+    def bindings(self) -> pb.DevPipelineBindings:
+        return pb.DevPipelineBindings(
+            DEV_WS_ID, OTHER["Semantic model"], OTHER["Notebook connection"], OTHER["Refresh connection"],
+        )
+
+    def write(self, directory: Path, document: object) -> Path:
+        path = pb.dev_bindings_path(directory)
+        path.write_text(json.dumps(document), encoding="utf-8")
+        return path
+
+    def test_loads_real_non_secret_source_ids(self, repository: Path):
+        bindings = self.bindings()
+        self.write(repository, bindings.document())
+        assert pb.load_dev_bindings(repository) == bindings
+        assert pb.dev_bindings_path(repository).parent == repository.parent
+        assert not pb.dev_bindings_path(repository).is_relative_to(repository)
+
+    def test_missing_configuration_is_not_a_successful_template_fallback(self, repository: Path):
+        with pytest.raises(pb.DevBindingsNotInitialized, match="prepare_fabric_workspace"):
+            pb.load_dev_bindings(repository)
+
+    def test_explicit_uninitialized_configuration_fails_readiness(self, repository: Path):
+        self.write(repository, {key: (value if key == "schemaVersion" else None)
+                                for key, value in self.bindings().document().items()})
+        with pytest.raises(pb.DevBindingsNotInitialized, match="uninitialized"):
+            pb.load_dev_bindings(repository)
+
+    @pytest.mark.parametrize("version", [True, "1", 2, None])
+    def test_rejects_unknown_schema(self, repository: Path, version: object):
+        self.write(repository, {**self.bindings().document(), "schemaVersion": version})
+        with pytest.raises(pb.PipelineBindingError, match="schemaVersion"):
+            pb.load_dev_bindings(repository)
+
+    @pytest.mark.parametrize("value", ["not-a-guid", pb.ZERO_GUID, " " + DEV_WS_ID, 42])
+    def test_rejects_invalid_external_ids(self, repository: Path, value: object):
+        self.write(repository, {**self.bindings().document(), "notebookConnectionId": value})
+        with pytest.raises(pb.PipelineBindingError, match="notebookConnectionId"):
+            pb.load_dev_bindings(repository)
+
+    def test_rejects_fake_connection_markers(self, repository: Path):
+        self.write(repository, {
+            **self.bindings().document(), "notebookConnectionId": pb.NOTEBOOK_CONNECTION_PLACEHOLDER_ID,
+        })
+        with pytest.raises(pb.PipelineBindingError, match="placeholder"):
+            pb.load_dev_bindings(repository)
+
+    def test_rejects_connection_reuse_for_different_purposes(self, repository: Path):
+        self.write(repository, {
+            **self.bindings().document(), "semanticModelRefreshConnectionId": OTHER["Notebook connection"],
+        })
+        with pytest.raises(pb.PipelineBindingError, match="distinct"):
+            pb.load_dev_bindings(repository)
+
+    def test_rejects_another_workspaces_manifest(self, repository: Path):
+        self.write(repository, {**self.bindings().document(), "workspaceId": BYSTANDER})
+        with pytest.raises(pb.PipelineBindingError, match="Variable Library"):
+            pb.load_dev_bindings(repository)
+
+    def test_rejects_unknown_configuration_fields(self, repository: Path):
+        self.write(repository, {**self.bindings().document(), "clientSecret": "not-a-real-secret"})
+        with pytest.raises(pb.PipelineBindingError, match="exactly"):
+            pb.load_dev_bindings(repository)
+
+    def test_real_dev_ids_are_rejected_for_feature_configuration(self, repository: Path):
+        bindings = self.bindings()
+        self.write(repository, bindings.document())
+        values, errors = pb.read_binding_values({
+            "FEATURE_SEMANTIC_MODEL_ID": bindings.semantic_model_id,
+            "FEATURE_NOTEBOOK_CONNECTION_ID": bindings.notebook_connection_id,
+            "FEATURE_REFRESH_CONNECTION_ID": bindings.refresh_connection_id,
+        }, "feature_env_key", baseline_values=pb.load_dev_bindings(repository).values)
+        assert not values
+        assert len(errors) == 3
+
+
 class TestReadBindingValues:
     def feature_env(self, **overrides: str) -> dict[str, str]:
         env = {b["feature_env_key"]: OTHER[b["name"]] for b in pb.PIPELINE_BINDINGS}
@@ -501,6 +587,59 @@ class TestMismatches:
     def test_unsupported_shape_raises(self):
         with pytest.raises(pb.PipelineBindingError):
             pb.mismatches("{}", pb.BASELINE_VALUES)
+
+
+class TestSourceGuard:
+    def write_pipeline(self, directory: Path, text: str) -> Path:
+        path = directory / "Patterns.DataPipeline" / "pipeline-content.json"
+        path.parent.mkdir()
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    def test_accepts_exact_source_bindings(self, tmp_path: Path):
+        self.write_pipeline(tmp_path, pipeline_text())
+        pb.validate_pipeline_source(tmp_path, DEV_WS_ID, pb.BASELINE_VALUES)
+
+    def test_checks_actual_refresh_workspace_not_substring_presence(self, tmp_path: Path):
+        document = pipeline_doc()
+        document["properties"]["activities"][2]["typeProperties"]["groupId"] = BYSTANDER
+        document["description"] = DEV_WS_ID
+        self.write_pipeline(tmp_path, json.dumps(document))
+        with pytest.raises(pb.PipelineBindingError, match="Refresh workspace"):
+            pb.validate_pipeline_source(tmp_path, DEV_WS_ID, pb.BASELINE_VALUES)
+
+    @pytest.mark.parametrize("binding", list(OTHER))
+    def test_rejects_stale_feature_binding(self, tmp_path: Path, binding: str):
+        self.write_pipeline(tmp_path, pipeline_text({**pb.BASELINE_VALUES, binding: OTHER[binding]}))
+        with pytest.raises(pb.PipelineBindingError, match=binding):
+            pb.validate_pipeline_source(tmp_path, DEV_WS_ID, pb.BASELINE_VALUES)
+
+    def test_rejects_uppercase_source_that_case_sensitive_replacement_would_miss(self, tmp_path: Path):
+        self.write_pipeline(
+            tmp_path, pipeline_text().replace(
+                pb.SEMANTIC_MODEL_BASELINE_ID, pb.SEMANTIC_MODEL_BASELINE_ID.upper(),
+            ),
+        )
+        with pytest.raises(pb.PipelineBindingError, match="Semantic model"):
+            pb.validate_pipeline_source(tmp_path, DEV_WS_ID, pb.BASELINE_VALUES)
+
+    def test_missing_owned_workspace_field_is_not_repaired_by_unrelated_group_id(self, tmp_path: Path):
+        document = pipeline_doc()
+        del document["properties"]["activities"][2]["typeProperties"]["groupId"]
+        document["groupId"] = DEV_WS_ID
+        self.write_pipeline(tmp_path, json.dumps(document))
+        with pytest.raises(pb.PipelineBindingError, match="typeProperties.groupId"):
+            pb.validate_pipeline_source(tmp_path, DEV_WS_ID, pb.BASELINE_VALUES)
+
+    def test_workspace_rewrite_preserves_notebook_portable_markers_and_formatting(self):
+        original = pipeline_text().replace("\n", "\r\n")
+        updated = pb.rewrite(original, {**OTHER, "Refresh workspace": BYSTANDER})
+        expected = swap_oracle(original, OTHER).replace(DEV_WS_ID, BYSTANDER)
+        assert updated == expected
+        assert updated.count(pb.ZERO_GUID) == 2
+
+    def test_repository_without_pipeline_needs_no_bindings(self, tmp_path: Path):
+        pb.validate_pipeline_source(tmp_path, DEV_WS_ID, {})
 
 
 # ── Cross-file contracts ──────────────────────────────────────────────────

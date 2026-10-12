@@ -32,8 +32,13 @@ SOURCE_LAKEHOUSE_ID = "c185283c-9dd9-4e40-a17c-aa6303e3a2e9"
 
 
 @pytest.fixture
-def schedule(pipeline_connection_environment: dict[str, str]) -> BulkDeploymentSchedule:
-    return load_schedule(REPO_ROOT / "data" / "fabric", PLAN_PATH, SCOPE)
+def schedule(
+    pipeline_connection_environment: dict[str, str], canonical_fabric_repository: Path,
+) -> BulkDeploymentSchedule:
+    return load_schedule(
+        canonical_fabric_repository,
+        canonical_fabric_repository / "DeploymentPlan.DeploymentPlan" / "plan.yml", SCOPE,
+    )
 
 
 class ItemResponse(TypedDict):
@@ -641,14 +646,14 @@ def test_unfiltered_items_rule_is_rejected_before_definition_writes(offline_fabr
 
 
 def test_invalid_dynamic_syntax_is_rejected_before_definition_writes(offline_fabric: OfflineFabric) -> None:
-    from fabric_cicd._common._exceptions import ParameterFileError
+    from pipeline_bindings import PipelineBindingError
 
     fabric = offline_fabric
     path = fabric.repository / "parameter.yml"
     parameters = yaml.safe_load(path.read_text(encoding="utf-8"))
     parameters["find_replace"][0]["replace_value"]["_ALL_"] = "$items.Lakehouse.PatternsLakehouse"
     path.write_text(yaml.safe_dump(parameters), encoding="utf-8")
-    with pytest.raises(ParameterFileError):
+    with pytest.raises(PipelineBindingError, match="pipeline binding rules"):
         deploy.deploy_schedule(_offline_schedule(fabric), WORKSPACE_ID, "Test", _credential())
     assert fabric.bulk_requests == []
     assert fabric.standard_definition_requests == 0
@@ -829,7 +834,7 @@ def test_bulk_workflow_plan_routing_path_filters_and_etl(stage: str, branch: str
     workflow = _workflow(f"deploy-{stage}-fabric-cicd-bulk.yml")
     job = workflow["jobs"]["deploy-fabric-cicd-bulk"]
     assert workflow["on"]["push"]["branches"] == [branch]
-    assert job["if"] == "vars.DEPLOY_METHOD == 'fabric-cicd-bulk'"
+    assert job["if"] == f"github.ref == 'refs/heads/{branch}' && vars.DEPLOY_METHOD == 'fabric-cicd-bulk'"
     assert job["uses"] == "./.github/workflows/reusable-deploy-fabric-cicd-bulk.yml"
     assert job["with"]["environment"] == stage.capitalize()
     assert job["with"]["deployment_plan_path"] == "${{ vars.DEPLOYMENT_PLAN_PATH }}"
@@ -839,9 +844,10 @@ def test_bulk_workflow_plan_routing_path_filters_and_etl(stage: str, branch: str
     assert workflow["permissions"] == {"contents": "read"}
     assert {"data/fabric/**", "deployment-plans/**", "scripts/deploy_fabric_cicd_bulk.py", "scripts/deployment_plan_bulk.py", "requirements-dev.txt"} <= set(workflow["on"]["push"]["paths"])
     assert "scripts/deployment_plan.py" not in workflow["on"]["push"]["paths"]
-    etl = _workflow(f"etl-{stage}.yml")
-    assert etl["on"]["workflow_run"]["workflows"].count(workflow["name"]) == 1
-    assert "github.event.workflow_run.conclusion == 'success'" in etl["jobs"]["run-etl"]["if"]
+    etl = workflow["jobs"]["run-etl"]
+    assert etl["needs"] == "deploy-fabric-cicd-bulk"
+    assert etl["uses"] == "./.github/workflows/reusable-fabric-etl.yml"
+    assert "workflow_run" not in _workflow(f"etl-{stage}.yml")["on"]
 
 
 def test_bulk_preview_precedes_secrets_and_all_sdk_ranges_match() -> None:

@@ -83,6 +83,7 @@ def test_raw_rest_missing_connections_fail_before_authentication(
         monkeypatch.setenv(key, value)
     monkeypatch.delenv("NOTEBOOK_CONNECTION_ID", raising=False)
     monkeypatch.delenv("SEMANTIC_MODEL_REFRESH_CONNECTION_ID", raising=False)
+    monkeypatch.setenv("FABRIC_CONNECTION_MODE", "existing")
     auth, publish = Mock(), Mock()
     monkeypatch.setattr(deploy, "acquire_token", auth)
     monkeypatch.setattr(deploy, "post_bulk", publish)

@@ -8,7 +8,7 @@
 # the Location header URL until the job completes, fails, or times out.
 # The sample DataPipeline owns load, validation, and native model refresh.
 #
-# Called by: etl-test.yml, etl-prod.yml (triggered via workflow_run after deploy)
+# Called by: deployment jobs through needs, Dev sync, and manual ETL recovery.
 #
 # Prerequisites:
 #   - GitHub Environment secrets: AZURE_TENANT_ID, AZURE_CLIENT_ID,

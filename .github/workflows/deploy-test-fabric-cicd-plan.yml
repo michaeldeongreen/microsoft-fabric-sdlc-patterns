@@ -1,14 +1,19 @@
 # Independent non-bulk deployment path; existing methods remain unchanged.
-name: Deploy to Test (fabric-cicd Plan)
+name: Deploy and Run Pipeline - Test (fabric-cicd Plan)
 
 on:
   push:
     branches: [test]
     paths:
       - "data/fabric/**"
+      - "data/fabric-dev-bindings.json"
       - "deployment-plans/**"
       - "scripts/deployment_plan.py"
       - "scripts/deploy_fabric_cicd_non_bulk_plan.py"
+      - "scripts/fabric_connections.py"
+      - "scripts/prepare_fabric_workspace.py"
+      - "scripts/pipeline_bindings.py"
+      - "scripts/run_fabric_etl.py"
       - "requirements-dev.txt"
       - ".github/workflows/**"
   workflow_dispatch:
@@ -17,7 +22,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: fabric-cicd-plan-test
+  group: ${{ github.ref == 'refs/heads/test' && vars.DEPLOY_METHOD == 'fabric-cicd-plan' && 'fabric-deploy-test' || format('fabric-skipped-{0}-{1}', github.workflow, github.run_id) }}
   cancel-in-progress: false
 
 jobs:
@@ -29,4 +34,16 @@ jobs:
       environment: Test
       deployment_plan_path: ${{ vars.DEPLOYMENT_PLAN_PATH }}
       item_type_in_scope: '["Lakehouse", "Ontology", "VariableLibrary", "Notebook", "SemanticModel", "Report", "DataAgent", "DataPipeline"]'
+    secrets: inherit
+
+  run-etl:
+    name: Load, validate, and refresh
+    needs: deploy-fabric-cicd-plan
+    uses: ./.github/workflows/reusable-fabric-etl.yml
+    with:
+      environment: Test
+      item_name: Patterns_Load_Validate_And_Refresh
+      item_type: DataPipeline
+      job_type: Pipeline
+      run_label: Test-${{ github.run_id }}
     secrets: inherit

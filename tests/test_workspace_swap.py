@@ -16,6 +16,11 @@ DEV_WS_ID = "d7270f11-feba-4990-baa6-d45e47f23737"
 DEV_LH_ID = "c185283c-9dd9-4e40-a17c-aa6303e3a2e9"
 FEAT_WS_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 FEAT_LH_ID = "11111111-2222-3333-4444-555555555555"
+DEV_PIPELINE_VALUES = {
+    "Semantic model": pb.SEMANTIC_MODEL_BASELINE_ID,
+    "Notebook connection": "33333333-1111-4333-8333-333333333333",
+    "Refresh connection": "44444444-2222-4444-8444-444444444444",
+}
 
 
 @pytest.fixture()
@@ -105,6 +110,12 @@ def fabric_dir(tmp_path: Path) -> Path:
     )
     (vs_dir / "Test.json").write_text("{}", encoding="utf-8")
     (vs_dir / "Prod.json").write_text("{}", encoding="utf-8")
+    (fabric.parent / pb.DEV_BINDINGS_FILENAME).write_text(
+        json.dumps(pb.DevPipelineBindings(
+            DEV_WS_ID, DEV_PIPELINE_VALUES["Semantic model"],
+            DEV_PIPELINE_VALUES["Notebook connection"], DEV_PIPELINE_VALUES["Refresh connection"],
+        ).document()), encoding="utf-8",
+    )
 
     return fabric
 
@@ -1019,7 +1030,7 @@ PIPELINE_RELPATH = Path("Patterns_Load.DataPipeline") / "pipeline-content.json"
 def _pipeline_text(*, workspace: str = DEV_WS_ID, values: dict[str, str] | None = None,
                    refreshes: int = 1) -> str:
     """A pipeline in Fabric's git shape: portable notebook refs, literal refresh targets."""
-    values = values or pb.BASELINE_VALUES
+    values = values or DEV_PIPELINE_VALUES
 
     def notebook(name: str, logical_id: str) -> dict:
         return {
@@ -1119,7 +1130,7 @@ class TestDataPipelineRegistry:
         from workspace_swap import repoint_items
         path = _write_pipeline(fabric_dir)
         repoint_items(DEV_WS_ID, DEV_LH_ID, FEAT_WS_ID, FEAT_LH_ID, dry_run=False)
-        assert _bound(path) == {name: {value} for name, value in pb.BASELINE_VALUES.items()}
+        assert _bound(path) == {name: {value} for name, value in DEV_PIPELINE_VALUES.items()}
 
     def test_repoint_skips_a_pipeline_without_a_native_refresh(self, fabric_dir: Path):
         from workspace_swap import repoint_items
@@ -1240,7 +1251,7 @@ class TestRepointPipelineBindings:
         changed = repoint_pipeline_bindings(FEAT_PIPELINE_VALUES, dry_run=False)
         assert len(changed) == 1
         expected = original
-        for name, baseline in pb.BASELINE_VALUES.items():
+        for name, baseline in DEV_PIPELINE_VALUES.items():
             expected = expected.replace(baseline, FEAT_PIPELINE_VALUES[name])
         assert path.read_text(encoding="utf-8") == expected
 
@@ -1252,7 +1263,7 @@ class TestRepointPipelineBindings:
         path.write_bytes(original)
         repoint_pipeline_bindings(FEAT_PIPELINE_VALUES, dry_run=False)
         expected = original
-        for name, baseline in pb.BASELINE_VALUES.items():
+        for name, baseline in DEV_PIPELINE_VALUES.items():
             expected = expected.replace(baseline.encode(), FEAT_PIPELINE_VALUES[name].encode())
         assert path.read_bytes() == expected
 
@@ -1290,27 +1301,27 @@ class TestValidatePipelineBindings:
     def test_clean_when_every_binding_holds_its_expected_value(self, fabric_dir: Path):
         from workspace_swap import validate_pipeline_bindings
         _write_pipeline(fabric_dir)
-        assert validate_pipeline_bindings(pb.BASELINE_VALUES) == []
+        assert validate_pipeline_bindings(DEV_PIPELINE_VALUES) == []
 
     def test_reports_each_mismatch_with_its_file(self, fabric_dir: Path):
         from workspace_swap import validate_pipeline_bindings
         _write_pipeline(fabric_dir, values=FEAT_PIPELINE_VALUES)
-        problems = validate_pipeline_bindings(pb.BASELINE_VALUES)
+        problems = validate_pipeline_bindings(DEV_PIPELINE_VALUES)
         text = "\n".join(problems)
         assert "Patterns_Load.DataPipeline" in text
-        for name in pb.BASELINE_VALUES:
+        for name in DEV_PIPELINE_VALUES:
             assert name in text
 
     def test_reports_an_unsupported_shape(self, fabric_dir: Path):
         from workspace_swap import validate_pipeline_bindings
         _write_pipeline(fabric_dir, refreshes=2)
-        problems = validate_pipeline_bindings(pb.BASELINE_VALUES)
+        problems = validate_pipeline_bindings(DEV_PIPELINE_VALUES)
         assert len(problems) == 1
         assert "exactly one" in problems[0]
 
     def test_nothing_to_report_without_a_pipeline(self, fabric_dir: Path):
         from workspace_swap import validate_pipeline_bindings
-        assert validate_pipeline_bindings(pb.BASELINE_VALUES) == []
+        assert validate_pipeline_bindings(DEV_PIPELINE_VALUES) == []
 
 
 @pytest.mark.usefixtures("_patch_paths")
@@ -1410,7 +1421,7 @@ class TestSwapFlowsWithPipeline:
         _write_env(fabric_dir, pipeline=FEAT_PIPELINE_VALUES)
         self._swap_to_feature(fabric_dir)
         out = capsys.readouterr().out
-        for name, baseline in pb.BASELINE_VALUES.items():
+        for name, baseline in DEV_PIPELINE_VALUES.items():
             assert f"{name} : {baseline} → {FEAT_PIPELINE_VALUES[name]}" in out
             assert f"{name}: {baseline} → {FEAT_PIPELINE_VALUES[name]}" in out
 
@@ -1423,7 +1434,7 @@ class TestSwapFlowsWithPipeline:
         self._swap_to_dev(fabric_dir)
 
         assert _group_id(path) == DEV_WS_ID
-        assert _bound(path) == {name: {value} for name, value in pb.BASELINE_VALUES.items()}
+        assert _bound(path) == {name: {value} for name, value in DEV_PIPELINE_VALUES.items()}
 
     def test_swap_to_dev_restores_baselines_from_any_stale_value(self, fabric_dir: Path):
         path = _write_pipeline(fabric_dir)
@@ -1435,7 +1446,7 @@ class TestSwapFlowsWithPipeline:
 
         self._swap_to_dev(fabric_dir)
 
-        assert _bound(path) == {name: {value} for name, value in pb.BASELINE_VALUES.items()}
+        assert _bound(path) == {name: {value} for name, value in DEV_PIPELINE_VALUES.items()}
 
     def test_round_trip_restores_the_original_pipeline(self, fabric_dir: Path):
         path = _write_pipeline(fabric_dir)
@@ -1499,12 +1510,12 @@ class TestCheckReadyWithPipeline:
     def test_fails_when_feature_values_remain(self, fabric_dir: Path, capsys: pytest.CaptureFixture):
         _write_pipeline(fabric_dir, values=FEAT_PIPELINE_VALUES)
         out = self._failing_check(capsys)
-        for name in pb.BASELINE_VALUES:
+        for name in DEV_PIPELINE_VALUES:
             assert name in out
         assert "CHECK FAILED" in out
 
     def test_fails_when_only_one_binding_differs(self, fabric_dir: Path, capsys: pytest.CaptureFixture):
-        _write_pipeline(fabric_dir, values={**pb.BASELINE_VALUES, "Refresh connection": FEAT_REFRESH_CONN_ID})
+        _write_pipeline(fabric_dir, values={**DEV_PIPELINE_VALUES, "Refresh connection": FEAT_REFRESH_CONN_ID})
         out = self._failing_check(capsys)
         assert "Refresh connection" in out
         assert "Semantic model (" not in out
@@ -1533,4 +1544,3 @@ class TestCheckReadyWithPipeline:
         path.write_text(text, encoding="utf-8")
         out = self._failing_check(capsys)
         assert "not a GUID" in out
-

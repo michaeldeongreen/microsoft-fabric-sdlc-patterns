@@ -10,24 +10,40 @@
 # The `Prod` GitHub Environment should have protection rules configured
 # (e.g., required reviewers, branch policy restricting to main only).
 #
-# The ETL workflow (etl-prod.yml) triggers automatically via workflow_run
-# once deployment completes successfully.
+# The dependent ETL job runs only after this revision's deployment succeeds.
 
-name: Deploy to Prod (Bulk API)
+name: Deploy and Run Pipeline - Prod (Bulk API)
 
 on:
   push:
     branches: [main]
-    paths: ["data/fabric/**", ".github/workflows/**"]
+    paths: ["data/fabric/**", "data/fabric-dev-bindings.json", "scripts/deploy_fabric_rest_bulk.py", "scripts/fabric_connections.py", "scripts/prepare_fabric_workspace.py", "scripts/pipeline_bindings.py", "scripts/run_fabric_etl.py", ".github/workflows/**"]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.ref == 'refs/heads/main' && vars.DEPLOY_METHOD == 'bulk' && 'fabric-deploy-prod' || format('fabric-skipped-{0}-{1}', github.workflow, github.run_id) }}
+  cancel-in-progress: false
+
 jobs:
   deploy-bulk:
     name: Deploy via Bulk Import API
-    if: vars.DEPLOY_METHOD == 'bulk'
+    if: github.ref == 'refs/heads/main' && vars.DEPLOY_METHOD == 'bulk'
     uses: ./.github/workflows/reusable-deploy-bulk.yml
     with:
       environment: Prod
+    secrets: inherit
+
+  run-etl:
+    name: Load, validate, and refresh
+    needs: deploy-bulk
+    uses: ./.github/workflows/reusable-fabric-etl.yml
+    with:
+      environment: Prod
+      item_name: Patterns_Load_Validate_And_Refresh
+      item_type: DataPipeline
+      job_type: Pipeline
+      run_label: Prod-${{ github.run_id }}
     secrets: inherit

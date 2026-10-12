@@ -35,7 +35,9 @@ from fabric_cicd import (
 from fabric_cicd.constants import BULK_ACCEPTED_ITEM_TYPES
 
 from deployment_plan_bulk import BulkDeploymentSchedule, RepositoryItem, load_schedule, validate_guid
-from pipeline_bindings import require_pipeline_connections
+from prepare_fabric_workspace import (
+    FABRIC_SCOPE, connection_mode, prepare_pipeline_connections, validate_deployment_source,
+)
 
 BULK_FEATURE_FLAGS = (
     "enable_experimental_features",
@@ -255,10 +257,16 @@ def deploy_schedule(
     if not schedule.batches and not schedule.remaining_items:
         raise BulkDeploymentError("No selected items; publishing and orphan cleanup are forbidden.")
     workspace_id = validate_guid(workspace_id, "FABRIC_WORKSPACE_ID")
-    require_pipeline_connections(schedule.repository_directory)
+    if "DataPipeline" in schedule.item_types:
+        validate_deployment_source(schedule.repository_directory, target_workspace_id=workspace_id)
+        connection_mode()
     if not environment.strip():
         raise ValueError("ENVIRONMENT must not be empty.")
     validate_value_sets(schedule, environment)
+    if "DataPipeline" in schedule.item_types:
+        prepare_pipeline_connections(
+            schedule.repository_directory, workspace_id, lambda: credential.get_token(FABRIC_SCOPE).token,
+        )
     print(f"fabric-cicd {installed}; mode: strict bulk with isolated client-side plan ordering.")
     for flag in BULK_FEATURE_FLAGS:
         append_feature_flag(flag)
@@ -356,7 +364,7 @@ def main(argv: list[str] | None = None) -> None:
             client_secret=_required_environment("AZURE_CLIENT_SECRET"),
         )
         deploy_schedule(schedule, workspace_id, environment, credential)
-    except (OSError, ValueError, yaml.YAMLError, BulkDeploymentError) as exc:
+    except (OSError, ValueError, yaml.YAMLError, RuntimeError) as exc:
         print(f"::error::{exc}", file=sys.stderr)
         sys.exit(1)
 

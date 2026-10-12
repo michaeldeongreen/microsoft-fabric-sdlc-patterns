@@ -60,6 +60,11 @@ from typing import TypedDict
 import requests
 import yaml
 
+from pipeline_bindings import pipeline_files
+from prepare_fabric_workspace import (
+    connection_mode, prepare_pipeline_connections, validate_deployment_source,
+)
+
 # Polling configuration
 POLL_FALLBACK_SECONDS = 30
 POLL_FLOOR_SECONDS = 5
@@ -741,13 +746,15 @@ def main() -> None:
 
     config_path = repo_dir / BULK_PARAMETER_FILENAME
     config = load_bulk_config(config_path)
-    from pipeline_bindings import require_pipeline_connections
-
-    require_pipeline_connections(repo_dir)
+    if pipeline_files(repo_dir):
+        validate_deployment_source(repo_dir, bulk=True, target_workspace_id=workspace_id)
+        connection_mode()
+    token = acquire_token(tenant_id, client_id, client_secret)
+    if pipeline_files(repo_dir):
+        prepare_pipeline_connections(repo_dir, workspace_id, lambda: token)
     for rule in config.substitutions:
         if "$ENV:" in rule.replace_with:
             resolve_dynamic_value(rule.replace_with, workspace_id, {})
-    token = acquire_token(tenant_id, client_id, client_secret)
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     if config.substitutions:
         print(
@@ -843,6 +850,6 @@ def main() -> None:
 if __name__ == "__main__":
     try:
         main()
-    except (OSError, ValueError, KeyError, requests.RequestException) as exc:
+    except (OSError, ValueError, KeyError, RuntimeError, requests.RequestException) as exc:
         print(f"::error::{exc}", file=sys.stderr)
         sys.exit(1)

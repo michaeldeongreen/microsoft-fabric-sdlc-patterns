@@ -42,7 +42,7 @@ begin at [Isolated Bulk Adapter](#isolated-bulk-adapter-14x).
         -&gt; publish declared items in dependency order
         -&gt; publish remaining in-scope items
         -&gt; clean up eligible orphaned items
-  -&gt; <a href=".github/workflows/etl-test.yml">etl-test.yml</a> / <a href=".github/workflows/etl-prod.yml">etl-prod.yml</a> (ETL workflows), after successful deployment
+  -&gt; dependent run-etl job in the same workflow revision, after successful deployment
      -&gt; <a href=".github/workflows/reusable-fabric-etl.yml">reusable-fabric-etl.yml</a>
         -&gt; start Patterns_Load_Validate_And_Refresh and wait for its Pipeline job
            -&gt; existing loader -&gt; read-only validation -&gt; native model refresh
@@ -174,7 +174,7 @@ fabric-cicd 1.4.0 supports this repository's filtered dynamic rules in
 [parameter.yml](data/fabric/parameter.yml) with bulk enabled. fabric-cicd owns
 replacement and Test/Prod value-set activation. Bulk does not port the raw
 REST find/replace engine or read [bulk-parameter.yml](data/fabric/bulk-parameter.yml).
-Pipeline rules replace the target model ID and the two connection markers.
+Pipeline rules replace the canonical Dev model and connection IDs.
 The runners enable `$ENV:` replacement and validate
 `NOTEBOOK_CONNECTION_ID` and `SEMANTIC_MODEL_REFRESH_CONNECTION_ID` before
 publishing. These are [Environment variables](SETUP.md#environment-variables),
@@ -276,11 +276,10 @@ and all other workflow families, use the
 
 [deploy-test-fabric-cicd-plan.yml](.github/workflows/deploy-test-fabric-cicd-plan.yml)
 and [deploy-prod-fabric-cicd-plan.yml](.github/workflows/deploy-prod-fabric-cicd-plan.yml)
-use the same environment-scoped secrets, two connection variables, and eight-type
-scope as the standard method. No additional source-workspace credential is needed. The existing
-[etl-test.yml](.github/workflows/etl-test.yml) and
-[etl-prod.yml](.github/workflows/etl-prod.yml) listeners recognize the new
-workflow names; [deploy_fabric_cicd_non_bulk_plan.py](scripts/deploy_fabric_cicd_non_bulk_plan.py)
+use the same environment-scoped secrets, automatic connection bootstrap, and
+eight-type scope as the standard method. No additional source-workspace
+credential is needed. Their dependent ETL jobs use the same revision;
+[deploy_fabric_cicd_non_bulk_plan.py](scripts/deploy_fabric_cicd_non_bulk_plan.py)
 does not run ETL or model refresh itself. Both plan methods use the same
 [post-ETL follow-up](fabric-hybrid-cicd-guide.md#post-etl-semantic-model-refresh)
 as the default non-bulk and raw REST routes: GitHub starts and polls one pipeline;
@@ -298,9 +297,9 @@ while promoting
 [deploy-prod-fabric-cicd-plan.yml](.github/workflows/deploy-prod-fabric-cicd-plan.yml),
 and [reusable-deploy-fabric-cicd-plan.yml](.github/workflows/reusable-deploy-fabric-cicd-plan.yml)
 through `dev -> test -> main`.
-GitHub reads `workflow_run` listeners from the default branch, and a manually
-dispatched workflow must exist there too. Changing the selector before that
-rollout can leave Test without its automatic ETL follow-up.
+Automatic ETL uses `needs`, not a default-branch listener. Workflow files still
+need to exist on the default branch for the Actions manual-dispatch UI to list
+them. Wait for in-flight runs before changing the selector.
 
 In repository Settings > Secrets and variables > Actions > Variables, set:
 
@@ -387,9 +386,10 @@ physical IDs, and selects the Variable Library value set for `Test` or `Prod`.
 Keep source IDs and replacement rules aligned, and restore Dev bindings before
 promotion as described in the [Development Process](fabric-development-process.md).
 Reading a plan does not replace parameterization.
-Create each target's Workspace Identity Notebook and Power BI datasets
-connections separately, share use with the CI deployment principal, and set
-the two connection variables. A portable DeploymentPlan logical ID does not
+The shared bootstrap automatically ensures each target's Notebook and Power BI
+datasets connections and provides their GUIDs. Existing-only and Workspace
+Identity alternatives are described in [Setup](SETUP.md#environment-variables).
+A portable DeploymentPlan logical ID does not
 make the pipeline's physical model/connection GUIDs portable.
 Environment/value-set names must match exactly. fabric-cicd warns and falls
 back to the default value set if no name matches; keep the committed `Test`

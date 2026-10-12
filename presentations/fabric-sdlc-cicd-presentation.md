@@ -399,13 +399,13 @@ dev branch  ──────────▶  Dev workspace  (Update from Git)
   ▼
 TEST STAGE  (automated)
   • deploy-test.yml   →  fabric-cicd: publish_all_items()
-  • on success        →  etl-test.yml: start/poll one DataPipeline
+  • needs: deploy     →  same-revision run-etl job: start/poll one DataPipeline
   │
   │  PR merge → main    (source branch must be test)
   ▼
 PROD STAGE  (automated + required Prod approval)
   • deploy-prod.yml   →  fabric-cicd: publish_all_items()
-  • on success        →  etl-prod.yml: start/poll the same DataPipeline
+  • needs: deploy     →  same-revision run-etl job: start/poll the same DataPipeline
 ```
 
 Inside `Patterns_Load_Validate_And_Refresh`: existing load → read-only validation
@@ -418,12 +418,9 @@ Fabric is the only refresh owner; GitHub does not run the loader or refresh agai
 | `test` | Test | fabric-cicd non-bulk via GitHub Actions (default) |
 | `main` | Prod | fabric-cicd non-bulk via GitHub Actions (default) |
 
-The deploy and ETL are **chained**: the ETL workflow only runs after its deploy workflow succeeds. If the deploy fails, no ETL runs.
-
-`workflow_run` still loads the listener from the default branch. During rollout,
-manually dispatch Test ETL from `test` after old automatic runs finish; rerunning
-an old main run does not select changed Test code. A same-stage `needs` chain
-is a separate follow-up.
+Deployment and ETL are **chained with `needs` in the same revision**. Failed or
+unselected deployment means no ETL. Manual ETL workflows are recovery tools;
+renamed deployment callers avoid old default-branch listeners during rollout.
 
 <details>
 <summary><b>▸ Deep dive: the demo solution being deployed</b></summary>
@@ -446,7 +443,8 @@ configuration, and failure-dependent orchestration. `minimum_patient_count`
 comes from the active Library (Integer, baseline `5`); `run_label` is an
 independent String pipeline parameter (default `manual`, CI override).
 
-Both Notebook activities and refresh use Workspace Identity connections.
+The default automation reuses the approved deployment SP in ServicePrincipal
+activity connections; feature Workspace Identity connections remain supported.
 An earlier user-started feature prototype completed all three activities and
 the API label override. The current explicit-OneLake-path validation revision
 is only offline-validated. Git binding resolution, CI service-principal
@@ -511,9 +509,10 @@ Without DataPipeline, the default runner retains two phases. Raw REST also
 defers DataPipeline to a third batch but captures IDs from response bodies.
 Both plan adapters instead use explicit Library/Import/Validation/Model
 prerequisite edges and a current remainder of the Report plus two demo notebooks.
-Target Workspace Identity connections are
-created outside Git, shared with CI, and supplied through the two
-[Environment variables](../SETUP.md#environment-variables).
+The shared bootstrap automatically creates/reuses target connections and
+reconciles SP credentials, supplying GUIDs in memory. Existing-only and
+secretless Workspace Identity paths are explicit
+[alternatives](../SETUP.md#environment-variables).
 
 <details>
 <summary><b>▸ Deep dive: first deployment to a clean workspace</b></summary>
@@ -561,7 +560,7 @@ exact copy of every aspect of workspace state.
 | `deploy-test.yml` / `deploy-prod.yml` | Standard callers — qualifying pushes to `test` / `main` (Fabric definition or workflow changes) |
 | `reusable-deploy-fabric-cicd.yml` | Three publish phases with DataPipeline; two when absent |
 | `reusable-fabric-etl.yml` | Starts/polls one Fabric job; passes `run_label` as safe JSON for the pipeline |
-| `etl-test.yml` / `etl-prod.yml` | Chain after a successful deploy via `workflow_run` |
+| `etl-test.yml` / `etl-prod.yml` | Manual recovery; automatic ETL is the caller's same-revision `needs` job |
 | `check-pr-ready.yml` | Blocks feature IDs from merging to `dev` |
 | `run-tests.yml` | Runs pytest on every PR, without a path filter |
 | `enforce-promotion-path.yml` | Enforces the `dev → test → main` source‑branch path |
@@ -659,8 +658,8 @@ for the activity credentials.
 
 | Identity | Purpose | Authentication |
 |---|---|---|
-| **CI/CD service principal** | Publishes definitions and starts/polls the pipeline job from GitHub Actions | Client secret today; **evaluate GitHub OIDC federation** |
-| **Fabric Workspace Identity** | Runtime Notebook and native-refresh credentials in this sample; distinct from CI's job-submitter identity | Managed by Fabric; configured in target connections |
+| **CI/CD service principal** | Publishes, starts jobs, and is the default sample's activity identity | Client secret in GitHub/Fabric; shared authority is a sample compromise |
+| **Fabric Workspace Identity** | Optional secretless activity identity, retained in the feature workspace | Managed by Fabric; extra bootstrap/trust permissions may be required |
 | **Runtime workload UAMI** | Apps/Functions calling Fabric APIs at runtime — **not** deploying items | Secretless, managed by Azure |
 
 The feature run was user-submitted with Workspace Identity activities.
@@ -833,9 +832,10 @@ Emergency overrides need a separately approved policy; none is implemented here.
 - [ ] Provision a Fabric/Premium capacity and three workspaces (Dev, Test, Prod).
 - [ ] Connect the **Dev** workspace to the `dev` branch via Fabric Git integration.
 - [ ] Create a CI/CD **service principal**; grant **Contributor** on Test and Prod.
-- [ ] Create GitHub **Environments** (`Test`, `Prod`) with scoped secrets; add Prod approval.
-- [ ] Create each target's Workspace Identity Notebook/Power BI connections,
-      share use with CI, and set both Environment connection variables.
+- [ ] Create GitHub **Environments** (`Dev`, `Test`, `Prod`) with scoped secrets; add Prod approval.
+- [ ] Prepare Dev bindings automatically once; review the generated manifest/source.
+- [ ] Let each publisher ensure target connections and inject GUIDs automatically.
+- [ ] Use separate runtime/privileged setup identities for an enterprise adaptation.
 - [ ] Create `dev`, `test`, `main` branches with protection + the enforced promotion path.
 - [ ] Leave `DEPLOY_METHOD` unset or set it to `fabric-cicd` for the default non-bulk route; evaluate alternatives only for specific requirements.
 - [ ] Develop on a feature branch → merge to `dev` → `test` (deploys) → `main` (deploys).

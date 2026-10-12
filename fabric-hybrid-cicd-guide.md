@@ -47,10 +47,10 @@ Git repo (dev branch)
 │          (Phase 2: non-pipeline dependents)         │
 │          (Phase 3: DataPipeline; fresh state)       │
 └─────────────────────────────────────────────────────┘
-                     │ workflow_run (on success)
+                     │ needs: deploy-fabric-cicd
                      ▼
 ┌─────────────────────────────────────────────────────┐
-│  etl-test.yml                                       │
+│  deploy-test.yml: run-etl (same revision)            │
 │    └─ reusable-fabric-etl.yml                       │
 │       └─ Fabric REST API: run DataPipeline + wait   │
 └─────────────────────────────────────────────────────┘
@@ -60,7 +60,8 @@ Git repo (dev branch)
        → native refresh of Patterns_Semantic_Model
 ```
 
-The same pattern applies to Prod (`deploy-prod.yml` → `etl-prod.yml`), triggered on push to `main`.
+The same pattern applies to Prod: `deploy-prod.yml` owns its dependent `run-etl`
+job, triggered on push to `main`.
 
 GitHub publishes definitions and starts/polls one
 `Patterns_Load_Validate_And_Refresh` job. Fabric owns validation and the only
@@ -102,8 +103,8 @@ microsoft-fabric-sdlc-patterns/
 │       ├── deploy-prod.yml                       # Orchestrator: push to main → fabric-cicd deploy
 │       ├── deploy-test-bulk.yml                  # Alternative orchestrator: bulk API deploy on push to test
 │       ├── deploy-prod-bulk.yml                  # Alternative orchestrator: bulk API deploy on push to main
-│       ├── etl-test.yml                          # Triggers after any deploy-test* workflow succeeds
-│       ├── etl-prod.yml                          # Triggers after any deploy-prod* workflow succeeds
+│       ├── etl-test.yml                          # Manual Test pipeline recovery
+│       ├── etl-prod.yml                          # Manual Prod pipeline recovery
 │       ├── reusable-deploy-fabric-cicd.yml       # Template: fabric-cicd deployment
 │       ├── reusable-deploy-bulk.yml              # Template: Bulk Import API deployment (Preview)
 │       ├── reusable-fabric-etl.yml               # Template: start/poll one Fabric job
@@ -165,7 +166,8 @@ IDs available to pipeline references. The third call uses fresh discovery.
 Without a DataPipeline, the runner retains its two-phase behavior.
 Item types remain explicitly scoped via `item_type_in_scope`.
 
-The ETL workflow triggers automatically after the deploy workflow completes successfully. If the deploy fails, ETL does not run.
+The dependent ETL job starts automatically after the deployment job succeeds.
+If publication fails or the method is unselected, ETL does not run.
 
 <a id="strict-plan-driven-sdk-bulk-14x"></a>
 
@@ -243,9 +245,9 @@ Each pair selects the same method for the corresponding Fabric workspace.
 | `fabric-cicd-bulk` | [deploy-test-fabric-cicd-bulk.yml](.github/workflows/deploy-test-fabric-cicd-bulk.yml) | [deploy-prod-fabric-cicd-bulk.yml](.github/workflows/deploy-prod-fabric-cicd-bulk.yml) |
 | `bulk` | [deploy-test-bulk.yml](.github/workflows/deploy-test-bulk.yml) | [deploy-prod-bulk.yml](.github/workflows/deploy-prod-bulk.yml) |
 
-- Standard and raw REST callers watch `data/fabric/**` and `.github/workflows/**`.
+- All callers watch Fabric definitions, the Dev binding manifest, shared connection/preparation helpers, their runner, and workflows.
 - Both plan routes additionally watch `deployment-plans/**`, their own runner/reader, and `requirements-dev.txt`. Add any custom plan location to the applicable caller filters.
-- Only [non-bulk-plan Test](.github/workflows/deploy-test-fabric-cicd-plan.yml) supports `workflow_dispatch` for deployment, and only on branch `test`.
+- All callers support `workflow_dispatch`, restricted to `test` for Test and `main` for Prod.
 - An unknown selector skips all deployment jobs. Changing the variable alone does not trigger a deployment.
 
 ### Reusable Templates (called via `workflow_call`)
@@ -266,20 +268,18 @@ its scoped secrets; reviewers apply only if the owner configured protection.
 
 | Workflow | Trigger | Purpose |
 |---|---|---|
-| [etl-test.yml](.github/workflows/etl-test.yml) | Completed Test deploy workflow or manual run | Starts `Patterns_Load_Validate_And_Refresh` in Test and waits for the pipeline job. |
-| [etl-prod.yml](.github/workflows/etl-prod.yml) | Completed Prod deploy workflow or manual run | Starts the same pipeline in Prod through the shared template and configured Prod protections. |
+| Deployment caller's `run-etl` job | Successful selected deployment job (`needs`) | Starts/polls the pipeline from the same branch revision. |
+| [etl-test.yml](.github/workflows/etl-test.yml) | Manual run on `test` only | Test recovery without another deployment. |
+| [etl-prod.yml](.github/workflows/etl-prod.yml) | Manual run on `main` only | Prod recovery through the configured Environment protections. |
 
-The automated ETL job requires upstream conclusion `success`; manual ETL runs
-are also permitted. Each listener recognizes all four deployment workflow
-names. Keep the listeners on the default branch before switching methods,
-because GitHub loads `workflow_run` listeners there.
-
-While the changed caller/template has not reached `main`, automatic Test ETL
-can still load the old notebook-only listener. After older automatic runs
-finish, manually dispatch **ETL - Test** from **test** to validate that branch.
-Rerunning an old main run does not pick up the new Test definition. A same-stage
-deploy → ETL chain with `needs` needs separate design and migration; adopting a
-DataPipeline does not remove the default-branch coupling.
+Automatic publication and ETL are one workflow graph, rather than a
+`workflow_run` listener loaded from the default branch. This deliberately
+changes the old handoff: it keeps Test execution aligned with the revision
+being validated and gives one automatic pipeline run per selected deployment.
+Deployment display names start with `Deploy and Run Pipeline` so old listeners
+on `main` do not also start an ETL while this migration is being promoted.
+Stage concurrency spans both publication and ETL; unselected workflows have
+separate concurrency groups so their skipped jobs cannot evict a selected run.
 
 #### Post-ETL Semantic Model Refresh
 
@@ -325,12 +325,17 @@ pipeline run and refresh history before retrying.
   the JSON job body under `executionData.parameters`. Invalid input is not
   silently replaced by a successful-looking default.
 
-Both Notebook activities and refresh use **Workspace Identity** connections.
+The default Dev/Test/Prod automation uses **ServicePrincipal** connections,
+reusing the already-approved deployment principal. The working feature
+workspace retains **Workspace Identity** connections; that authentication is
+also an explicit secretless alternative.
 The user who authors a pipeline, CI service principal that publishes/starts
 it, connection runtime identity, model owner, and consumer are separate actors.
-Create target connections and share use with CI before publishing; set
-`NOTEBOOK_CONNECTION_ID` and `SEMANTIC_MODEL_REFRESH_CONNECTION_ID` as
-[GitHub Environment variables](SETUP.md#environment-variables).
+The shared [bootstrap](scripts/fabric_connections.py) creates missing managed
+connections, reuses their IDs, and reconciles SP credentials before publishing.
+The runners supply `NOTEBOOK_CONNECTION_ID` and
+`SEMANTIC_MODEL_REFRESH_CONNECTION_ID` in memory. Manual variables are optional
+for the [existing-connections mode](SETUP.md#environment-variables).
 Connections are not deployed from Git, and physical model/connection references
 need target substitutions. Direct Lake separately checks the model owner's
 source access. See [required permissions](SETUP.md#post-etl-refresh-permissions).
@@ -406,13 +411,15 @@ find_replace:
 **How it works:** fabric-cicd deploys items in dependency order — the Lakehouse is created before the Variable Library. When processing Variable Library files, `$items.Lakehouse.PatternsLakehouse.$id` resolves to the actual lakehouse GUID in the target workspace. The `_ALL_` key means this applies to every environment.
 
 DataPipeline rules also replace physical workspace/model IDs and source
-connection markers. Target model replacement uses
+canonical Dev connections. Target model replacement uses
 `$items.SemanticModel.Patterns_Semantic_Model.$id`; connection replacement uses
 the exact `$ENV:NOTEBOOK_CONNECTION_ID` and
 `$ENV:SEMANTIC_MODEL_REFRESH_CONNECTION_ID` names. The runners enable
 environment-variable replacement and validate both connection GUIDs before
 definition publication. The `>=1.4.0,<1.5.0` library range is required.
-Substituting a GUID does not create or authorize its runtime connection.
+The connection bootstrap, not fabric-cicd's replacement engine, owns resource
+creation/reconciliation. Source preflight checks actual fields and parameter
+baselines so stale feature IDs cannot silently miss a literal replacement.
 
 ---
 
@@ -446,10 +453,11 @@ three publication phases:
 
 ### Step 2: ETL Populates the Lakehouse, Then Refreshes the Model
 
-The ETL workflow (`etl-test.yml` or `etl-prod.yml`) starts the DataPipeline
+The deployment's dependent ETL job starts the DataPipeline
 after successful deployment. Its loader creates/populates `doctors`, `patients`,
 and `appointments`; validation must succeed before native model refresh.
-Configure target Workspace Identity connections before this first execution.
+The publisher's shared bootstrap prepares the target activity connections
+before publication; the default uses the approved SP and WI is optional.
 See the [pipeline contract](#post-etl-semantic-model-refresh); the unchanged
 loader does not refresh the model itself.
 

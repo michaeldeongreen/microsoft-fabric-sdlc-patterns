@@ -487,9 +487,9 @@ Publish 3: DataPipeline (fresh Notebook/Model discovery)
 Post-deploy: one DataPipeline — load → validate → native refresh
 ```
 
-**Also encoded:** item scope, target connection variables, pipeline name lookup,
-success dependencies, and failure behavior. Connections/credentials are
-separately provisioned; a DeploymentPlan orders publication, not these activities.
+**Also encoded:** item scope, automatic connection reconciliation, pipeline
+name lookup, success dependencies, and failure behavior. A DeploymentPlan
+orders publication, not the workload activities or connection bootstrap.
 
 > The pipeline does not need tribal Fabric knowledge when that knowledge is made explicit and testable in the repository.
 
@@ -562,7 +562,7 @@ Prod ETL starts/polls DataPipeline; release checks remain separate
 4. [`reusable-deploy-fabric-cicd.yml`](../.github/workflows/reusable-deploy-fabric-cicd.yml) — authenticates and runs the standard deployment
 5. [`deploy_fabric_cicd_non_bulk.py`](../scripts/deploy_fabric_cicd_non_bulk.py) — controls phases and orphan cleanup
    - [`parameter.yml`](../data/fabric/parameter.yml) — rewrites target workspace/item IDs before upload
-6. [`etl-prod.yml`](../.github/workflows/etl-prod.yml) — starts ETL only after deployment succeeds
+6. [`reusable-fabric-etl.yml`](../.github/workflows/reusable-fabric-etl.yml) — the caller's dependent `run-etl` job starts the pipeline only after deployment succeeds
 
 ---
 
@@ -601,8 +601,9 @@ Be explicit about current versus recommended controls when showing Settings.
 
 # Deployment is not the end
 
-[`etl-prod.yml`](../.github/workflows/etl-prod.yml) starts/polls
-`Patterns_Load_Validate_And_Refresh` after deployment success.
+The deployment caller's dependent `run-etl` job starts/polls
+`Patterns_Load_Validate_And_Refresh` after publication succeeds, using the
+same workflow revision.
 
 - Fabric owns **load → read-only validation → native refresh**. No second refresh.
 - Library `minimum_patient_count`: positive Integer policy, baseline `5`.
@@ -620,9 +621,9 @@ publish definitions + target bindings
 
 <!--
 Model-owner source access and consumer date-field/DAX checks remain separate.
-workflow_run still uses the default-branch listener: during rollout manually
-dispatch Test ETL from test after old automatic runs finish. A same-stage needs
-chain is a separate follow-up, not solved by adding a Fabric DataPipeline.
+The same-revision needs chain replaces default-branch workflow_run listeners.
+Standalone ETL workflows remain manual recovery tools; changed workflow names
+prevent old listeners from starting duplicate pipeline jobs during rollout.
 -->
 
 ---

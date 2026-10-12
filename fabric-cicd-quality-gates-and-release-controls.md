@@ -67,7 +67,8 @@ At PR, inspect source definitions/code. After publication, inspect effective tar
 
 - Validate definition structure, connections, parameters, and dependency references against the target configuration.
 - Run critical paths on controlled Test input; check terminal execution, failure handling, and expected outputs. Verify the runtime source/destination identity, not just the deployer's access. [Connections](https://learn.microsoft.com/en-us/fabric/data-factory/data-source-management).
-- For this sample, verify both Workspace Identity connections, physical
+- For this sample, verify both automatically resolved connections (default SP,
+  optional Workspace Identity), physical
   model/workspace substitutions, the active Library's positive Integer minimum,
   and the independent String run label. User-authored/user-started feature
   activity success does not prove CI service-principal publication/start or

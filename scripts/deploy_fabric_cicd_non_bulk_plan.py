@@ -31,7 +31,9 @@ from fabric_cicd import (
 )
 
 from deployment_plan import DeploymentSchedule, load_schedule, validate_guid
-from pipeline_bindings import require_pipeline_connections
+from prepare_fabric_workspace import (
+    FABRIC_SCOPE, connection_mode, prepare_pipeline_connections, validate_deployment_source,
+)
 
 INCLUSION_FLAGS = (
     "enable_experimental_features", "enable_items_to_include",
@@ -75,7 +77,12 @@ def deploy_schedule(
 ) -> None:
     validate_item_types(schedule.item_types)
     workspace_id = validate_guid(workspace_id, "FABRIC_WORKSPACE_ID")
-    require_pipeline_connections(schedule.repository_directory)
+    if "DataPipeline" in schedule.item_types:
+        validate_deployment_source(schedule.repository_directory, target_workspace_id=workspace_id)
+        connection_mode()
+        prepare_pipeline_connections(
+            schedule.repository_directory, workspace_id, lambda: credential.get_token(FABRIC_SCOPE).token,
+        )
     remove_feature_flag("enable_bulk_publish")
     for flag in INCLUSION_FLAGS:
         append_feature_flag(flag)
@@ -174,7 +181,11 @@ def main(argv: list[str] | None = None) -> None:
     credential = ClientSecretCredential(
         tenant_id=tenant_id, client_id=client_id, client_secret=client_secret
     )
-    deploy_schedule(schedule, workspace_id, environment, credential)
+    try:
+        deploy_schedule(schedule, workspace_id, environment, credential)
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f"::error::{exc}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

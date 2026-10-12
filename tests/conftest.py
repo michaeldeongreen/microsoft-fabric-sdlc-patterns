@@ -10,10 +10,14 @@ from pathlib import Path
 import pytest
 
 from pipeline_bindings import BASELINE_VALUES, rewrite
+from pipeline_bindings import DevPipelineBindings
+from prepare_fabric_workspace import record_dev_bindings
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 NOTEBOOK_CONNECTION_ID = "aaaaaaa1-1111-4111-8111-111111111111"
 REFRESH_CONNECTION_ID = "bbbbbbb2-2222-4222-8222-222222222222"
+DEV_NOTEBOOK_CONNECTION_ID = "33333333-1111-4333-8333-333333333333"
+DEV_REFRESH_CONNECTION_ID = "44444444-2222-4444-8444-444444444444"
 
 
 @pytest.fixture
@@ -24,6 +28,21 @@ def pipeline_connection_environment(monkeypatch: pytest.MonkeyPatch) -> dict[str
     }
     for name, value in values.items():
         monkeypatch.setenv(name, value)
+    monkeypatch.setenv("FABRIC_CONNECTION_MODE", "existing")
+
+    def existing_connections(
+        client: object, workspace_id: str, *, mode: str,
+        notebook_connection_id: str | None, refresh_connection_id: str | None,
+        authentication: str, credentials: dict[str, str] | None,
+    ) -> dict[str, str]:
+        assert mode == "existing"
+        assert notebook_connection_id == NOTEBOOK_CONNECTION_ID
+        assert refresh_connection_id == REFRESH_CONNECTION_ID
+        assert authentication == "ServicePrincipal"
+        assert credentials is None
+        return values
+
+    monkeypatch.setattr("prepare_fabric_workspace.ensure_pipeline_connections", existing_connections)
     return values
 
 
@@ -57,4 +76,8 @@ def canonical_fabric_repository(tmp_path: Path) -> Path:
     settings = json.loads(settings_path.read_text(encoding="utf-8"))
     settings["valueSetsOrder"] = [name for name in settings["valueSetsOrder"] if name in {"Test", "Prod"}]
     settings_path.write_text(json.dumps(settings), encoding="utf-8")
+    record_dev_bindings(directory, DevPipelineBindings(
+        defaults["target_workspace_id"], BASELINE_VALUES["Semantic model"],
+        DEV_NOTEBOOK_CONNECTION_ID, DEV_REFRESH_CONNECTION_ID,
+    ), rewrite_source=True)
     return directory

@@ -53,10 +53,10 @@ Git repo (dev branch)
 │          (Post-deploy: PATCH VariableLibrary        │
 │           active value set)                         │
 └─────────────────────────────────────────────────────┘
-                     │ workflow_run (on success)
+                     │ needs: deploy-bulk
                      ▼
 ┌─────────────────────────────────────────────────────┐
-│  etl-test.yml                                       │
+│  deploy-test-bulk.yml: run-etl (same revision)       │
 │    └─ reusable-fabric-etl.yml                       │
 │       └─ Fabric REST API: run DataPipeline + wait   │
 └─────────────────────────────────────────────────────┘
@@ -66,7 +66,8 @@ Git repo (dev branch)
        → native refresh of Patterns_Semantic_Model
 ```
 
-The same pattern applies to Prod (`deploy-prod-bulk.yml` → `etl-prod.yml`), triggered on push to `main`.
+The same pattern applies to Prod: `deploy-prod-bulk.yml` owns its dependent
+pipeline job, triggered on push to `main`.
 
 Like the [default fabric-cicd non-bulk route](fabric-hybrid-cicd-guide.md#architecture-overview),
 raw REST first creates items whose IDs dependents need. It now has a third
@@ -119,8 +120,8 @@ microsoft-fabric-sdlc-patterns/
 │   └── workflows/
 │       ├── deploy-test-bulk.yml             # Orchestrator: push to test → bulk deploy
 │       ├── deploy-prod-bulk.yml             # Orchestrator: push to main → bulk deploy
-│       ├── etl-test.yml                     # Triggers after any deploy-test* workflow succeeds
-│       ├── etl-prod.yml                     # Triggers after any deploy-prod* workflow succeeds
+│       ├── etl-test.yml                     # Manual Test pipeline recovery
+│       ├── etl-prod.yml                     # Manual Prod pipeline recovery
 │       ├── reusable-deploy-bulk.yml         # Template: Bulk Import API deployment
 │       ├── reusable-fabric-etl.yml          # Template: start/poll one Fabric job
 │       ├── check-pr-ready.yml               # PR check: blocks feature IDs from merging to dev
@@ -165,9 +166,9 @@ maps every caller and template.
 | Event | Workflow Triggered | What It Does |
 |---|---|---|
 | Push to `test` (Fabric definitions or workflow changes), `DEPLOY_METHOD=bulk` | `deploy-test-bulk.yml` | Imports workload definitions to Test, excluding DeploymentPlan control items |
-| `deploy-test-bulk.yml` completes successfully | `etl-test.yml` | Starts/polls `Patterns_Load_Validate_And_Refresh` in Test |
+| `deploy-test-bulk.yml` deployment job succeeds | Its dependent `run-etl` job | Starts/polls `Patterns_Load_Validate_And_Refresh` in Test, using the same revision |
 | Push to `main` (Fabric definitions or workflow changes), `DEPLOY_METHOD=bulk` | `deploy-prod-bulk.yml` | Imports workload definitions to Prod, excluding DeploymentPlan control items |
-| `deploy-prod-bulk.yml` completes successfully | `etl-prod.yml` | Starts/polls the same pipeline in Prod through configured protections |
+| `deploy-prod-bulk.yml` deployment job succeeds | Its dependent `run-etl` job | Starts/polls the same pipeline in Prod through configured protections |
 
 Set `DEPLOY_METHOD=bulk` for this route. For other values and their capabilities,
 use the [README method matrix](README.md#choose-a-deployment-method). Unselected
@@ -189,7 +190,7 @@ Each deploy workflow calls `reusable-deploy-bulk.yml`, which invokes `scripts/de
 
 The Bulk Import API can return `200 OK` with the result body inline, or `202 Accepted` with a Long-Running Operation (LRO). The script handles both transparently — see [Gotchas](#lro-polling).
 
-The ETL workflow starts the pipeline only after deployment succeeds. Fabric
+The dependent ETL job starts the pipeline only after deployment succeeds. Fabric
 then owns load → validation → native refresh. A failed activity prevents its
 success dependents; GitHub does not perform an external refresh.
 
@@ -225,7 +226,10 @@ Reusable workflows support the `environment:` keyword at the job level, which en
 
 ### Manual Re-runs via `workflow_dispatch`
 
-`etl-test.yml` and `etl-prod.yml` both support `workflow_dispatch` so an operator can manually re-trigger the ETL job from the Actions UI without a new deploy. This was added to work around a `workflow_run` quirk: re-running a `workflow_run`-triggered run uses the workflow file frozen at the original trigger time, not the current default branch. For ad-hoc recovery from transient failures or workflow-file fixes that just landed on `main`, the manual dispatch is the path of least friction.
+`etl-test.yml` and `etl-prod.yml` are manual recovery workflows. Automatic ETL
+is a dependent job in the deployment workflow, so it uses that branch's
+revision rather than a default-branch listener. Dispatch recovery from `test`
+for Test or `main` for Prod; it does not republish definitions.
 
 ---
 
@@ -437,10 +441,11 @@ The first three secrets are identical across environments (single SPN). `FABRIC_
 - Test: the Test workspace ID
 - Prod: the Prod workspace ID
 
-These credentials authenticate CI publication and Fabric job submission.
-Activities instead use separately provisioned Workspace Identity connections.
-Add the two [Environment connection variables](SETUP.md#environment-variables)
-and share connection use with CI; verify
+These credentials authenticate publication/job submission and, by default,
+the two automatically managed ServicePrincipal activity connections.
+The shared bootstrap discovers/creates the connections and supplies their
+IDs in memory before substitution. Existing-only and Workspace Identity
+alternatives are described in [Setup](SETUP.md#environment-variables); verify
 [runtime/model/source permissions](SETUP.md#post-etl-refresh-permissions).
 Successful raw publishing does not prove activity or consumer authorization.
 
@@ -569,12 +574,12 @@ example does not attach a native plan to its request; the
 
 ### `workflow_run` Quirk: Re-runs Use the Frozen Workflow File
 
-Re-running a `workflow_run`-triggered ETL run uses the workflow file frozen at the time the trigger fired, not the current default branch. If a workflow-file fix lands on `main` after the trigger fires, neither the auto-retry nor `gh run rerun` picks it up. To recover from a transient failure or a workflow-file fix, use the `workflow_dispatch` manual trigger added to `etl-test.yml` and `etl-prod.yml`.
-
-During rollout, `workflow_run` also reads its listener from the default branch.
-After old automatic runs finish, manually dispatch Test ETL from `test` to
-validate the changed caller/template. The DataPipeline does not fix this
-main-branch coupling; a same-stage `needs` chain remains a separate follow-up.
+This heading is retained for older links. The old automatic listener design
+has been replaced with a same-workflow `needs` chain. An old run still uses its
+original revision; rerunning it is not a way to test new code. Use a new
+deployment dispatch or the manual recovery workflow on the intended branch.
+The renamed `Deploy and Run Pipeline` callers also avoid matching legacy
+default-branch listeners during rollout, preventing duplicate automatic ETLs.
 
 ### `?beta=true` Required Today
 

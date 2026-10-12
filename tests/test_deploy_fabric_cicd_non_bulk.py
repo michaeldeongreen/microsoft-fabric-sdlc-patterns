@@ -122,6 +122,7 @@ def test_missing_pipeline_connection_configuration_fails_before_authentication_o
     configure_runner(monkeypatch, canonical_fabric_repository, None)
     monkeypatch.delenv("NOTEBOOK_CONNECTION_ID", raising=False)
     monkeypatch.delenv("SEMANTIC_MODEL_REFRESH_CONNECTION_ID", raising=False)
+    monkeypatch.setenv("FABRIC_CONNECTION_MODE", "existing")
     workspace, credentials = Mock(), Mock()
     monkeypatch.setattr(deploy, "FabricWorkspace", workspace)
     monkeypatch.setattr(deploy, "ClientSecretCredential", credentials)

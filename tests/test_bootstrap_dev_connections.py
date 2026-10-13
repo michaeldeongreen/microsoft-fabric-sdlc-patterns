@@ -20,6 +20,7 @@ REFRESH = "dddddddd-4444-4444-8444-dddddddddddd"
 TENANT = "eeeeeeee-5555-4555-8555-eeeeeeeeeeee"
 CLIENT = "ffffffff-6666-4666-8666-ffffffffffff"
 SECRET = "unit-test-only-do-not-export"
+GROUP = "abababab-7777-4777-8777-abababababab"
 REPOSITORY = "example/workshop"
 SHA = "a" * 40
 ROOT = Path(__file__).resolve().parents[1]
@@ -49,7 +50,10 @@ def actions_environment(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
         "AZURE_TENANT_ID": TENANT, "AZURE_CLIENT_ID": CLIENT,
         "AZURE_CLIENT_SECRET": SECRET, "FABRIC_WORKSPACE_ID": WORKSPACE,
     }
-    for key in ("SEMANTIC_MODEL_NAME", bootstrap.NOTEBOOK_CONNECTION_ENV, bootstrap.REFRESH_CONNECTION_ENV):
+    for key in (
+        "SEMANTIC_MODEL_NAME", bootstrap.NOTEBOOK_CONNECTION_ENV,
+        bootstrap.REFRESH_CONNECTION_ENV, bootstrap.DEV_OPERATOR_GROUP_ENV,
+    ):
         monkeypatch.delenv(key, raising=False)
     for key, value in values.items():
         monkeypatch.setenv(key, value)
@@ -199,6 +203,90 @@ def test_repeated_bootstrap_uses_shared_ensure_without_publishing_or_running(
     client.request.assert_not_called()
 
 
+def group_assignment(role: str = "User") -> dict[str, object]:
+    return {"id": GROUP, "principal": {"id": GROUP, "type": "Group"}, "role": role}
+
+
+def test_operator_grants_scope_only_both_dev_connections_and_repeat_without_writes() -> None:
+    client = Mock(spec=FabricRestClient)
+    grants: dict[str, list[dict[str, object]]] = {
+        f"/connections/{NOTEBOOK}/roleAssignments": [],
+        f"/connections/{REFRESH}/roleAssignments": [],
+    }
+    client.list.side_effect = lambda path: grants[path]
+
+    def assign(method: str, path: str, body: dict[str, object]) -> dict[str, object]:
+        assert method == "POST"
+        assert path in grants
+        assert body == {"principal": {"id": GROUP, "type": "Group"}, "role": "User"}
+        grants[path] = [group_assignment()]
+        return group_assignment()
+
+    client.request.side_effect = assign
+    for _ in range(2):
+        bootstrap.grant_dev_operator_access(client, artifact().bindings, GROUP)
+    assert client.request.call_count == 2
+    assert {call.args[1] for call in client.request.call_args_list} == set(grants)
+
+
+@pytest.mark.parametrize("role", ["User", "UserWithReshare", "Owner"])
+def test_existing_operator_roles_are_preserved_without_downgrade(role: str) -> None:
+    client = Mock(spec=FabricRestClient)
+    client.list.return_value = [group_assignment(role)]
+    bootstrap.grant_dev_operator_access(client, artifact().bindings, GROUP)
+    client.request.assert_not_called()
+
+
+@pytest.mark.parametrize("value", ["", "not-a-guid", " " + GROUP, WORKSPACE, MODEL, NOTEBOOK])
+def test_invalid_operator_ids_fail_before_connection_reads_or_grants(value: str) -> None:
+    client = Mock(spec=FabricRestClient)
+    with pytest.raises((bootstrap.BootstrapMetadataError, FabricConnectionError)):
+        bootstrap.grant_dev_operator_access(client, artifact().bindings, value)
+    client.list.assert_not_called()
+    client.request.assert_not_called()
+
+
+@pytest.mark.parametrize("rows", [
+    [group_assignment(), group_assignment()],
+    [{"id": GROUP, "principal": {"id": GROUP, "type": "User"}, "role": "User"}],
+    [{"id": GROUP, "principal": {"id": GROUP, "type": "Group"}, "role": "Contributor"}],
+    [{"id": GROUP, "role": "User"}],
+    [{"id": GROUP, "principal": {"id": GROUP, "type": []}, "role": "User"}],
+    [{"id": GROUP, "principal": {"id": GROUP, "type": "Group"}, "role": []}],
+])
+def test_invalid_operator_role_metadata_fails_without_grants(rows: list[dict[str, object]]) -> None:
+    client = Mock(spec=FabricRestClient)
+    client.list.return_value = rows
+    with pytest.raises(bootstrap.BootstrapMetadataError):
+        bootstrap.grant_dev_operator_access(client, artifact().bindings, GROUP)
+    client.request.assert_not_called()
+
+
+def test_operator_sharing_failure_propagates() -> None:
+    client = Mock(spec=FabricRestClient)
+    client.list.return_value = []
+    client.request.side_effect = RuntimeError("Connection sharing denied")
+    with pytest.raises(RuntimeError, match="sharing denied"):
+        bootstrap.grant_dev_operator_access(client, artifact().bindings, GROUP)
+
+
+def test_second_connection_preflight_failure_does_not_partially_share_the_first() -> None:
+    client = Mock(spec=FabricRestClient)
+    client.list.side_effect = [[], RuntimeError("Connection role read denied")]
+    with pytest.raises(RuntimeError, match="role read denied"):
+        bootstrap.grant_dev_operator_access(client, artifact().bindings, GROUP)
+    client.request.assert_not_called()
+
+
+def test_successful_post_is_not_reported_as_a_verified_grant_without_readback() -> None:
+    client = Mock(spec=FabricRestClient)
+    client.list.return_value = []
+    client.request.return_value = group_assignment()
+    with pytest.raises(bootstrap.BootstrapMetadataError, match="not confirmed"):
+        bootstrap.grant_dev_operator_access(client, artifact().bindings, GROUP)
+    assert client.request.call_count == 1
+
+
 def test_actions_main_exports_only_metadata(
     actions_environment: dict[str, str], tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
@@ -213,9 +301,53 @@ def test_actions_main_exports_only_metadata(
     assert bootstrap.parse_bootstrap_artifact(json.loads(output.read_text(encoding="utf-8"))) == artifact()
     log = capsys.readouterr()
     assert SECRET not in log.out + log.err
+    assert "human connection access was not established or verified" in log.out
     assert WORKSPACE not in log.out + log.err
     assert TENANT not in output.read_text(encoding="utf-8")
     assert SECRET not in output.read_text(encoding="utf-8")
+
+
+def test_main_verifies_supplied_operator_group_before_export(
+    actions_environment: dict[str, str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(bootstrap.DEV_OPERATOR_GROUP_ENV, GROUP)
+    client = fake_client()
+    monkeypatch.setattr(bootstrap, "actions_client", Mock(return_value=client))
+    monkeypatch.setattr(bootstrap, "collect_bindings", Mock(return_value=artifact().bindings))
+    grant = Mock()
+    monkeypatch.setattr(bootstrap, "grant_dev_operator_access", grant)
+    output = tmp_path / bootstrap.BOOTSTRAP_FILENAME
+    bootstrap.main(["--output", str(output)])
+    grant.assert_called_once_with(client, artifact().bindings, GROUP)
+    assert bootstrap.parse_bootstrap_artifact(json.loads(output.read_text(encoding="utf-8"))) == artifact()
+
+
+def test_invalid_supplied_operator_group_fails_before_authentication(
+    actions_environment: dict[str, str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(bootstrap.DEV_OPERATOR_GROUP_ENV, "not-a-group-guid")
+    auth = Mock()
+    monkeypatch.setattr(bootstrap, "actions_client", auth)
+    output = tmp_path / bootstrap.BOOTSTRAP_FILENAME
+    with pytest.raises(SystemExit) as result:
+        bootstrap.main(["--output", str(output)])
+    assert result.value.code == 1
+    auth.assert_not_called()
+    assert not output.exists()
+
+
+def test_group_sharing_failure_prevents_artifact_export(
+    actions_environment: dict[str, str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(bootstrap.DEV_OPERATOR_GROUP_ENV, GROUP)
+    monkeypatch.setattr(bootstrap, "actions_client", Mock(return_value=fake_client()))
+    monkeypatch.setattr(bootstrap, "collect_bindings", Mock(return_value=artifact().bindings))
+    monkeypatch.setattr(bootstrap, "grant_dev_operator_access", Mock(side_effect=RuntimeError("Sharing denied")))
+    output = tmp_path / bootstrap.BOOTSTRAP_FILENAME
+    with pytest.raises(SystemExit) as result:
+        bootstrap.main(["--output", str(output)])
+    assert result.value.code == 1
+    assert not output.exists()
 
 
 def test_local_execution_is_not_a_secret_based_fallback(
@@ -272,6 +404,7 @@ def test_workflow_bootstraps_only_dev_and_uploads_metadata_after_success() -> No
     execute = next(step for step in job["steps"] if "bootstrap_dev_connections.py" in step.get("run", ""))
     for name in ("AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET", "FABRIC_WORKSPACE_ID"):
         assert execute["env"][name] == f"${{{{ secrets.{name} }}}}"
+    assert execute["env"][bootstrap.DEV_OPERATOR_GROUP_ENV] == "${{ vars.DEV_CONNECTION_GROUP_ID }}"
     upload = job["steps"][-1]
     assert upload["with"]["name"] == bootstrap.BOOTSTRAP_ARTIFACT
     assert upload["with"]["path"] == f"bootstrap-output/{bootstrap.BOOTSTRAP_FILENAME}"

@@ -48,10 +48,9 @@ this sample; do not run it against business Production data.
 - Permission to fork the repository and administer the fork.
 - A fine-grained personal access token (PAT) scoped to the fork with
   `Contents: Read and write`. Fabric uses this user-specific token for Git
-  authoring integration. Do not commit it. The separate read-only automation
-  PAT used by Dev's SP Git connection is stored only as the approved
-  `FABRIC_GITHUB_TOKEN` Environment secret; do not reuse a broader authoring
-  token for automation.
+  authoring integration. Do not commit it or copy it into Actions. Dev updates
+  from Git through the human operator's existing Fabric Git connection;
+  no SP-owned Git connection or additional automation PAT is required.
 - GitHub Actions enabled on the fork.
 
 ### Azure
@@ -96,7 +95,7 @@ recommended, not required:
 
 | Workspace | Git-connected? | Service principal role |
 |---|---|---|
-| `microsoft-fabric-sdlc-patterns-dev` | Yes, to `dev` | Contributor for automated Git sync and pipeline execution |
+| `microsoft-fabric-sdlc-patterns-dev` | Yes, to `dev` | Contributor for connection bootstrap and activity execution |
 | `microsoft-fabric-sdlc-patterns-test` | No | Contributor |
 | `microsoft-fabric-sdlc-patterns-prod` | No | Contributor |
 
@@ -145,6 +144,26 @@ the routine publisher, then select the read-only
 non-secret references; tokens and credentials are never written to the Dev
 manifest, pipeline JSON, or parameter files. See [Notebook identity setup](https://learn.microsoft.com/en-us/fabric/data-factory/notebook-activity)
 and [native refresh settings](https://learn.microsoft.com/en-us/fabric/data-factory/semantic-model-refresh-activity).
+
+**Manual Dev operator access:** the human who updates Dev from Git and starts
+its pipeline must be allowed to use both SP-owned activity connections.
+Workspace or tenant administration and the human Git PAT do not grant that
+connection permission automatically.
+
+For the workshop, configure one explicitly trusted Entra security group that
+includes those operators. Set its non-secret **group object ID** as
+`DEV_CONNECTION_GROUP_ID` in the GitHub `Dev` Environment variables, then run
+the existing Dev bootstrap. The owning SP ensures **User** on exactly the Dev
+Notebook and refresh connections, preserving any already stronger assignment.
+It does not share with all workspace users or grant Owner/resharing rights.
+
+An approved pre-existing grant is a valid alternative. If the group variable
+is absent, bootstrap still creates/reuses the connections and exports their
+IDs, but explicitly warns that human access was not established or verified.
+Do not perform manual Dev update/run until that access has been confirmed.
+An invalid supplied group or a sharing/verification failure fails bootstrap
+before artifact export. Group assignment alone does not prove membership or
+runtime/model-owner authorization.
 
 Also verify:
 
@@ -292,8 +311,8 @@ participant must learn.
   do not need to download it on every feature return.
 - For this repository's initial rollout, merge a small bootstrap-only PR to
   Dev first. Its narrowly filtered push starts setup without a default-branch
-  registration dependency. Keep the actual pipeline migration and Dev sync
-  out of that PR. Forks of the completed workshop sample already ship the
+  registration dependency. Keep the actual pipeline migration out of that PR.
+  Forks of the completed workshop sample already ship the
   workflow, so this extra rollout PR is not repeated for each new pipeline.
 - `/swap-to-dev` obtains the approved output automatically when the local
   manifest is uninitialized. [github_bootstrap.py](scripts/github_bootstrap.py)
@@ -303,35 +322,26 @@ participant must learn.
   or its artifact is expired/mismatched, resolve that prerequisite. Never
   download GitHub secrets or substitute local SPN credentials.
 
-Bootstrap and Dev sync share a concurrency group. Bootstrap does not update
-Git-connected items, load data, run the pipeline, or change the capacity state.
-Later Dev deployment still synchronizes and runs after each qualifying merge.
+Bootstrap is serialized but does not update Git-connected items, load data,
+run the pipeline, or change the capacity state.
 
-### Automated Dev Sync Policy
+### Manual Dev Update and Validation
 
-[sync-dev.yml](.github/workflows/sync-dev.yml) runs after qualifying merges into
-`dev`, using the `Dev` Environment and its own read-only GitHub credential
-connection. It validates the committed manifest/source, connected repository,
-`dev` branch, folder, and exact triggering SHA. It never reconnects the workspace,
-initializes from the wrong direction, commits to Git, or replaces canonical
-connection GUIDs.
+After `/swap-to-dev`, review/commit/push and merge the checked feature PR.
+Then open the Dev workspace in Fabric, select **Update all / Update from Git**,
+review incoming changes or conflicts, and wait for completion. Only then run
+`Patterns_Load_Validate_And_Refresh` in Dev and verify its activities and the
+model/report.
 
-The sample treats Dev as an **integration workspace**, with authoring in feature
-workspaces. Its workflow explicitly selects `source-authoritative` policy:
-only definition modifications to the existing, baseline-managed Semantic Model
-may be restored. For incoming conflicts it uses the documented remote
-resolution; for outgoing-only model changes it re-applies the canonical
-definition to the same item ID. Unrelated edits, additions/deletions, or platform
-metadata changes fail. This addresses possible refresh-generated model diffs
-without a bot commit or an invented metadata-normalization rule.
+There is no push-triggered Dev Git synchronization or pipeline execution.
+Your human Git connection continues to use its existing PAT; the CI SP needs
+no GitHub PAT or Git credential configuration for this workflow. Test/Prod
+publishing and pipeline execution remain automated.
 
-The final Git status must be clean and both heads must match the target commit
-before the pipeline job starts. Whether canonical definition replacement clears
-every refresh-generated diff still requires live acceptance; residual drift
-fails visibly. For a shared human-authoring Dev workspace, set
-`DEV_GIT_SYNC_POLICY=strict`: it refuses all outgoing edits/conflicts instead
-of discarding the managed model's edits. Approvals and this policy do not elevate
-Fabric permissions.
+Git or refresh-generated workspace differences must be reviewed in the UX;
+do not automatically overwrite them or commit runtime changes merely to make
+the workspace appear clean. Connection-use permissions remain a separate
+prerequisite from workspace roles and Git credentials.
 
 Run `Patterns_Load_Validate_And_Refresh` only after those bindings are correct,
 wait for all three activities, then query the model's required date fields and
@@ -353,15 +363,10 @@ variables:
 | `AZURE_CLIENT_SECRET` | Service-principal client secret |
 | `FABRIC_WORKSPACE_ID` | The corresponding Dev, Test, or Production workspace ID |
 
-Dev Git automation additionally needs a repository-scoped, fine-grained PAT
-with **Contents: Read**, supplied as `FABRIC_GITHUB_TOKEN` for first-time
-Git credential connection creation. The SP uses its own Fabric
-`ConfiguredConnection`; it does not inherit the human Git credential.
-After creation, that connection can be reused without resupplying a PAT.
-An approved precreated connection can instead be supplied through the non-secret
-`FABRIC_GIT_CONNECTION_ID` variable. PAT expiry/rotation remains an operational
-responsibility. The temporary Actions `GITHUB_TOKEN` is not substituted for the
-documented PAT authentication.
+Dev uses these secrets only for Actions-owned runtime connection bootstrap.
+Its Git synchronization and pipeline start are manual, using the human
+operator's configured Git credentials. No GitHub PAT secret or SP Git
+credential variable is required by Actions.
 
 For `Prod`, require a deployment reviewer and restrict deployments to `main`.
 

@@ -131,30 +131,30 @@ def test_all_publishers_use_automatic_connections_with_optional_existing_ids(nam
         assert job["env"][variable] == f"${{{{ vars.{variable} }}}}"
 
 
-def test_dev_git_sync_is_serialized_and_runs_pipeline_only_after_success() -> None:
-    definition = workflow("sync-dev.yml")
+def test_dev_is_manual_and_only_resource_bootstrap_runs_on_dev_push() -> None:
+    assert not (REPO_ROOT / ".github" / "workflows" / "sync-dev.yml").exists()
+    assert not (REPO_ROOT / "scripts" / "sync_fabric_git.py").exists()
+    definition = workflow("bootstrap-dev.yml")
     assert definition["permissions"] == {"contents": "read"}
     assert definition["on"]["push"]["branches"] == ["dev"]
-    assert "data/fabric-dev-bindings.json" in definition["on"]["push"]["paths"]
+    assert definition["on"]["push"]["paths"] == [
+        ".github/workflows/bootstrap-dev.yml", "scripts/bootstrap_dev_connections.py",
+    ]
     assert definition["concurrency"]["cancel-in-progress"] == "false"
-    sync = definition["jobs"]["sync"]
-    assert sync["environment"] == "Dev"
-    assert sync["if"] == "github.ref == 'refs/heads/dev'"
-    assert int(sync["timeout-minutes"]) == 30
-    assert sync["env"]["GIT_SYNC_POLICY"] == "${{ vars.DEV_GIT_SYNC_POLICY || 'source-authoritative' }}"
-    execute = next(step for step in sync["steps"] if "scripts/sync_fabric_git.py" in step.get("run", ""))
-    assert execute["env"]["FABRIC_GIT_COMMIT"] == "${{ github.sha }}"
-    assert execute["env"]["FABRIC_GIT_REPOSITORY"] == "${{ github.repository }}"
-    assert execute["env"]["FABRIC_GITHUB_TOKEN"] == "${{ secrets.FABRIC_GITHUB_TOKEN }}"
-    assert "GITHUB_TOKEN" not in execute["env"]
+    assert set(definition["jobs"]) == {"bootstrap"}
+    bootstrap = definition["jobs"]["bootstrap"]
+    assert bootstrap["environment"] == "Dev"
+    assert bootstrap["if"] == "github.ref == 'refs/heads/dev'"
+    assert int(bootstrap["timeout-minutes"]) > 0
+    execute = next(step for step in bootstrap["steps"] if "scripts/bootstrap_dev_connections.py" in step.get("run", ""))
     assert "${{" not in execute["run"]
-    assert "--rotate-git-token" in execute["run"]
-    assert not any("git push" in step.get("run", "") or "git commit" in step.get("run", "") for step in sync["steps"])
-    for step in sync["steps"]:
+    assert not any("run_fabric_etl.py" in step.get("run", "") for step in bootstrap["steps"])
+    for step in bootstrap["steps"]:
         if "uses" in step:
             sha = step["uses"].split("@")[1]
             assert len(sha) == 40
             int(sha, 16)
-    assert definition["jobs"]["run-etl"]["needs"] == "sync"
-    assert definition["jobs"]["run-etl"]["with"]["environment"] == "Dev"
-    assert definition["jobs"]["run-etl"]["with"]["item_type"] == "DataPipeline"
+    for path in (REPO_ROOT / ".github" / "workflows").glob("*.yml"):
+        candidate = workflow(path.name)
+        if "dev" in candidate["on"].get("push", {}).get("branches", []):
+            assert path.name == "bootstrap-dev.yml"

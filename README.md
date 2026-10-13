@@ -94,7 +94,7 @@ Feature branch (feature/*)
   │  PR → dev branch
   ▼
 Git repo (dev branch)
-  │  sync-dev.yml → Git update → one Dev pipeline job
+  │  Fabric UX: Update all → run the Dev pipeline manually
   │
   │  PR merge → test branch (source must be dev)
   ▼

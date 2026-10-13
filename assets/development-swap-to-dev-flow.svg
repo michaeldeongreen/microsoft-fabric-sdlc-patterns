@@ -54,5 +54,5 @@
 
   <!-- Post merge -->
   <rect x="20" y="235" width="920" height="30" rx="6" fill="#e8f4fd" stroke="#b8daef"/>
-  <text x="480" y="255" text-anchor="middle" fill="#1a5276" font-weight="bold">First setup is handled by the skill; later Dev swaps are offline. Actions syncs Dev after merge.</text>
+  <text x="480" y="255" text-anchor="middle" fill="#1a5276" font-weight="bold">After merge: update Dev from Git in Fabric, wait for completion, then run the Dev pipeline.</text>
 </svg>

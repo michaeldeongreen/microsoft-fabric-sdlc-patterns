@@ -122,11 +122,19 @@ feature to Dev. Participants never need the application's client secret:
    supported ServicePrincipal activity connections, and uploads
    `fabric-dev-bindings` containing `dev-bindings.json`. Only resource IDs and
    run provenance are exported; no SPN credentials or access tokens are included.
+   For manual Dev use, configure the non-secret `DEV_CONNECTION_GROUP_ID`
+   Environment variable with an explicitly trusted operator group's object ID.
+   Bootstrap grants that group **User** on exactly the two Dev activity
+   connections, idempotently preserving existing stronger assignments.
+   The actual Git updater/runner must belong to the group. Approved existing
+   grants are an alternative; without the variable, bootstrap warns that human
+   access has not been established or verified. Confirm access before Update
+   all or pipeline execution; workspace roles and Git credentials do not imply it.
 3. For this repository's initial migration only, introduce that workflow and
    its source-independent helpers through a **bootstrap-only PR to Dev**.
    Its merge triggers the first bootstrap through `push`; it does not include
-   the Fabric feature definitions, new readiness requirements, or automatic
-   Dev sync. Do not promote an older workload through Test/Prod just to make
+   the Fabric feature definitions or new readiness requirements. Do not
+   promote an older workload through Test/Prod just to make
    the setup workflow available. A fork of the completed sample already has
    this infrastructure; future pipeline features do not need another setup PR.
 4. Let the first `/swap-to-dev` import the output. The helper verifies the
@@ -257,12 +265,21 @@ Before merging back to `dev`, all feature-specific changes must be reverted so d
    Configure it as a required branch-protection status check to block an unsafe
    merge; workflow YAML alone does not enforce that policy.
 
-After merge, the [Dev sync workflow](.github/workflows/sync-dev.yml) uses the
-SP's own approved GitHub credential connection to update the existing
-Git-connected workspace, then starts the same load/validate/refresh pipeline.
-The credential connection is created/reused through documented APIs from an
-approved read-only PAT; the SP does not inherit the human's Git credentials.
-See [Dev environment secrets](SETUP.md#environment-secrets).
+4. **After merge, update Dev manually:** open the Dev workspace's Source
+   control pane in Fabric and select **Update all / Update from Git**. Review
+   incoming changes or conflicts and wait for synchronization to complete.
+   Use the existing user-configured Git connection; no SP-owned Git credential
+   or extra automation PAT is required.
+5. **Run `Patterns_Load_Validate_And_Refresh` in Dev.** The pipeline performs
+   load -> read-only validation -> native Semantic Model refresh. Wait for all
+   three activities, then check the model's date fields and report. Do not
+   also run the loader, validation notebook, or another refresh separately.
+
+The human Git updater and pipeline runner must have the one-time activity
+connection access described in [Setup](SETUP.md#post-etl-refresh-permissions).
+Dev is intentionally manual; merging a PR does not import its definitions or
+start the Dev pipeline. Test/Prod publication and their dependent pipeline jobs
+remain automated.
 
 Git sync reapplies the real Dev IDs recorded in source; there is no post-sync
 patching or recurring manual connection selection. A missing canonical

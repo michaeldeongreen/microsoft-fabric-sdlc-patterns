@@ -2,7 +2,7 @@
 
 # fabric-cicd Non-Bulk CI/CD Guide
 
-This guide describes **fabric-cicd non-bulk**, this repository's default deployment method and recommended starting point. It demonstrates how to deploy Fabric workspace items (Notebooks, Lakehouses, Variable Libraries, Semantic Models, Reports, Ontologies, Data Agents) across environments using GitHub Actions.
+This guide describes **fabric-cicd non-bulk**, this repository's default deployment method and recommended starting point. It demonstrates how to deploy Fabric workspace items (DataPipelines, Notebooks, Lakehouses, Variable Libraries, Semantic Models, Reports, Ontologies, Data Agents) across environments using GitHub Actions.
 
 This page also owns the [shared workflow reference](#github-actions-workflows) for all four methods.
 Dev uses Fabric Git integration; Test/Prod receive API-based deployments.
@@ -44,19 +44,30 @@ Git repo (dev branch)
 │    └─ reusable-deploy-fabric-cicd.yml               │
 │       └─ fabric-cicd: publish_all_items()           │
 │          (Phase 1: Lakehouse + Ontology)            │
-│          (Phase 2: all remaining items)             │
+│          (Phase 2: non-pipeline dependents)         │
+│          (Phase 3: DataPipeline; fresh state)       │
 └─────────────────────────────────────────────────────┘
-                     │ workflow_run (on success)
+                     │ needs: deploy-fabric-cicd
                      ▼
 ┌─────────────────────────────────────────────────────┐
-│  etl-test.yml                                       │
+│  deploy-test.yml: run-etl (same revision)            │
 │    └─ reusable-fabric-etl.yml                       │
-│       ├─ Fabric REST API: run notebook + wait       │
-│       └─ Power BI REST API: refresh model + wait    │
+│       └─ Fabric REST API: run DataPipeline + wait   │
 └─────────────────────────────────────────────────────┘
+                     │ Fabric activity dependencies
+                     ▼
+    Import_Patterns_Data → Validate_Patterns_Data
+       → native refresh of Patterns_Semantic_Model
 ```
 
-The same pattern applies to Prod (`deploy-prod.yml` → `etl-prod.yml`), triggered on push to `main`.
+The same pattern applies to Prod: `deploy-prod.yml` owns its dependent `run-etl`
+job, triggered on push to `main`.
+
+GitHub publishes definitions and starts/polls one
+`Patterns_Load_Validate_And_Refresh` job. Fabric owns validation and the only
+refresh; no GitHub Power BI refresh step or runtime fallback remains. This
+**DataPipeline** orchestrates work, whereas native **Deployment Pipelines**
+promote content and **DeploymentPlan** orders publication.
 
 > Alternative deploy paths exist alongside this default fabric-cicd non-bulk route — raw REST bulk and two fabric-cicd routes with client-read plans — all selected by `DEPLOY_METHOD`. This repository recommends the default non-bulk route as the starting point; see the [method matrix](README.md#choose-a-deployment-method) and the [raw REST guide](fabric-bulk-cicd-guide.md).
 
@@ -75,7 +86,7 @@ respectively. Neither executes a native Deployment Plan.
 | `main` | Prod (microsoft-fabric-sdlc-patterns-prod) | fabric-cicd via GitHub Actions |
 
 - **Dev** workspace is the only Git-connected workspace. Developers branch out from Dev for isolated feature work.
-- **Test** and **Prod** workspaces are NOT Git-connected. They receive deployments exclusively through fabric-cicd.
+- **Test** and **Prod** workspaces are NOT Git-connected. They receive API-based deployments through the selected GitHub route.
 
 ---
 
@@ -92,11 +103,11 @@ microsoft-fabric-sdlc-patterns/
 │       ├── deploy-prod.yml                       # Orchestrator: push to main → fabric-cicd deploy
 │       ├── deploy-test-bulk.yml                  # Alternative orchestrator: bulk API deploy on push to test
 │       ├── deploy-prod-bulk.yml                  # Alternative orchestrator: bulk API deploy on push to main
-│       ├── etl-test.yml                          # Triggers after any deploy-test* workflow succeeds
-│       ├── etl-prod.yml                          # Triggers after any deploy-prod* workflow succeeds
+│       ├── etl-test.yml                          # Manual Test pipeline recovery
+│       ├── etl-prod.yml                          # Manual Prod pipeline recovery
 │       ├── reusable-deploy-fabric-cicd.yml       # Template: fabric-cicd deployment
 │       ├── reusable-deploy-bulk.yml              # Template: Bulk Import API deployment (Preview)
-│       ├── reusable-fabric-etl.yml               # Template: run notebook, then optional model refresh
+│       ├── reusable-fabric-etl.yml               # Template: start/poll one Fabric job
 │       ├── check-pr-ready.yml                    # PR check: blocks feature IDs from merging to dev
 │       ├── run-tests.yml                         # PR check: runs pytest on every PR
 │       └── enforce-promotion-path.yml            # PR check: enforces dev→test→main source-branch promotion
@@ -113,6 +124,8 @@ microsoft-fabric-sdlc-patterns/
 │       │       ├── Test.json
 │       │       └── Prod.json
 │       ├── Import_Patterns_Data.Notebook/   # ETL notebook (creates Delta tables)
+│       ├── Validate_Patterns_Data.Notebook/ # Read-only source checks with base parameters
+│       ├── Patterns_Load_Validate_And_Refresh.DataPipeline/
 │       ├── Patterns_Patients_Data.Notebook/
 │       ├── Patterns_Demo.Notebook/
 │       ├── Patterns_Semantic_Model.SemanticModel/
@@ -122,8 +135,7 @@ microsoft-fabric-sdlc-patterns/
 │   ├── workspace_swap.py                    # Bootstrap/reset feature branch workspace bindings
 │   ├── deploy_fabric_cicd_non_bulk.py       # fabric-cicd deploy (invoked by reusable-deploy-fabric-cicd.yml)
 │   ├── deploy_fabric_rest_bulk.py           # Bulk Import API deploy (invoked by reusable-deploy-bulk.yml)
-│   ├── run_fabric_etl.py                    # Run a Fabric Notebook job (invoked by reusable-fabric-etl.yml)
-│   └── refresh_semantic_model.py            # Post-ETL Power BI refresh (invoked by the same template)
+│   └── run_fabric_etl.py                    # Start/poll Notebook or DataPipeline jobs
 ├── assets/                                  # Architecture diagrams (SVG)
 ├── fabric-cicd-release-options.md           # CI/CD strategy and release option comparison
 ├── fabric-hybrid-cicd-guide.md               # This file
@@ -145,9 +157,17 @@ definitions and workflow files. The complete trigger and route map is in the
 
 ### Deploy Job
 
-Each deploy workflow calls `reusable-deploy-fabric-cicd.yml`, which publishes all supported items from Git to the target workspace using fabric-cicd. It uses a two-phase approach: Phase 1 deploys Lakehouse + Ontology, Phase 2 deploys all remaining items (Variable Library, Notebooks, Semantic Model, Report, Data Agent). Item types are explicitly scoped via `item_type_in_scope`.
+Each deploy workflow calls `reusable-deploy-fabric-cicd.yml`. With a DataPipeline
+in scope, the standard runner makes **three publish calls**: Lakehouse +
+Ontology; non-pipeline dependents (Variable Library, Notebooks, Semantic Model,
+Report, Data Agent); then DataPipeline. fabric-cicd caches workspace state
+within a call, so item order alone does not make newly created notebook/model
+IDs available to pipeline references. The third call uses fresh discovery.
+Without a DataPipeline, the runner retains its two-phase behavior.
+Item types remain explicitly scoped via `item_type_in_scope`.
 
-The ETL workflow triggers automatically after the deploy workflow completes successfully. If the deploy fails, ETL does not run.
+The dependent ETL job starts automatically after the deployment job succeeds.
+If publication fails or the method is unselected, ETL does not run.
 
 <a id="strict-plan-driven-sdk-bulk-14x"></a>
 
@@ -155,15 +175,22 @@ The ETL workflow triggers automatically after the deploy workflow completes succ
 
 Selecting `DEPLOY_METHOD=fabric-cicd-bulk` runs
 [deploy_fabric_cicd_bulk.py](scripts/deploy_fabric_cicd_bulk.py), not the standard
-two-phase runner or the raw REST substitution engine. It requires
+fixed-phase runner or the raw REST substitution engine. It requires
 `DEPLOYMENT_PLAN_PATH` and an explicit, nonempty bulk-eligible type scope.
 [deployment_plan_bulk.py](scripts/deployment_plan_bulk.py) independently reads
 and validates the plan; it does not reuse the non-bulk plan modules.
 
-The current plan yields Lakehouse; Semantic Model + Ontology; Data Agent;
-then the Report, Variable Library, and three Notebooks. Independent ready groups
-share one fabric-cicd selection, not parallel requests. Only successful outcomes release
-the next selection. These are plan-derived batches, not new hardcoded phases.
+The authored plan places the library, required notebooks, and Semantic Model
+before the DataPipeline, alongside the Lakehouse/Ontology/Data Agent dependency
+chains. The pipeline has explicit dependencies on `Patterns_Variables`,
+`Import_Patterns_Data`, `Validate_Patterns_Data`, and `Patterns_Semantic_Model`.
+Independent ready groups share one fabric-cicd selection, not parallel
+requests. The current 11-item sample has declared batch sizes `[1, 5, 2]` and a
+three-item remainder (Report and two demo notebooks): four library selections.
+See the [offline schedule and transport boundaries](fabric-deployment-plan-guide.md#isolated-bulk-adapter-14x);
+preview again after plan/inventory changes rather than assuming a fixed count.
+Only successful outcomes release the next selection. Plan dependencies order
+publication, not ETL execution.
 
 fabric-cicd 1.4.0 applies the existing filtered dynamic replacements from
 [parameter.yml](data/fabric/parameter.yml) while using bulk. Its own dependency
@@ -173,9 +200,9 @@ the existing eligible orphan cleanup once after successful publishing.
 The actual-mode check runs after fabric-cicd publishing returns; an unexpected fallback
 can fail the run but cannot undo any standard writes already performed.
 
-Actual fabric-cicd/mocked-HTTP cold/warm Test/Prod tests observe four bulk definition
-imports per fixture with counts `[1, 2, 1, 5]` and no standard definition POSTs.
-This proves client parameterization and transport, not live service bindings.
+Actual fabric-cicd/mocked-HTTP tests exercise bulk definitions, parameterization,
+and complete item outcomes without standard definition POSTs. This proves
+client contracts and transport, not live service bindings or the CI identity.
 The bulk Report payload retains `byPath`; verify its binding to the model
 published in an earlier selection during live Test validation. Keep the initial
 Ontology/Graph Model, connection, and ETL caveats below until tested otherwise.
@@ -218,9 +245,9 @@ Each pair selects the same method for the corresponding Fabric workspace.
 | `fabric-cicd-bulk` | [deploy-test-fabric-cicd-bulk.yml](.github/workflows/deploy-test-fabric-cicd-bulk.yml) | [deploy-prod-fabric-cicd-bulk.yml](.github/workflows/deploy-prod-fabric-cicd-bulk.yml) |
 | `bulk` | [deploy-test-bulk.yml](.github/workflows/deploy-test-bulk.yml) | [deploy-prod-bulk.yml](.github/workflows/deploy-prod-bulk.yml) |
 
-- Standard and raw REST callers watch `data/fabric/**` and `.github/workflows/**`.
+- All callers watch Fabric definitions, the Dev binding manifest, shared connection/preparation helpers, their runner, and workflows.
 - Both plan routes additionally watch `deployment-plans/**`, their own runner/reader, and `requirements-dev.txt`. Add any custom plan location to the applicable caller filters.
-- Only [non-bulk-plan Test](.github/workflows/deploy-test-fabric-cicd-plan.yml) supports `workflow_dispatch` for deployment, and only on branch `test`.
+- All callers support `workflow_dispatch`, restricted to `test` for Test and `main` for Prod.
 - An unknown selector skips all deployment jobs. Changing the variable alone does not trigger a deployment.
 
 ### Reusable Templates (called via `workflow_call`)
@@ -235,63 +262,105 @@ its scoped secrets; reviewers apply only if the owner configured protection.
 | [reusable-deploy-fabric-cicd-plan.yml](.github/workflows/reusable-deploy-fabric-cicd-plan.yml) | [deploy_fabric_cicd_non_bulk_plan.py](scripts/deploy_fabric_cicd_non_bulk_plan.py) | Preview an authored plan, publish individual groups then remaining items, and clean up eligible orphans. |
 | [reusable-deploy-fabric-cicd-bulk.yml](.github/workflows/reusable-deploy-fabric-cicd-bulk.yml) | [deploy_fabric_cicd_bulk.py](scripts/deploy_fabric_cicd_bulk.py) | Preview grouped plan selections, require bulk mode/item outcomes, and clean up eligible orphans. |
 | [reusable-deploy-bulk.yml](.github/workflows/reusable-deploy-bulk.yml) | [deploy_fabric_rest_bulk.py](scripts/deploy_fabric_rest_bulk.py) | Build/substitute raw bulk payloads, poll imports, and activate the value set. No orphan cleanup. |
-| [reusable-fabric-etl.yml](.github/workflows/reusable-fabric-etl.yml) | [run_fabric_etl.py](scripts/run_fabric_etl.py), then optionally [refresh_semantic_model.py](scripts/refresh_semantic_model.py) | Resolve an item by display name, run and poll its job, then refresh the configured semantic model only after job success. |
+| [reusable-fabric-etl.yml](.github/workflows/reusable-fabric-etl.yml) | [run_fabric_etl.py](scripts/run_fabric_etl.py) | Resolve an item by display name, start and poll its job, and report failures. The pipeline owns activity execution and refresh. |
 
 ### ETL Callers and Handoff
 
 | Workflow | Trigger | Purpose |
 |---|---|---|
-| [etl-test.yml](.github/workflows/etl-test.yml) | Completed Test deploy workflow or manual run | Runs `Import_Patterns_Data` in Test, then refreshes `Patterns_Semantic_Model` and waits for completion. |
-| [etl-prod.yml](.github/workflows/etl-prod.yml) | Completed Prod deploy workflow or manual run | Runs the same notebook and model refresh in Prod through the shared template and configured Prod protections. |
+| Deployment caller's `run-etl` job | Successful selected deployment job (`needs`) | Starts/polls the pipeline from the same branch revision. |
+| [etl-test.yml](.github/workflows/etl-test.yml) | Manual run on `test` only | Test recovery without another deployment. |
+| [etl-prod.yml](.github/workflows/etl-prod.yml) | Manual run on `main` only | Prod recovery through the configured Environment protections. |
 
-The automated ETL job requires upstream conclusion `success`; manual ETL runs
-are also permitted. Each listener recognizes all four deployment workflow
-names. Keep the listeners on the default branch before switching methods,
-because GitHub loads `workflow_run` listeners there.
+Automatic publication and ETL are one workflow graph, rather than a
+`workflow_run` listener loaded from the default branch. This deliberately
+changes the old handoff: it keeps Test execution aligned with the revision
+being validated and gives one automatic pipeline run per selected deployment.
+Deployment display names start with `Deploy and Run Pipeline` so old listeners
+on `main` do not also start an ETL while this migration is being promoted.
+Stage concurrency spans both publication and ETL; unselected workflows have
+separate concurrency groups so their skipped jobs cannot evict a selected run.
 
 #### Post-ETL Semantic Model Refresh
 
-The reusable template's optional `semantic_model_name` input defaults to empty,
-preserving notebook-only callers. Both shipped Test/Prod callers set it to
-`Patterns_Semantic_Model`. After the notebook or pipeline job completes
-successfully, the GitHub Actions runner invokes
-[refresh_semantic_model.py](scripts/refresh_semantic_model.py) with
-`SEMANTIC_MODEL_NAME` and the existing `FABRIC_WORKSPACE_ID`. The loader notebook
-remains independently runnable and unchanged; no new Fabric item or second ETL
-job is introduced, and no SemPy dependency is needed.
+Both callers select `item_type: DataPipeline` and `job_type: Pipeline`. The
+runner resolves the pipeline by name in `FABRIC_WORKSPACE_ID`, starts it, and
+polls that specific job. The shared runner still supports ordinary Notebook
+jobs without parameters; the shipped follow-up does not run a standalone loader
+in addition to the pipeline.
 
-The script uses `ClientSecretCredential` with the existing Azure secrets but
-requests a separate Power BI token scoped to
-`https://analysis.windows.net/powerbi/api/.default`, not a Fabric API token.
-It lists datasets in the target workspace through the Power BI API, requires
-exactly one model matching the configured name, starts an enhanced refresh,
-and polls that specific refresh request until `Completed`. Missing or ambiguous
-models, authentication/permission errors, service failures, and timeout fail
-the follow-up. Request acceptance alone is not success. See
-[Setup](SETUP.md#post-etl-refresh-permissions) for the required authorization.
+| Activity | Contract |
+|---|---|
+| `Import_Patterns_Data` | Existing unchanged loader; writes the sample Delta tables |
+| `Validate_Patterns_Data` | Read-only schema/source-date-type, non-null/unique-key, appointment-reference, and patient-minimum checks; runs only after load succeeds |
+| Native refresh of `Patterns_Semantic_Model` | Runs only after validation succeeds; full refresh, **Transactional**, **Wait on completion** enabled |
 
-Direct Lake also checks the **model owner's** source permissions independently
-of the refresh caller; verify the owner and the effective connection identity.
-A polling timeout fails the workflow but does not cancel the server-side
-refresh. Inspect that specific request's status/history before retriggering;
-see [recovery checks](SETUP.md#troubleshooting-post-etl-refresh).
+Like `Patterns_Demo`, the validation notebook reads `target_workspace_id` and
+`target_lakehouse_id` from the active `Patterns_Variables` value set, validates
+the GUIDs, and loads Delta tables using explicit OneLake
+`abfss://.../Tables/dbo/...` paths. It does not use an attached Lakehouse or
+Spark catalog table names. The quality threshold still comes from the pipeline
+base parameter; reading target IDs does not bypass that parameter example.
 
-For `Patterns_Semantic_Model`, **Direct Lake on OneLake** refresh performs
-framing of the Delta table references after the loader's writes. It does not
-copy the data again, convert the model's storage mode, or wait for a SQL
-analytics endpoint. Definition publication remains in the existing deployment
-order; only the post-ETL follow-up changes.
+The pipeline is the **only refresh owner**. The previous GitHub refresh
+script, step, and model-name input are retired, not retained behind a switch.
+Refresh failure fails the pipeline; a failed validation prevents refresh.
+Job acceptance alone is not success. The pipeline job wait is bounded at
+60 minutes; activity limits are 20 minutes for load, 10 for validation, and
+10 for refresh, with the native refresh server timeout also set to 10 minutes.
+On failure the runner reports job/activity diagnostics where available.
+A GitHub polling timeout does not cancel work in Fabric; inspect the specific
+pipeline run and refresh history before retrying.
 
-A configured Test/Prod ETL workflow is green only after both the Fabric job
-and its semantic model refresh complete successfully. A failed job never
-starts the refresh. This is not a complete schema, DAX/business-result,
-data-quality, consumer-access, or release-readiness suite. Design those checks
-using the
-[Quality Gates guide](fabric-cicd-quality-gates-and-release-controls.md).
+**Two parameter examples:**
 
-Offline unit tests can validate orchestration and polling, not live model or
-date-field usability. Live end-to-end validation of this automated follow-up
-remains pending while the reference capacity is paused.
+- `minimum_patient_count` is a positive **Integer** in the active
+  `Patterns_Variables` value set, baseline `5` in Default/Test/Prod. The pipeline
+  Library binding supplies it to the validation notebook's base parameter.
+  Validation uses that passed value rather than rereading the threshold.
+  Runtime checks do not require exact fixture counts.
+- `run_label` is an independent **String** pipeline parameter, default
+  `manual`, forwarded to validation. The optional reusable-workflow input
+  supplies `RUN_LABEL`; CI uses a non-secret stage/run label. The runner builds
+  the JSON job body under `executionData.parameters`. Invalid input is not
+  silently replaced by a successful-looking default.
+
+The default Dev/Test/Prod automation uses **ServicePrincipal** connections,
+reusing the already-approved deployment principal. The working feature
+workspace retains **Workspace Identity** connections; that authentication is
+also an explicit secretless alternative.
+The user who authors a pipeline, CI service principal that publishes/starts
+it, connection runtime identity, model owner, and consumer are separate actors.
+The shared [bootstrap](scripts/fabric_connections.py) creates missing managed
+connections, reuses their IDs, and reconciles SP credentials before publishing.
+The runners supply `NOTEBOOK_CONNECTION_ID` and
+`SEMANTIC_MODEL_REFRESH_CONNECTION_ID` in memory. Manual variables are optional
+for the [existing-connections mode](SETUP.md#environment-variables).
+Connections are not deployed from Git, and physical model/connection references
+need target substitutions. Direct Lake separately checks the model owner's
+source access. See [required permissions](SETUP.md#post-etl-refresh-permissions).
+
+**Reference evidence and boundary:** Earlier feature-prototype run
+`01607220-ed7d-4ae0-aeb3-4b37fbc9eaec` completed load → validation → native
+refresh; validation received minimum `5` and API-supplied label
+`feature-api-verification`, and refresh reported `Completed`. Both connection
+types used `WorkspaceIdentity` credentials, without an OAuth fallback.
+The pipeline was created and exported from Fabric; user-authenticated
+Create DataPipeline, GetDefinition, UpdateDefinition, and Pipeline job-start
+requests were exercised in that feature workspace. Preserve the exported
+logical IDs; none of those API successes proves publisher/identity parity.
+Authoring and pipeline invocation used a **user** identity. The current
+validation revision uses explicit OneLake paths and is only offline-validated;
+the prototype run is not live evidence for that revision. Git sync/Branch Out
+resolution of the exported pipeline references, CI service-principal
+publication/start, a service-principal-deployed model's ownership compatibility,
+and Test/Prod end-to-end routes still require live verification.
+
+For this **Direct Lake on OneLake** model, refresh frames Delta references.
+It does not copy data again, convert storage mode, or wait for a SQL analytics
+endpoint. Source checks and refresh completion do not prove model date-field
+queries, DAX/business results, or consumer access. Those remain separate
+[release checks](fabric-cicd-quality-gates-and-release-controls.md).
 
 ### Why Reusable Workflows (Not Composite Actions)
 
@@ -308,7 +377,10 @@ Two complementary mechanisms handle environment-specific configuration:
 
 ### 1. Variable Libraries (Runtime)
 
-Notebooks call `notebookutils.variableLibrary.getLibrary("Patterns_Variables")` at execution time to resolve workspace IDs, lakehouse names, and other values. The Variable Library has **value sets** per environment:
+The loader and validation notebook call `notebookutils.variableLibrary.getLibrary("Patterns_Variables")`
+at execution time for workspace/lakehouse configuration. The pipeline also
+binds the active Library's patient minimum to validation's base parameter.
+The Variable Library has **value sets** per environment:
 
 | Variable | Default (Dev) | Test | Prod |
 |---|---|---|---|
@@ -316,6 +388,7 @@ Notebooks call `notebookutils.variableLibrary.getLibrary("Patterns_Variables")` 
 | `target_workspace_name` | `microsoft-fabric-sdlc-patterns-dev` | `microsoft-fabric-sdlc-patterns-test` | `microsoft-fabric-sdlc-patterns-prod` |
 | `target_lakehouse_name` | `PatternsLakehouse` | *(default)* | *(default)* |
 | `target_lakehouse_id` | Dev lakehouse ID | Dev lakehouse ID* | Dev lakehouse ID* |
+| `minimum_patient_count` (Integer) | `5` | `5` | `5` |
 
 \* Test/Prod inherit `target_lakehouse_id` from the base [variables.json](data/fabric/Patterns_Variables.VariableLibrary/variables.json); their value-set files do not override it. At deploy time, [parameter.yml](data/fabric/parameter.yml) replaces that base placeholder with the target Lakehouse ID. fabric-cicd bulk keeps settings/value-set control files literal; see its [replacement safety boundary](fabric-deployment-plan-guide.md#fabric-cicd-replacements-and-strict-success).
 
@@ -336,6 +409,17 @@ find_replace:
 ```
 
 **How it works:** fabric-cicd deploys items in dependency order — the Lakehouse is created before the Variable Library. When processing Variable Library files, `$items.Lakehouse.PatternsLakehouse.$id` resolves to the actual lakehouse GUID in the target workspace. The `_ALL_` key means this applies to every environment.
+
+DataPipeline rules also replace physical workspace/model IDs and source
+canonical Dev connections. Target model replacement uses
+`$items.SemanticModel.Patterns_Semantic_Model.$id`; connection replacement uses
+the exact `$ENV:NOTEBOOK_CONNECTION_ID` and
+`$ENV:SEMANTIC_MODEL_REFRESH_CONNECTION_ID` names. The runners enable
+environment-variable replacement and validate both connection GUIDs before
+definition publication. The `>=1.4.0,<1.5.0` library range is required.
+The connection bootstrap, not fabric-cicd's replacement engine, owns resource
+creation/reconciliation. Source preflight checks actual fields and parameter
+baselines so stale feature IDs cannot silently miss a literal replacement.
 
 ---
 
@@ -358,19 +442,24 @@ validation and any changed prerequisite configuration remain separate.
 
 With `DEPLOY_METHOD=fabric-cicd` or unset, merge a qualifying `dev -> test` or
 `test -> main` PR containing Fabric definition or workflow changes. Configured
-deployment approvals apply. The standard deploy job executes two phases:
+deployment approvals apply. For this sample, the standard deploy job executes
+three publication phases:
 
 - **Phase 1:** Deploys Lakehouse (empty shell) and Ontology definition
-- **Phase 2:** Deploys all remaining items (Variable Library, Notebooks, Semantic Model, Report, Data Agent) with parameterized lakehouse/workspace IDs
+- **Phase 2:** Deploys non-pipeline dependents (Variable Library, Notebooks,
+  Semantic Model, Report, Data Agent) with target substitutions.
+- **Phase 3:** Publishes the DataPipeline using fresh workspace state so its
+  notebook/model references can resolve IDs created in phase 2.
 
 ### Step 2: ETL Populates the Lakehouse, Then Refreshes the Model
 
-The ETL workflow (`etl-test.yml` or `etl-prod.yml`) triggers automatically after a successful deployment. It runs the `Import_Patterns_Data` notebook, which creates and populates the Delta tables (`doctors`, `patients`, `appointments`) in the Lakehouse.
-
-Only after the notebook succeeds does the shared runner refresh
-`Patterns_Semantic_Model` and wait for that request to complete. See the
-[post-ETL contract](#post-etl-semantic-model-refresh); the notebook does not
-perform the model refresh itself.
+The deployment's dependent ETL job starts the DataPipeline
+after successful deployment. Its loader creates/populates `doctors`, `patients`,
+and `appointments`; validation must succeed before native model refresh.
+The publisher's shared bootstrap prepares the target activity connections
+before publication; the default uses the approved SP and WI is optional.
+See the [pipeline contract](#post-etl-semantic-model-refresh); the unchanged
+loader does not refresh the model itself.
 
 ### Step 3: Configure Graph Model Data Source (Manual)
 
@@ -389,7 +478,9 @@ After configuring the data source, the Ontology may remain stuck on *"Setting up
 
 Confirm all items are functional in the target workspace:
 
-- **Lakehouse** — tables populated with data
+- **Lakehouse** — tables populated and read-only source validation passed
+- **DataPipeline** — target connections/model bindings verified and all three
+  activities completed under the intended activity credentials
 - **Ontology** — overview loads, entity types and relationships visible
 - **Semantic Model** — verify the deployed Direct Lake target, refresh completion, and required owner/connection/source permissions; configure a supported connection if the first deployment needs it, then check fields such as `appointment_date` and `date_of_birth` and the required calculations
 - **Report** — renders with data from the Semantic Model
@@ -405,19 +496,29 @@ Confirm all items are functional in the target workspace:
 
 For the default fabric-cicd non-bulk route, the Variable Library and Semantic Model need a Lakehouse ID that does not exist until the first deployment creates it. `$items` replacements resolve against the target inventory, so a dependent item cannot resolve an undeployed prerequisite. fabric-cicd bulk also has its own staged dependency handling; the caller behavior below describes the default non-bulk route.
 
-**Solution:** The `reusable-deploy-fabric-cicd.yml` workflow uses a **two-phase deployment** approach. Phase 1 calls `publish_all_items()` with `item_type_in_scope=["Lakehouse", "Ontology"]` to create the Lakehouse and Ontology first. The Lakehouse must exist so that `$items.Lakehouse.PatternsLakehouse.$id` resolves for parameter.yml rules. The Ontology must exist so that the Data Agent's logicalId reference resolves (fabric-cicd caches workspace state once per `publish_all_items()` call, so items deployed within the same call aren't visible to later items' logicalId resolution). Phase 2 calls `publish_all_items()` with the remaining item types. On subsequent deployments, both phases are idempotent.
+**Solution:** Phase 1 publishes Lakehouse + Ontology. A fresh phase 2 call can
+resolve their IDs for the library, notebooks, model, report, and Data Agent.
+The same state-cache boundary applies to the new pipeline: phase 3 publishes
+DataPipeline after fresh discovery of its phase 2 notebook/model dependencies.
+Each phase must succeed before the next starts; cleanup follows successful
+publication. These are publication calls, not three workload executions.
+If no DataPipeline exists, the third call is omitted.
 
 ### Item Type Scoping
 
 When `item_type_in_scope` is omitted, fabric-cicd attempts to deploy all item types and may count non-item files (e.g., Report theme resources) as separate items, leading to incorrect item counts.
 
-**Solution:** Explicitly set `item_type_in_scope` in the deploy workflows: `["Lakehouse", "Ontology", "VariableLibrary", "Notebook", "SemanticModel", "Report", "DataAgent"]`. This ensures only valid item types are deployed.
+**Solution:** Explicitly set `item_type_in_scope` in the deploy workflows: `["Lakehouse", "Ontology", "VariableLibrary", "Notebook", "SemanticModel", "Report", "DataAgent", "DataPipeline"]`. This keeps workload types in scope without publishing DeploymentPlan control items.
 
 ### Chicken-and-Egg: ETL Notebook ID
 
-The ETL workflow needs to run a notebook, but the notebook ID differs per workspace and isn't known until after deployment.
+The follow-up now starts a DataPipeline rather than a standalone notebook, but
+the runtime lookup problem is the same: physical item IDs differ by workspace.
 
-**Solution:** The ETL workflow resolves the notebook by **display name** at runtime via the [Fabric List Items API](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/list-items), not by ID. The notebook name (`Import_Patterns_Data`) is consistent across environments because it comes from the Git repo.
+**Solution:** Resolve `Patterns_Load_Validate_And_Refresh` by **display name**
+and item type using the [Fabric List Items API](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/list-items).
+That lookup does not repair activity bindings inside the definition; deployment
+substitutions and connection setup must already target the correct environment.
 
 ### Environment Names Must Match Value Set Names
 

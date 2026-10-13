@@ -39,7 +39,7 @@
 | 5 | [Choosing a release strategy](#5-choosing-a-release-strategy) | The three options, compared honestly |
 | 6 | [Repository default and optional extensions](#6-repository-default-and-optional-extensions) | The starting point and when another publisher might be needed |
 | 7 | [Reference architecture](#7-reference-architecture) | Branches, workspaces, and the end‑to‑end flow |
-| 8 | [How the deployment actually works](#8-how-the-deployment-actually-works) | Two‑phase deploy, config strategy, workflows |
+| 8 | [How the deployment actually works](#8-how-the-deployment-actually-works) | Three-phase publication, config strategy, workflows |
 | 9 | [fabric-cicd versus the Bulk APIs](#9-fabric-cicd-versus-the-bulk-apis) | The tooling choice inside Option 3 |
 | 10 | [Governance and guardrails](#10-governance-and-guardrails) | Identity, RBAC, approvals, audit |
 | 11 | [Where Bicep and Terraform fit](#11-where-bicep-and-terraform-fit) | Infrastructure vs content — a key distinction |
@@ -96,7 +96,7 @@ Some items resolve environment‑specific values **at runtime**; others have IDs
 | Type | How it works | Examples |
 |---|---|---|
 | **Dynamic (Variable Library)** | The item reads IDs from a Variable Library at runtime. Switch the active value set → the environment context switches. No file changes. | Notebooks using `notebookutils.variableLibrary.getLibrary()` |
-| **Static (hardcoded)** | The definition contains literal workspace/lakehouse GUIDs that must be rewritten per environment. | Semantic Model Direct Lake URL ([`expressions.tmdl`](../data/fabric/Patterns_Semantic_Model.SemanticModel/definition/expressions.tmdl)), Notebook META blocks ([`default_lakehouse`](../data/fabric/Import_Patterns_Data.Notebook/notebook-content.py)) — both hardcode the [`PatternsLakehouse`](../data/fabric/PatternsLakehouse.Lakehouse/lakehouse.metadata.json) GUID |
+| **Static (hardcoded)** | Physical workspace/item/connection GUIDs need environment-specific replacement; logical IDs remain portable. | Semantic Model Direct Lake URL ([`expressions.tmdl`](../data/fabric/Patterns_Semantic_Model.SemanticModel/definition/expressions.tmdl)), Notebook META lakehouse dependencies, and native-refresh model/connection references in the DataPipeline |
 
 <details>
 <summary><b>▸ Deep dive: Actual IDs vs Logical IDs</b></summary>
@@ -105,10 +105,12 @@ Some items resolve environment‑specific values **at runtime**; others have IDs
 
 Within the *static* category, there is a further split that determines whether a file must be rewritten at all:
 
-- **Actual IDs** (e.g., Semantic Models, Notebooks) embed **real** workspace and lakehouse GUIDs that differ per workspace. They **must** be rewritten when moving between environments.
+- **Actual IDs** (Semantic Models, Notebook dependencies, DataPipeline model/connections)
+  embed physical environment GUIDs. Rewrite the registered references for the target.
 - **Logical IDs** (e.g., Ontology, Data Agent) reference other items via the `.platform` `logicalId`, which **Fabric resolves at runtime** within the current workspace. They are **portable** across workspaces and need **no** rewriting.
 
-This is why the development tooling in this repo only rewrites Semantic Models and Notebooks — the Ontology and Data Agent carry logical references that travel unchanged.
+The tooling rewrites model, Notebook, and registered pipeline physical fields;
+Ontology and Data Agent logical references travel unchanged.
 
 </details>
 
@@ -180,7 +182,11 @@ Because of that constraint, this repo uses a Python script to do the metadata re
 
 ### The Branch Out lifecycle in this repo
 
-When you branch out from `dev`, several items arrive carrying **hardcoded dev IDs** (Semantic Model Direct Lake URL, Notebook META blocks). A script, `scripts/workspace_swap.py`, manages the full lifecycle:
+When you branch out from `dev`, several definitions retain **physical Dev/source
+references**: the model, Notebook dependencies, and DataPipeline model/connections.
+Provision the feature workspace's own Workspace Identity runtime connections
+and enter the five feature GUIDs in `.env`; `workspace_swap.py` rewrites the
+registered fields, not portable logical IDs.
 
 **Swap to a feature workspace** (after branching out):
 
@@ -190,7 +196,9 @@ When you branch out from `dev`, several items arrive carrying **hardcoded dev ID
 
 <p align="center"><img src="../assets/development-swap-to-dev-flow.svg" alt="Swap to Dev Flow"></p>
 
-- **Swap to feature:** reads dev IDs from `variables.json`, reads feature IDs from a gitignored `.env`, creates a feature value set, and rewrites the Semantic Model + Notebook metadata to point at the feature workspace.
+- **Swap to feature:** uses canonical Dev/source baselines and feature `.env`
+  bindings, creates a feature value set, and rewrites model, Notebook, and
+  DataPipeline physical references. Connection provisioning is separate.
 - **Swap to dev:** reverts everything — restoring dev IDs and deleting the feature value set — **before** you open a PR.
 - **PR gate:** `check-pr-ready.yml` blocks the merge to `dev` if dev IDs are not restored or a stray feature value set remains.
 
@@ -199,12 +207,14 @@ When you branch out from `dev`, several items arrive carrying **hardcoded dev ID
 
 <br/>
 
-The script uses an **item‑type registry** — each registered type declares its file patterns, whether it needs ID rewriting, and which IDs to validate. Adding a new item type is a **single registry entry**, not new code.
+The **item-type registry** declares file patterns, rewriting, and validation.
+New physical reference kinds also need explicit baseline/configuration mappings.
 
 | Item Type | ID Type | Rewritten by the script? | Why |
 |---|---|---|---|
 | **SemanticModel** | Actual workspace + lakehouse IDs | **Yes** | Direct Lake URL contains real GUIDs |
 | **Notebook** | Actual workspace + lakehouse IDs | **Yes** (only if `default_lakehouse` present) | META blocks reference real GUIDs |
+| **DataPipeline** | Physical workspace/model/connection IDs | **Yes**, registered fields | Feature IDs restored to Dev/source baselines before PR |
 | **Ontology** | Lakehouse logicalId | **No** | Logical IDs are portable |
 | **DataAgent** | Ontology logicalId | **No** | Cross‑item logical reference, no env‑specific IDs |
 | **VariableLibrary** | Dev lakehouse ID in default set | **Managed** | Value sets created/deleted, not rewritten |
@@ -389,14 +399,18 @@ dev branch  ──────────▶  Dev workspace  (Update from Git)
   ▼
 TEST STAGE  (automated)
   • deploy-test.yml   →  fabric-cicd: publish_all_items()
-  • on success        →  etl-test.yml: run Import_Patterns_Data
+  • needs: deploy     →  same-revision run-etl job: start/poll one DataPipeline
   │
   │  PR merge → main    (source branch must be test)
   ▼
 PROD STAGE  (automated + required Prod approval)
   • deploy-prod.yml   →  fabric-cicd: publish_all_items()
-  • on success        →  etl-prod.yml: run Import_Patterns_Data
+  • needs: deploy     →  same-revision run-etl job: start/poll the same DataPipeline
 ```
+
+Inside `Patterns_Load_Validate_And_Refresh`: existing load → read-only validation
+→ native model refresh, with success dependencies and wait-on-completion.
+Fabric is the only refresh owner; GitHub does not run the loader or refresh again.
 
 | Branch | Workspace | Deployment method |
 |---|---|---|
@@ -404,7 +418,9 @@ PROD STAGE  (automated + required Prod approval)
 | `test` | Test | fabric-cicd non-bulk via GitHub Actions (default) |
 | `main` | Prod | fabric-cicd non-bulk via GitHub Actions (default) |
 
-The deploy and ETL are **chained**: the ETL workflow only runs after its deploy workflow succeeds. If the deploy fails, no ETL runs.
+Deployment and ETL are **chained with `needs` in the same revision**. Failed or
+unselected deployment means no ETL. Manual ETL workflows are recovery tools;
+renamed deployment callers avoid old default-branch listeners during rollout.
 
 <details>
 <summary><b>▸ Deep dive: the demo solution being deployed</b></summary>
@@ -417,9 +433,24 @@ The repository ships a small **healthcare** scenario so the pipeline has somethi
 - **Patterns_Ontology** (Ontology) + **Patterns_Data_Agent** (Data Agent) — graph model and a queryable agent over it.
 - **Patterns_Variables** (Variable Library) — per‑environment value sets.
 - **Import_Patterns_Data**, **Patterns_Patients_Data**, **Patterns_Demo** (Notebooks) — the ETL and demo logic.
+- **Validate_Patterns_Data** (Notebook) — read-only schema/key/reference/source-date
+  checks and a configurable positive patient minimum, not exact fixture counts.
+- **Patterns_Load_Validate_And_Refresh** (DataPipeline) — one load/validation/native-refresh sequence.
 - **Patterns_Semantic_Model** (Semantic Model) + **Patterns_Report** (Report) — Direct Lake model and its report.
 
-This mix is deliberate: it exercises every hard case — actual IDs (Semantic Model, Notebooks), logical IDs (Ontology, Data Agent), runtime config (Variable Library), and a data‑population step (ETL).
+This mix demonstrates physical IDs, portable logical references, runtime
+configuration, and failure-dependent orchestration. `minimum_patient_count`
+comes from the active Library (Integer, baseline `5`); `run_label` is an
+independent String pipeline parameter (default `manual`, CI override).
+
+The default automation reuses the approved deployment SP in ServicePrincipal
+activity connections; feature Workspace Identity connections remain supported.
+An earlier user-started feature prototype completed all three activities and
+the API label override. The current explicit-OneLake-path validation revision
+is only offline-validated. Git binding resolution, CI service-principal
+publication/start, and Test/Prod end-to-end execution remain live-verification
+gates. Model-owner source access and consumer/model date queries are separate
+checks.
 
 </details>
 
@@ -433,21 +464,27 @@ This mix is deliberate: it exercises every hard case — actual IDs (Semantic Mo
 
 ## 8. How the deployment actually works
 
-> **Takeaway:** In the default fabric-cicd non-bulk route, two mechanisms handle configuration (runtime + deploy‑time), and a two‑phase deploy solves the chicken‑and‑egg problems of a brand‑new workspace.
+> **Takeaway:** Two mechanisms handle configuration (runtime + deploy-time).
+> The default non-bulk route publishes this sample in three phases so fresh
+> workspace discovery can resolve each dependency chain.
 
 ### Configuration strategy — two complementary mechanisms
 
 | | **Variable Libraries (runtime)** | **`parameter.yml` (deploy‑time)** |
 |---|---|---|
-| **When** | At notebook execution | Before items upload to the workspace |
-| **Handles** | Workspace IDs, lakehouse names/IDs resolved at runtime | Hardcoded GUIDs in notebook META, connection IDs, spark pools, model bindings |
+| **When** | At workload execution | Before items upload to the workspace |
+| **Handles** | Loader/validation target values; pipeline Library binding for the validation minimum | Notebook GUIDs and physical pipeline model/connection references |
 | **How** | Workloads read the active set; tooling/operator selects and verifies it | `find_replace`, `$items` dynamic replacement rewrite definitions |
 
 > **Rule of thumb:** use **Variable Libraries as the primary mechanism** (clean runtime auto‑binding), and fall back to `parameter.yml` only for deploy‑time metadata that Variable Libraries cannot reach.
 
-### The two‑phase deploy
+<a id="the-twophase-deploy"></a>
 
-A brand‑new Test or Prod workspace is empty — which creates two chicken‑and‑egg problems. The deploy runs in **two phases** to solve them:
+### The three-phase publish
+
+fabric-cicd caches workspace state within a publish call. Internal item order
+does not expose newly created notebook/model IDs to the pipeline in that same
+call. The default runner uses **three publish phases** when DataPipeline is present:
 
 ```text
 deploy-*.yml triggered
@@ -458,11 +495,24 @@ PHASE 1 — publish_all_items()     scope: Lakehouse + Ontology
   │   Ontology now exists    →  Data Agent logicalId resolves
   ▼
 PHASE 2 — publish_all_items()     scope: Variable Library, Notebooks,
-                                         Semantic Model, Report, Data Agent
+                                      Semantic Model, Report, Data Agent
+  │   Those definitions now exist in the target
+  ▼
+PHASE 3 — publish_all_items()     scope: DataPipeline
+  │   Fresh workspace state resolves Notebook/Model IDs
   │
   ▼
-unpublish_all_orphan_items()   →   workspace matches Git exactly
+unpublish_all_orphan_items()   →   reconcile eligible repository-managed items
 ```
+
+Without DataPipeline, the default runner retains two phases. Raw REST also
+defers DataPipeline to a third batch but captures IDs from response bodies.
+Both plan adapters instead use explicit Library/Import/Validation/Model
+prerequisite edges and a current remainder of the Report plus two demo notebooks.
+The shared bootstrap automatically creates/reuses target connections and
+reconciles SP credentials, supplying GUIDs in memory. Existing-only and
+secretless Workspace Identity paths are explicit
+[alternatives](../SETUP.md#environment-variables).
 
 <details>
 <summary><b>▸ Deep dive: first deployment to a clean workspace</b></summary>
@@ -474,7 +524,9 @@ The very first deploy to a brand-new Test or Prod workspace needs a few **manual
 1. **Bind the Ontology's Graph Model to data** - open the Ontology and use **Get data** to point the Graph Model at the lakehouse tables.
 2. **Nudge the Ontology to finish initializing** - if it stays on "Setting up your ontology," rename any Entity Type and rename it back. This is a known Fabric platform behavior on first deploy.
 
-Then verify end to end: Lakehouse tables populated, Ontology overview loads, Semantic Model connected, Report renders, Data Agent responds. On every subsequent deployment this is all automated - the manual steps are first-deploy only.
+Then verify the pipeline, model date fields, calculations, report, and Data Agent.
+Publication and pipeline execution do not replace those checks; changed
+connections or prerequisites require revalidation on later deployments too.
 
 </details>
 
@@ -485,9 +537,16 @@ Then verify end to end: Lakehouse tables populated, Ontology overview loads, Sem
 
 - **Lakehouse ID.** The Variable Library and Semantic Model need the lakehouse ID, but the lakehouse doesn't exist until the first deploy creates it. Phase 1 creates it so `$items.Lakehouse.PatternsLakehouse.$id` can resolve in Phase 2.
 - **Ontology logicalId.** The Data Agent references the Ontology by logical ID. `fabric-cicd` caches workspace state once per call, so the Ontology must already exist (Phase 1) for the Data Agent's reference to resolve (Phase 2).
-- **ETL notebook ID.** The ETL workflow needs to run a notebook whose ID differs per workspace. It resolves the notebook **by display name** (`Import_Patterns_Data`) via the List Items API at runtime — so no ID needs to be known ahead of time.
+- **Pipeline activity dependencies.** Library, loader, validation, and model
+  precede the pipeline. A fresh phase 3 call resolves phase 2 notebook/model
+  IDs rather than relying on order inside one cached call.
+- **Pipeline job ID.** The ETL runner resolves `Patterns_Load_Validate_And_Refresh`
+  by display name/type via List Items. That lookup does not repair the physical
+  activity model/connection IDs, which deployment must parameterize.
 
-On subsequent deployments, both phases are idempotent. `fabric-cicd` does a **full deploy every run** by design — the workspace always matches Git exactly.
+Publication phases are repeatable, but publication does not restore data
+or verify connections. `fabric-cicd` publishes retained definitions, not an
+exact copy of every aspect of workspace state.
 
 </details>
 
@@ -499,9 +558,9 @@ On subsequent deployments, both phases are idempotent. `fabric-cicd` does a **fu
 | Workflow | Role |
 |---|---|
 | `deploy-test.yml` / `deploy-prod.yml` | Standard callers — qualifying pushes to `test` / `main` (Fabric definition or workflow changes) |
-| `reusable-deploy-fabric-cicd.yml` | The two‑phase `fabric-cicd` deployment template |
-| `reusable-fabric-etl.yml` | Resolves a notebook by name, runs it, polls to completion |
-| `etl-test.yml` / `etl-prod.yml` | Chain after a successful deploy via `workflow_run` |
+| `reusable-deploy-fabric-cicd.yml` | Three publish phases with DataPipeline; two when absent |
+| `reusable-fabric-etl.yml` | Starts/polls one Fabric job; passes `run_label` as safe JSON for the pipeline |
+| `etl-test.yml` / `etl-prod.yml` | Manual recovery; automatic ETL is the caller's same-revision `needs` job |
 | `check-pr-ready.yml` | Blocks feature IDs from merging to `dev` |
 | `run-tests.yml` | Runs pytest on every PR, without a path filter |
 | `enforce-promotion-path.yml` | Enforces the `dev → test → main` source‑branch path |
@@ -593,13 +652,18 @@ Service principal coverage is **per request** - if even one item type doesn't su
 
 ### Pick the right identity for the job
 
-Three distinct identities show up in a Fabric solution — confusing them is a common source of over‑permissioned deployments.
+Separate author/job-submitter, deployer, activity, model-owner, and consumer
+permissions. Optional application identities are another actor, not a substitute
+for the activity credentials.
 
 | Identity | Purpose | Authentication |
 |---|---|---|
-| **CI/CD service principal** | Deploys items from GitHub Actions via `fabric-cicd` | Client secret today; **evaluate GitHub OIDC federation** |
-| **Fabric Workspace Identity** | The workspace authenticating *outbound* to firewalled storage — **not** used by CI/CD | Managed by Fabric — no secret |
+| **CI/CD service principal** | Publishes, starts jobs, and is the default sample's activity identity | Client secret in GitHub/Fabric; shared authority is a sample compromise |
+| **Fabric Workspace Identity** | Optional secretless activity identity, retained in the feature workspace | Managed by Fabric; extra bootstrap/trust permissions may be required |
 | **Runtime workload UAMI** | Apps/Functions calling Fabric APIs at runtime — **not** deploying items | Secretless, managed by Azure |
+
+The feature run was user-submitted with Workspace Identity activities.
+CI SP-start and model-owner/consumer compatibility still require live checks.
 
 > **OIDC is the direction for production.** With GitHub OIDC, the workflow exchanges a short‑lived token for an Azure token — no stored client secret, and the trust policy can bind to a specific repo + branch + environment so a feature branch cannot assume the Prod identity.
 
@@ -761,14 +825,17 @@ Emergency overrides need a separately approved policy; none is implemented here.
 6. Configuration is handled by Variable Libraries (runtime) + `parameter.yml` (deploy‑time).
 7. Governance is GitHub‑native: least privilege, enforced promotion path, Prod approvals, full audit.
 
-> **Use this as a reference implementation.** The repository includes Branch Out tooling and four GitHub deployment routes with ETL follow-up. Configure and validate your own environments and controls; native-pipeline extensions, OIDC, and broader release demonstrations are not all implemented by these examples.
+> **Use this as a reference implementation.** Four publishers share one Fabric workload pipeline. Configure and verify identities, connections, bindings, and release evidence in your own targets; optional native Deployment Pipelines publisher extensions, OIDC, and broader release demonstrations are not implemented here.
 
 **A newcomer's starting checklist:**
 
 - [ ] Provision a Fabric/Premium capacity and three workspaces (Dev, Test, Prod).
 - [ ] Connect the **Dev** workspace to the `dev` branch via Fabric Git integration.
 - [ ] Create a CI/CD **service principal**; grant **Contributor** on Test and Prod.
-- [ ] Create GitHub **Environments** (`Test`, `Prod`) with scoped secrets; add Prod approval.
+- [ ] Create GitHub **Environments** (`Dev`, `Test`, `Prod`) with scoped secrets; add Prod approval.
+- [ ] Prepare Dev bindings automatically once; review the generated manifest/source.
+- [ ] Let each publisher ensure target connections and inject GUIDs automatically.
+- [ ] Use separate runtime/privileged setup identities for an enterprise adaptation.
 - [ ] Create `dev`, `test`, `main` branches with protection + the enforced promotion path.
 - [ ] Leave `DEPLOY_METHOD` unset or set it to `fabric-cicd` for the default non-bulk route; evaluate alternatives only for specific requirements.
 - [ ] Develop on a feature branch → merge to `dev` → `test` (deploys) → `main` (deploys).

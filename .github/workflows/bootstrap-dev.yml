@@ -51,6 +51,7 @@ jobs:
           FABRIC_WORKSPACE_ID: ${{ secrets.FABRIC_WORKSPACE_ID }}
           NOTEBOOK_CONNECTION_ID: ${{ vars.NOTEBOOK_CONNECTION_ID }}
           SEMANTIC_MODEL_REFRESH_CONNECTION_ID: ${{ vars.SEMANTIC_MODEL_REFRESH_CONNECTION_ID }}
+          DEV_CONNECTION_GROUP_ID: ${{ vars.DEV_CONNECTION_GROUP_ID }}
         run: python scripts/bootstrap_dev_connections.py --output bootstrap-output/dev-bindings.json
 
       - name: Upload non-secret Dev binding metadata

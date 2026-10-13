@@ -1,0 +1,111 @@
+{
+  "properties": {
+    "activities": [
+      {
+        "type": "TridentNotebook",
+        "typeProperties": {
+          "notebookId": "3f21b546-f49f-9fef-4881-99b654a6701e",
+          "workspaceId": "00000000-0000-0000-0000-000000000000"
+        },
+        "externalReferences": {
+          "connection": "3385b34a-d547-4ff8-991a-d7acbc693d79"
+        },
+        "policy": {
+          "timeout": "0.00:20:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "Import_Patterns_Data",
+        "dependsOn": []
+      },
+      {
+        "type": "TridentNotebook",
+        "typeProperties": {
+          "notebookId": "decdcb11-8770-4216-8a28-eadf505d2679",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "parameters": {
+            "minimum_patient_count": {
+              "value": {
+                "value": "@pipeline().libraryVariables.Patterns_Variables_minimum_patient_count",
+                "type": "Expression"
+              },
+              "type": "int"
+            },
+            "run_label": {
+              "value": {
+                "value": "@pipeline().parameters.run_label",
+                "type": "Expression"
+              },
+              "type": "string"
+            }
+          }
+        },
+        "externalReferences": {
+          "connection": "3385b34a-d547-4ff8-991a-d7acbc693d79"
+        },
+        "policy": {
+          "timeout": "0.00:10:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "Validate_Patterns_Data",
+        "dependsOn": [
+          {
+            "activity": "Import_Patterns_Data",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "PBISemanticModelRefresh",
+        "typeProperties": {
+          "method": "POST",
+          "groupId": "d7270f11-feba-4990-baa6-d45e47f23737",
+          "datasetId": "62112b80-9cb4-4d65-befa-a8e9e6271ef0",
+          "commitMode": "Transactional",
+          "waitOnCompletion": true,
+          "operationType": "SemanticModelRefresh",
+          "timeout": "00:10:00"
+        },
+        "externalReferences": {
+          "connection": "4acc0609-d422-45ee-b461-c90c04c52014"
+        },
+        "policy": {
+          "timeout": "0.00:10:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "Refresh_Patterns_Semantic_Model",
+        "dependsOn": [
+          {
+            "activity": "Validate_Patterns_Data",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
+      }
+    ],
+    "parameters": {
+      "run_label": {
+        "type": "string",
+        "defaultValue": "manual"
+      }
+    },
+    "libraryVariables": {
+      "Patterns_Variables_minimum_patient_count": {
+        "type": "Int",
+        "variableName": "minimum_patient_count",
+        "libraryName": "Patterns_Variables"
+      }
+    }
+  }
+}

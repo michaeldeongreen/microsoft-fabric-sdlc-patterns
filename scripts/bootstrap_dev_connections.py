@@ -3,6 +3,9 @@
 The target comes from the Dev Environment, not reference IDs in Fabric source.
 This can run before the DataPipeline is merged. It never publishes definitions,
 syncs Git, runs ETL, or writes credentials to its artifact.
+An explicitly trusted DEV_CONNECTION_GROUP_ID optionally receives User access
+to both Dev activity connections; absent configuration does not certify human
+access, and failed sharing prevents artifact export.
 
 azure-identity is the existing runtime dependency for unattended SP authentication.
 Local developers consume the artifact through prepare_fabric_workspace.py;
@@ -35,6 +38,7 @@ BOOTSTRAP_WORKFLOW = ".github/workflows/bootstrap-dev.yml"
 BOOTSTRAP_ARTIFACT = "fabric-dev-bindings"
 BOOTSTRAP_FILENAME = "dev-bindings.json"
 DEFAULT_MODEL_NAME = "Patterns_Semantic_Model"
+DEV_OPERATOR_GROUP_ENV = "DEV_CONNECTION_GROUP_ID"
 _REPOSITORY = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 _COMMIT = re.compile(r"[0-9a-f]{40}")
 _RUN_ID = re.compile(r"[1-9][0-9]*")
@@ -206,6 +210,56 @@ def collect_bindings(
     return bindings
 
 
+def grant_dev_operator_access(
+    client: FabricRestClient, bindings: DevPipelineBindings, group_id: str,
+) -> None:
+    """Ensure least-privilege use of only the two Dev connections for a trusted group."""
+    group_id = validate_guid(group_id, DEV_OPERATOR_GROUP_ENV)
+    connection_ids = (
+        validate_guid(bindings.notebook_connection_id, "Dev Notebook connection ID"),
+        validate_guid(bindings.refresh_connection_id, "Dev refresh connection ID"),
+    )
+    if connection_ids[0] == connection_ids[1]:
+        raise BootstrapMetadataError("The two Dev activity connections must be distinct.")
+    if group_id in {
+        bindings.workspace_id, bindings.semantic_model_id, *connection_ids,
+    }:
+        raise BootstrapMetadataError("The operator group must not be a workspace, model, or connection ID.")
+
+    def has_access(connection_id: str) -> bool:
+        matches = []
+        for assignment in client.list(f"/connections/{connection_id}/roleAssignments"):
+            principal = assignment.get("principal")
+            if not isinstance(principal, dict):
+                raise BootstrapMetadataError("Connection role metadata must contain a principal.")
+            principal_id = validate_guid(principal.get("id"), "Connection principal ID")
+            principal_type = principal.get("type")
+            if not isinstance(principal_type, str) or principal_type not in {
+                "User", "Group", "ServicePrincipal", "ServicePrincipalProfile", "EntireTenant",
+            }:
+                raise BootstrapMetadataError("Connection role metadata contains an unknown principal type.")
+            role = assignment.get("role")
+            if not isinstance(role, str) or role not in {"User", "UserWithReshare", "Owner"}:
+                raise BootstrapMetadataError("Connection role metadata contains an unknown role.")
+            if principal_id == group_id:
+                if principal_type != "Group":
+                    raise BootstrapMetadataError("The configured operator ID is not a group in connection metadata.")
+                validate_guid(assignment.get("id"), "Connection role assignment ID")
+                matches.append(assignment)
+        if len(matches) > 1:
+            raise BootstrapMetadataError("The Dev operator group has duplicate connection role assignments.")
+        return bool(matches)
+
+    missing = [connection_id for connection_id in connection_ids if not has_access(connection_id)]
+    for connection_id in missing:
+        client.request("POST", f"/connections/{connection_id}/roleAssignments", {
+            "principal": {"id": group_id, "type": "Group"},
+            "role": "User",
+        })
+        if not has_access(connection_id):
+            raise BootstrapMetadataError("The Dev operator group's connection-use grant was not confirmed.")
+
+
 def actions_client(environ: Mapping[str, str]) -> FabricRestClient:
     try:
         from azure.core.exceptions import ClientAuthenticationError
@@ -253,16 +307,30 @@ def main(argv: list[str] | None = None) -> None:
             "servicePrincipalSecret": os.environ["AZURE_CLIENT_SECRET"],
         }
         workspace_id = validate_guid(os.environ["FABRIC_WORKSPACE_ID"], "FABRIC_WORKSPACE_ID")
+        operator_group_value = os.environ.get(DEV_OPERATOR_GROUP_ENV, "")
+        operator_group_id = (
+            validate_guid(operator_group_value, DEV_OPERATOR_GROUP_ENV) if operator_group_value else None
+        )
         notebook_id = os.environ.get(NOTEBOOK_CONNECTION_ENV) or None
         refresh_id = os.environ.get(REFRESH_CONNECTION_ENV) or None
         validate_connection_configuration(
             workspace_id, credentials=credentials,
             notebook_connection_id=notebook_id, refresh_connection_id=refresh_id,
         )
+        client = actions_client(os.environ)
         bindings = collect_bindings(
-            actions_client(os.environ), workspace_id, args.model_name, credentials,
+            client, workspace_id, args.model_name, credentials,
             notebook_connection_id=notebook_id, refresh_connection_id=refresh_id,
         )
+        if operator_group_id is not None:
+            grant_dev_operator_access(client, bindings, operator_group_id)
+            print("Verified connection-use assignments for the configured Dev operator group.")
+        else:
+            print(
+                "::warning::Dev human connection access was not established or verified. "
+                "Configure DEV_CONNECTION_GROUP_ID and rerun bootstrap, or establish approved "
+                "existing User grants before manual Git update and pipeline execution."
+            )
         artifact = BootstrapArtifact(bindings, provenance)
         parse_bootstrap_artifact(artifact.document())
         args.output.parent.mkdir(parents=True, exist_ok=True)

@@ -2,6 +2,12 @@
   "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/variableLibrary/definition/variables/1.0.0/schema.json",
   "variables": [
     {
+      "name": "minimum_patient_count",
+      "note": "Minimum patients required by the read-only pipeline validation gate.",
+      "type": "Integer",
+      "value": 5
+    },
+    {
       "name": "target_workspace_id",
       "note": "",
       "type": "Guid",

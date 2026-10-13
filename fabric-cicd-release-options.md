@@ -274,12 +274,16 @@ Both implementations sit inside Option 3 — branch per stage, build environment
 | **Orphan cleanup** | `unpublish_all_orphan_items()` built in | None — API only supports Create / Update; deletes are caller's responsibility |
 | **Dependency ordering** | Library order plus this repo's caller phases, or its optional non-bulk plan adapter | Service resolves supported logical-ID relationships; explicit ordering and physical-ID substitutions can still require caller work |
 | **Long-running operations** | Hidden by the library | When the call returns `202 Accepted`, the caller polls `/operations/{id}` and then `/operations/{id}/result` explicitly. Sync `200 OK` returns the result body directly with no polling needed. |
-| **API call shape** | Many per-item REST calls | One or more bulk POSTs; this repo's raw method uses two |
+| **API call shape** | Many per-item REST calls | This sample uses three raw bulk batches: foundations, non-pipeline dependents, then DataPipeline |
 | **Service principal coverage** | Per item — an unsupported item type fails only that item | Per request — service principals are supported only when *every* item in the payload supports service principals |
 
-> **Note on the gaps in this repo.** The Bulk Import API gaps above are properties of the API itself — Microsoft has not added these capabilities. This repo implements two of them in caller code so the demo works end-to-end:
+> **Note on the gaps in this repo.** The API itself does not supply these
+> configuration capabilities. This repo implements two in caller code; that is
+> not proof of live CI identity support or end-to-end route parity:
 >
-> - **Substitution:** `data/fabric/bulk-parameter.yml` + `scripts/deploy_fabric_rest_bulk.py` apply find/replace and `$items.<Type>.<Name>.$id` resolution between two POSTs (dependencies first, then the rest).
+> - **Substitution:** `bulk-parameter.yml` and the raw REST runner resolve target
+>   IDs between three batches. Lakehouse/Ontology precede non-pipeline dependents;
+>   their Semantic Model ID is captured before publishing the DataPipeline.
 > - **VariableLibrary value-set activation:** A post-deploy `PATCH /v1/workspaces/{ws}/variableLibraries/{id}` call sets the active value set per environment.
 >
 > Both are workarounds, not platform fixes. Orphan cleanup, the broader fabric-cicd feature surface (`key_value_replace`, `spark_pool`, `semantic_model_binding`), and per-item service principal coverage remain unimplemented in this repo's bulk path. If you go with bulk in your own project, you take on the same caller-side work. See the [Bulk CI/CD Implementation Guide](fabric-bulk-cicd-guide.md) for the full implementation walkthrough.
@@ -432,11 +436,11 @@ needed, not the name of this default method. Using Fabric Git integration for
 development and fabric-cicd for publishing does not require native Deployment
 Pipelines.
 
-> **Implementation boundary:** All four shipped methods publish through their selected GitHub route and share the ETL and model-refresh follow-up. None invokes native Fabric Deployment Pipelines. The client-read DeploymentPlan is ordering metadata, not a native pipeline.
+> **Implementation boundary:** All four shipped methods publish through their selected GitHub route and share one workload DataPipeline follow-up: load → read-only validation → native model refresh. None invokes native Fabric Deployment Pipelines for workspace promotion. The client-read DeploymentPlan orders publication; it does not execute the workload.
 
 ![fabric-cicd Non-Bulk Flow with Optional Hybrid Extension](assets/hybrid-recommendation-flow.svg)
 
-The diagram's native-pipeline branch is an optional extension, not part of
+The diagram's native Deployment Pipelines branch is an optional extension, not part of
 the default execution flow. Its prerequisites are described
 [below](#optional-extensions-for-unsupported-items).
 
@@ -465,12 +469,19 @@ the default execution flow. Its prerequisites are described
 
 #### Dev Stage (Trigger: PR merged → `dev` branch)
 1. The shared Dev workspace owner uses **Update from Git** after merge. An API-based sync can be automated separately, but this repository does not ship that workflow.
-2. Run **Data Pipelines / Notebooks** for ETL jobs as needed. For this sample, after the existing loader succeeds, refresh `Patterns_Semantic_Model` using the workspace **Refresh** icon before consumer validation.
+2. For this sample, verify Dev connections/model bindings after Git sync, then
+   manually run `Patterns_Load_Validate_And_Refresh`. Source connection markers
+   must be bound to real Dev runtime connections before execution; see
+   [Setup](SETUP.md#4-replace-the-reference-environment).
 3. Validate and test in the Dev workspace. If your workload includes items outside the selected publisher's scope, assess the [optional extensions](#optional-extensions-for-unsupported-items) separately; fabric-cicd support does not determine Git integration or export support.
 
 #### Test Stage (Trigger: PR merged → `test` branch)
-1. **fabric-cicd** deploys all supported items to the Test workspace via `publish_all_items()`. Uses a two-phase approach (Lakehouse + Ontology first, then remaining items) to satisfy dependency resolution.
-2. Run **Data Pipelines / Notebooks** for ETL jobs. In this repository, the shared ETL runner waits for `Import_Patterns_Data` to succeed, then refreshes `Patterns_Semantic_Model` and waits for that request to complete.
+1. **fabric-cicd** publishes Lakehouse + Ontology, then non-pipeline dependents,
+   then DataPipeline in a third call with fresh notebook/model discovery.
+   SDK state caching makes this boundary necessary even with internal item ordering.
+2. GitHub starts/polls `Patterns_Load_Validate_And_Refresh`. Fabric runs the
+   unchanged loader, read-only validation, and native refresh with
+   success dependencies and wait-on-completion. It is the only refresh owner.
 3. Perform automated and manual testing.
 
 > Additional publishers are not part of this default flow. Introduce an [optional extension](#optional-extensions-for-unsupported-items) only after verifying its support and orchestration requirements.
@@ -478,7 +489,8 @@ the default execution flow. Its prerequisites are described
 #### Prod Stage (Trigger: PR merged → `main` branch)
 Same pattern as Test:
 1. **fabric-cicd** deploys all supported items to the Prod workspace.
-2. Run **Data Pipelines / Notebooks** for ETL jobs, followed by the same successful model refresh as Test.
+2. Run the same pipeline under the approved target configuration and require
+   load, validation, and native refresh completion.
 3. Production validation.
 
 ---
@@ -489,11 +501,19 @@ Two complementary mechanisms handle environment-specific configuration:
 
 | | **Variable Libraries (Runtime)** | **`parameter.yml` (Deploy-time)** |
 |---|---|---|
-| **When it runs** | At notebook execution time | Before items are uploaded to the workspace |
-| **What it handles** | Workspace IDs, lakehouse names/IDs, and other runtime values resolved via `notebookutils.variableLibrary.getLibrary()` | Metadata GUIDs baked into notebook META blocks, connection IDs in pipeline JSON, spark pool configs, semantic model bindings |
+| **When it runs** | At workload execution time | Before items are uploaded to the workspace |
+| **What it handles** | Loader/validation workspace/lakehouse values and pipeline Library binding for the validation minimum | Notebook META GUIDs, physical pipeline model/connection IDs, spark pool configs, semantic model bindings |
 | **How it works** | Workloads read the active value set; deployment tooling or an operator must select and verify the intended set | fabric-cicd `find_replace`, `key_value_replace`, `$items` dynamic replacement rewrite item definitions before upload |
 
 **Use Variable Libraries as the primary mechanism** for auto-binding. They provide clean, runtime resolution without deployment-time rewrites. Fall back to `parameter.yml` for deployment-time metadata that Variable Libraries cannot reach (e.g., `default_lakehouse` GUIDs in notebook metadata, connection IDs in Data Pipeline JSON).
+
+This sample separates environment policy (`minimum_patient_count`, positive
+Integer, baseline `5`) from per-run input (`run_label`, String, default `manual`,
+CI override). Workspace Identity Notebook/Power BI connections are created
+outside Git and shared with the CI principal. Their GUIDs are the two
+[GitHub Environment variables](SETUP.md#environment-variables), not secrets.
+Connection use, model-owner source access, and consumer access must be verified
+separately from the deployer's permissions.
 
 ---
 
@@ -503,7 +523,15 @@ Two complementary mechanisms handle environment-specific configuration:
 - **fabric-cicd's `parameter.yml`** handles deployment-time replacements without a custom replacement engine.
 - **One publisher for the current workload scope** avoids unnecessary cross-tool promotion and coordination.
 - **Variable Libraries** provide runtime configuration where items consume them, reducing deployment-time parameterization.
-- **Explicit follow-up** runs the loader and model refresh before the configured ETL workflow succeeds.
+- **Explicit follow-up** starts one Fabric pipeline; load and read-only validation
+  must succeed before native refresh completes. GitHub does not refresh twice.
+
+An earlier user-started feature prototype completed all three activities and
+API run-label forwarding with Workspace Identity activity credentials. The
+current explicit-OneLake-path validation revision is only offline-validated.
+Git sync/Branch Out binding resolution, CI service-principal publication/start,
+and Test/Prod end-to-end routes remain live-verification boundaries, not
+production-readiness claims.
 
 ---
 
@@ -539,8 +567,9 @@ only for a demonstrated workload need, not to satisfy a "hybrid" label.
 
 ### Future State
 
-The current sample already needs no native Deployment Pipelines extension:
-PR merged → fabric-cicd deploys → run ETL → refresh the semantic model → validate.
+The current sample needs no native Deployment Pipelines publisher extension:
+PR merged → fabric-cicd publishes definitions → GitHub starts one DataPipeline
+→ Fabric loads, validates, and refreshes → separate consumer/release checks.
 
 If your workload requires a hybrid extension today, reassess it as the chosen
 publisher gains support. Retire that extension only after verifying equivalent
@@ -552,8 +581,13 @@ All four shipped methods share the
 [post-ETL follow-up](fabric-hybrid-cicd-guide.md#post-etl-semantic-model-refresh).
 For this Direct Lake on OneLake model, refresh frames the Delta references
 after the loader's writes; it is not another ETL or a change to deployment
-ordering. A green ETL workflow requires both job and refresh completion,
-not a guarantee of all DAX results or consumer access.
+ordering. A green ETL workflow requires the pipeline's terminal success after
+native refresh, not a guarantee of model date queries, DAX results, or consumer access.
+
+GitHub's `workflow_run` listener still comes from the default branch. During
+rollout, manually dispatch Test ETL from `test` after old automatic runs finish;
+rerunning an old main run does not select changed Test code. A same-stage `needs`
+chain is a separate follow-up, not a problem solved by the Fabric DataPipeline.
 
 ---
 
@@ -572,7 +606,7 @@ policy and implementation; it is not a bypass provided here.
 
 #### Hotfix Flow (Optional Native-Pipeline Extension)
 
-- If your workload uses the verified [native-pipeline extension](#optional-extensions-for-unsupported-items), promote its selected items from the authorized previous stage (e.g., Test → Prod).
+- If your workload uses a verified [native Deployment Pipelines publisher extension](#optional-extensions-for-unsupported-items), promote its selected items from the authorized previous stage (e.g., Test → Prod).
 - Automate with the [Deploy Stage Content](https://learn.microsoft.com/en-us/rest/api/fabric/core/deployment-pipelines/deploy-stage-content) API; selective deploy requires explicitly listing items (no "select related" in API).
 
 > **Note:** This is an optional extension, not a shipped workflow. Retain the known-good content and configuration using the item's supported recovery method; today's earlier-stage contents and operation history are not a definition backup.
@@ -584,7 +618,7 @@ policy and implementation; it is not a bypass provided here.
 2. Create a reviewed corrective/revert commit in the development flow; preserve protected history and promote through `dev -> test -> main`.
 3. Validate compatibility, selected scope, and deletion behavior before redeployment; rerun the required post-recovery checks.
 
-**Items using the optional native-pipeline extension:**
+**Items using the optional native Deployment Pipelines publisher extension:**
 1. Restore retained known-good content/configuration to a suitable source stage using a supported recovery method.
 2. Authorize selective forward deployment and verify the actual result. Do not assume the current previous-stage version is the last successful Production release.
 

@@ -17,6 +17,24 @@
 #   $environment                      value of the ENVIRONMENT env var (Test/Prod)
 
 substitutions:
+  # Replace dev Semantic Model ID in the DataPipeline native refresh activity.
+  # The model is imported before the DataPipeline, so its target ID is available.
+  - find: "62112b80-9cb4-4d65-befa-a8e9e6271ef0"
+    replace_with: "$items.SemanticModel.Patterns_Semantic_Model.$id"
+    item_types: [DataPipeline]
+
+  # Replace the Dev Notebook connection with the automatically resolved target connection.
+  # Dev preparation replaces this initial template; the runner supplies NOTEBOOK_CONNECTION_ID.
+  - find: "3385b34a-d547-4ff8-991a-d7acbc693d79"
+    replace_with: "$ENV:NOTEBOOK_CONNECTION_ID"
+    item_types: [DataPipeline]
+
+  # Replace the Dev refresh connection with the automatically resolved target connection.
+  # Dev preparation replaces this initial template; the runner supplies SEMANTIC_MODEL_REFRESH_CONNECTION_ID.
+  - find: "4acc0609-d422-45ee-b461-c90c04c52014"
+    replace_with: "$ENV:SEMANTIC_MODEL_REFRESH_CONNECTION_ID"
+    item_types: [DataPipeline]
+
   # Replace dev lakehouse ID in items that reference it.
   - find: "c185283c-9dd9-4e40-a17c-aa6303e3a2e9"
     replace_with: "$items.Lakehouse.PatternsLakehouse.$id"
@@ -25,7 +43,7 @@ substitutions:
   # Replace dev workspace ID in items that reference it.
   - find: "d7270f11-feba-4990-baa6-d45e47f23737"
     replace_with: "$workspace.$id"
-    item_types: [SemanticModel, Notebook]
+    item_types: [SemanticModel, Notebook, DataPipeline]
 
 variable_library:
   # Active value-set name to set on the deployed VariableLibrary.

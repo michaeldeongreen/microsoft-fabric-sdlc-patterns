@@ -13,32 +13,53 @@
 # Requires DEPLOYMENT_PLAN_PATH. Independent ready groups are combined;
 # unexpected standard fallback or failed item outcomes fail deployment.
 #
-# The ETL workflow (etl-test.yml) triggers automatically via workflow_run
-# once deployment completes successfully.
+# The dependent ETL job uses the same revision after successful deployment.
 
-name: Deploy to Test (fabric-cicd Bulk)
+name: Deploy and Run Pipeline - Test (fabric-cicd Bulk)
 
 on:
   push:
     branches: [test]
     paths:
       - "data/fabric/**"
+      - "data/fabric-dev-bindings.json"
       - "deployment-plans/**"
       - ".github/workflows/**"
       - "scripts/deploy_fabric_cicd_bulk.py"
       - "scripts/deployment_plan_bulk.py"
+      - "scripts/fabric_connections.py"
+      - "scripts/prepare_fabric_workspace.py"
+      - "scripts/pipeline_bindings.py"
+      - "scripts/run_fabric_etl.py"
       - "requirements-dev.txt"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.ref == 'refs/heads/test' && vars.DEPLOY_METHOD == 'fabric-cicd-bulk' && 'fabric-deploy-test' || format('fabric-skipped-{0}-{1}', github.workflow, github.run_id) }}
+  cancel-in-progress: false
+
 jobs:
   deploy-fabric-cicd-bulk:
     name: Deploy via fabric-cicd Bulk
-    if: vars.DEPLOY_METHOD == 'fabric-cicd-bulk'
+    if: github.ref == 'refs/heads/test' && vars.DEPLOY_METHOD == 'fabric-cicd-bulk'
     uses: ./.github/workflows/reusable-deploy-fabric-cicd-bulk.yml
     with:
       environment: Test
       deployment_plan_path: ${{ vars.DEPLOYMENT_PLAN_PATH }}
-      item_type_in_scope: '["Lakehouse", "Ontology", "VariableLibrary", "Notebook", "SemanticModel", "Report", "DataAgent"]'
+      item_type_in_scope: '["Lakehouse", "Ontology", "VariableLibrary", "Notebook", "SemanticModel", "Report", "DataAgent", "DataPipeline"]'
+    secrets: inherit
+
+  run-etl:
+    name: Load, validate, and refresh
+    needs: deploy-fabric-cicd-bulk
+    uses: ./.github/workflows/reusable-fabric-etl.yml
+    with:
+      environment: Test
+      item_name: Patterns_Load_Validate_And_Refresh
+      item_type: DataPipeline
+      job_type: Pipeline
+      run_label: Test-${{ github.run_id }}
     secrets: inherit

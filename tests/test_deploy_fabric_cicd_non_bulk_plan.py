@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import time
 from pathlib import Path
 from unittest import mock
@@ -23,8 +24,13 @@ WORKSPACE_ID = "11111111-1111-1111-1111-111111111111"
 
 
 @pytest.fixture
-def schedule() -> DeploymentSchedule:
-    return load_schedule(REPO_ROOT / "data" / "fabric", PLAN_PATH)
+def schedule(
+    pipeline_connection_environment: dict[str, str], canonical_fabric_repository: Path,
+) -> DeploymentSchedule:
+    return load_schedule(
+        canonical_fabric_repository,
+        canonical_fabric_repository / "DeploymentPlan.DeploymentPlan" / "plan.yml",
+    )
 
 
 def test_exact_item_selection_fresh_state_and_single_cleanup(
@@ -59,24 +65,22 @@ def test_exact_item_selection_fresh_state_and_single_cleanup(
     ):
         deploy.deploy_schedule(schedule, WORKSPACE_ID, "Test", credential)
 
-    assert publish_mock.call_count == 5
-    assert len(instances) == 6
-    assert len(published) == len(set(published)) == 9
-    assert [call.kwargs["items_to_include"] for call in publish_mock.call_args_list[:4]] == [
+    assert publish_mock.call_count == 9
+    assert len(instances) == 10
+    assert len(published) == len(set(published)) == 11
+    assert [call.kwargs["items_to_include"] for call in publish_mock.call_args_list[:8]] == [
         [group.item.selector] for group in schedule.groups
     ]
     cleanup.assert_called_once_with(instances[-1])
     assert instances[-1].config["item_type_in_scope"] == [
-        "DataAgent", "Notebook", "Report", "SemanticModel", "VariableLibrary"
+        "DataAgent", "DataPipeline", "Notebook", "Report", "SemanticModel", "VariableLibrary"
     ]
     for instance in instances:
         assert instance.config["repository_directory"] == str(schedule.repository_directory)
         assert instance.config["workspace_id"] == WORKSPACE_ID
         assert instance.config["environment"] == "Test"
         assert instance.config["token_credential"] is credential
-    assert enable.call_args_list == [
-        mock.call("enable_experimental_features"), mock.call("enable_items_to_include")
-    ]
+    assert enable.call_args_list == [mock.call(flag) for flag in deploy.INCLUSION_FLAGS]
     disable.assert_called_once_with("enable_bulk_publish")
 
 
@@ -322,8 +326,8 @@ def test_dry_run_has_no_credential_or_network_requirement(
     ):
         deploy.main(["--plan", str(PLAN_PATH), "--dry-run"])
     summary = json.loads(capsys.readouterr().out)
-    assert len(summary["groups"]) == 4
-    assert len(summary["remainingItems"]) == 5
+    assert len(summary["groups"]) == 8
+    assert len(summary["remainingItems"]) == 3
     credential.assert_not_called()
     workspace.assert_not_called()
 
@@ -421,7 +425,12 @@ def test_reusable_workflows_reference_existing_runner(
     steps = _workflow(workflow_name)["jobs"]["deploy"]["steps"]
     invocations = [step["run"] for step in steps if step.get("run", "").startswith("python scripts/")]
     assert invocations
-    assert all(command.split()[1] == f"scripts/{runner_name}" for command in invocations)
+    assert {command.split()[1] for command in invocations} == {
+        f"scripts/{runner_name}", "scripts/bootstrap_dev_connections.py",
+    }
+    assert [command.rsplit(" ", 1)[1] for command in invocations if "bootstrap_dev_connections.py" in command] == [
+        "preflight", "provision", "persist",
+    ]
     assert (REPO_ROOT / "scripts" / runner_name).is_file()
 
 
@@ -436,23 +445,23 @@ def test_plan_workflow_wiring_and_etl_registration(environment: str, branch: str
     assert job["uses"] == "./.github/workflows/reusable-deploy-fabric-cicd-plan.yml"
     assert job["with"]["environment"] == environment
     assert job["with"]["deployment_plan_path"] == "${{ vars.DEPLOYMENT_PLAN_PATH }}"
-    assert len(json.loads(job["with"]["item_type_in_scope"])) == 7
+    assert len(json.loads(job["with"]["item_type_in_scope"])) == 8
     assert job["secrets"] == "inherit"
     assert workflow["permissions"] == {"contents": "read"}
     assert workflow["concurrency"]["cancel-in-progress"] == "false"
-    etl = _workflow(f"etl-{stage}.yml")
-    listeners = etl["on"]["workflow_run"]["workflows"]
-    assert listeners.count(workflow["name"]) == 1
-    assert len(listeners) == len(set(listeners)) == 4
-    assert "github.event.workflow_run.conclusion == 'success'" in etl["jobs"]["run-etl"]["if"]
-    assert etl["jobs"]["run-etl"]["uses"] == "./.github/workflows/reusable-fabric-etl.yml"
+    etl = workflow["jobs"]["run-etl"]
+    assert etl["needs"] == "deploy-fabric-cicd-plan"
+    assert etl["uses"] == "./.github/workflows/reusable-fabric-etl.yml"
+    assert "workflow_run" not in _workflow(f"etl-{stage}.yml")["on"]
 
 
 def test_test_manual_deployment_is_restricted_to_test_branch() -> None:
     workflow = _workflow("deploy-test-fabric-cicd-plan.yml")
     assert "workflow_dispatch" in workflow["on"]
     assert "github.ref == 'refs/heads/test'" in workflow["jobs"]["deploy-fabric-cicd-plan"]["if"]
-    assert "workflow_dispatch" not in _workflow("deploy-prod-fabric-cicd-plan.yml")["on"]
+    prod = _workflow("deploy-prod-fabric-cicd-plan.yml")
+    assert "workflow_dispatch" in prod["on"]
+    assert "github.ref == 'refs/heads/main'" in prod["jobs"]["deploy-fabric-cicd-plan"]["if"]
 
 
 def test_reusable_workflow_validates_before_loading_azure_secrets() -> None:
@@ -466,7 +475,12 @@ def test_reusable_workflow_validates_before_loading_azure_secrets() -> None:
     execute = next(i for i, step in enumerate(steps) if "AZURE_CLIENT_SECRET" in step.get("env", {}))
     assert preview < execute
     assert all("AZURE_CLIENT_SECRET" not in step.get("env", {}) for step in steps[:execute])
-    assert steps[execute]["run"] == "python scripts/deploy_fabric_cicd_non_bulk_plan.py"
+    assert steps[execute]["run"] == "python scripts/bootstrap_dev_connections.py --operation provision"
+    publish = next(i for i, step in enumerate(steps)
+                   if step.get("run") == "python scripts/deploy_fabric_cicd_non_bulk_plan.py")
+    persist = next(i for i, step in enumerate(steps)
+                   if step.get("run") == "python scripts/bootstrap_dev_connections.py --operation persist")
+    assert execute < persist < publish
     for step in steps:
         if "uses" in step:
             sha = step["uses"].split("@")[1]
@@ -482,9 +496,11 @@ def test_deployment_method_selects_one_route(stage: str, method: str) -> None:
     for suffix in suffixes:
         workflow = _workflow(f"deploy-{stage}{suffix}.yml")
         job = next(iter(workflow["jobs"].values()))
-        condition = job["if"].split(" && ")[0]
-        alternatives = condition.split(" || ")
-        if any(alternative == f"vars.DEPLOY_METHOD == '{method}'" for alternative in alternatives):
+        condition = job["if"]
+        branch = "test" if stage == "test" else "main"
+        assert f"github.ref == 'refs/heads/{branch}'" in condition
+        alternatives = re.findall(r"vars\.DEPLOY_METHOD == '([^']*)'", condition)
+        if method in alternatives:
             selected.append(suffix)
     expected = {
         "": "", "fabric-cicd": "", "bulk": "-bulk",

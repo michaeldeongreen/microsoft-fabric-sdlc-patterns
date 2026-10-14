@@ -1,17 +1,20 @@
 ---
 name: swap-to-dev-dryrun
-description: 'Preview reverting Fabric item IDs and feature settings to dev without modifying files; run before applying /swap-to-dev.'
+description: 'Preview the offline Dev restoration from committed parameter rules, without login, provisioning, workflow dispatch, artifacts, or file writes.'
 ---
 
 # Preview Swap to Dev
 
-Preview the changes that would be made when restoring dev workspace IDs.
+Run the requested preview directly:
 
-## Procedure
+```powershell
+python scripts\workspace_swap.py --swap-to-dev --dry-run
+```
 
-1. From the repository root, run
-   `python scripts/workspace_swap.py --swap-to-dev --dry-run`.
-2. Report the command output and summarize the files and values that would
-   change.
+Validate the committed parameter-rule baseline. Missing, invalid, mismatched,
+or placeholder configuration is an explicit setup error, not permission to
+create resources or fall back to guessed IDs.
 
-This is a preview only; no files are modified.
+Report the output and known diff. Do not authenticate, dispatch/download from
+Actions, call Fabric, read secrets, write files, or follow with the live swap.
+This optional preview is not a mandatory confirmation gate.

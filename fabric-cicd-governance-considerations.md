@@ -4,7 +4,9 @@
 
 Considerations for partners and customers designing governance around CI/CD pipelines for Microsoft Fabric. The topics below are scoped to the CI/CD pipeline itself — workspace setup, identities used by the pipeline, branch protection, deployment gating, and audit. Adjacent controls that sit outside the CI/CD pipeline (network controls, data classification, encryption, runtime data-access policies) are listed at the end under "Adjacent controls owned outside the CI/CD pipeline" — they are part of any mature production Fabric deployment but owned by your platform / security team rather than the CI/CD pipeline owner.
 
-This guide layers governance controls on top of the implementation pattern in the [Hybrid CI/CD Implementation Guide](fabric-hybrid-cicd-guide.md). Read that doc first if you don't already have a working pipeline.
+This guide layers governance controls on top of the implemented
+[Release Process](fabric-release-process.md). Read that guide first if you do
+not already understand the selected Test/Prod job.
 
 For practical validation, release evidence, staged approval, and rollback examples, see [Fabric CI/CD Quality Gates and Release Controls](fabric-cicd-quality-gates-and-release-controls.md). It complements the governance controls here rather than replacing them.
 
@@ -13,17 +15,108 @@ owners create branch rules, required checks, Environment reviewers, and
 identity permissions. The shipped workflows use client-secret authentication;
 OIDC and additional release demonstrations are planned enhancements.
 
-## Identity model — pick the right identity for the job
+## Identity model
 
-Three distinct identities show up in a Fabric solution. Confusing them is a common source of over-permissioned deployments.
+Confusing the orchestrator, credentials, runtime identity, and human
+administrator is a common source of over-permissioned deployments.
 
-| Identity | Purpose | Created / managed by | Authentication |
-|---|---|---|---|
-| **CI/CD service principal** | Deploys Fabric items (notebooks, semantic models, pipelines) from GitHub Actions via `fabric-cicd` | App owner registers it in Microsoft Entra; workspace admin grants it Contributor on the target workspace | Currently a client secret in GitHub Environment secrets; consider GitHub OIDC federation |
-| **Fabric Workspace Identity** | The workspace authenticating *outbound* to firewall-protected ADLS Gen2, OneLake shortcuts, etc. — not used by CI/CD | Workspace admin creates it in workspace settings; Fabric auto-manages credentials | Managed by Fabric — no secret to handle ([Workspace identity](https://learn.microsoft.com/en-us/fabric/security/workspace-identity)) |
-| **Runtime workload UAMI** | Container Apps / Functions / AKS calling Fabric REST APIs at runtime (not deploying items) | Platform admin creates a user-assigned managed identity per workload, per environment | Secretless — managed by Azure ([managed identity overview](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/overview)) |
+| Actor or credential | Shipped responsibility | Managed by |
+|---|---|---|
+| GitHub Actions | Runs the reviewed job graph; it is not an identity | Repository administrator |
+| Deployment service principal | Ensures Test/Prod connections, manages their connection ACLs, publishes items, and submits DataPipeline jobs | Entra application administrator; workspace administrator grants Contributor |
+| GitHub Environment-variable PAT | Reads/creates the two connection-ID variables during preflight/persistence | Repository administrator and named rotation owner |
+| Fabric Workspace Identity | Authenticates Notebook and semantic-model refresh activities | Fabric workspace administrator; Fabric manages the credential |
+| Connections-admin group | Receives verified Owner on both stage connections | Entra group administrator |
+| Feature workspace/connection administrator | Creates the feature Workspace Identity, grants its resource access, and creates its connection pair | Fabric/connection administrator |
+| Feature developer | Own Git identity, Branch Out, local swaps, feature validation, and feature-to-Dev PR | The user's organization |
+| Dev workspace operator | Updates Git-connected Dev, inspects bindings, and runs the Dev DataPipeline | Named workspace operator |
+| Runtime workload UAMI | Optional identity for external Azure workloads calling Fabric; not used by this repository's release | Platform administrator |
 
-> **OIDC for the CI/CD SP — worth evaluating.** Microsoft's [Well-Architected guidance](https://learn.microsoft.com/en-us/azure/well-architected/security/identity-access#protect-nonidentity-based-secrets) is "avoid using secrets when you can." With [GitHub OIDC](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-azure), short-lived tokens replace a stored client secret. Restrict federated trust to the intended repository/environment and configure permitted deployment branches separately: an environment-based OIDC subject alone does not enforce a branch restriction. Fabric permissions and release approvals still apply. This removes client-secret storage/rotation, not every credential or authorization risk. The current workflows use client secrets; the [OIDC demonstration](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns/issues/84) is planned.
+The current workflows use a client secret for the deployment service
+principal. OIDC can replace that stored secret, but it does not remove Fabric
+permissions, the GitHub variable credential, runtime Workspace Identity, or
+release approval. The planned
+[OIDC demonstration](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns/issues/84)
+is not implemented.
+
+## Automated connection setup: the sample's privilege trade-off
+
+Connections have tenant-level ACLs and are not Git-synced items. Workspace
+Admin does not automatically confer connection visibility or use.
+
+The shipped connection lifecycle is:
+
+| Stage | Connection operation |
+|---|---|
+| Feature | A human creates the Workspace Identity pair |
+| Dev | A repository administrator manually runs **Provision Fabric Connections** |
+| Test/Prod | The selected release job creates or reuses the pair before publication |
+
+For Test and Prod, the selected job:
+
+1. uses the PAT to validate GitHub Environment access and saved IDs;
+2. uses the deployment service principal to create/reuse the two Workspace
+   Identity connections;
+3. grants/upgrades and verifies the configured group as Owner;
+4. uses the PAT to create missing ID variables without overwriting conflicts;
+5. passes current-run IDs to the publisher;
+6. publishes and submits the DataPipeline job.
+
+The publisher subprocess fixes `FABRIC_CONNECTION_MODE=existing` and
+`FABRIC_RUNTIME_AUTHENTICATION=WorkspaceIdentity`; it validates and consumes
+the pair read-only. That does not make the containing deployment job read-only.
+
+Humans create each Workspace Identity and grant workspace/resource permissions
+first. The service principal does not provision identities, assign workspace
+roles, change tenant settings, create groups, or manage membership.
+
+Sharing one deployment service principal and one connections-admin group
+across stages is a sample compromise, not environment isolation. An
+Environment-specific `FABRIC_CONNECTION_ADMINS_GROUP_ID` can select a
+stage-specific group. Developers normally need User on Dev/feature
+dependencies, not Owner of Test/Prod connections.
+
+The repository-scoped PAT has Contents read/write and Environments read/write.
+It is on every selected Test/Prod release path, isolated to GitHub preflight
+and persistence. Environments write is broader than two variable names and can
+include other Environment-management operations. Use expiration and a named
+rotation owner, or a separately scoped GitHub App, for production. Never expose
+the token to feature code or developers who do not administer the repository.
+
+The Fabric administrator must authorize the deployment principal through the
+service-principal tenant settings, scoped to an approved service-principal
+group. Fabric Git settings apply to the users performing Git operations; do
+not use the service-principal allowlist as a substitute for an approved Git-user
+scope. Workspace roles do not override tenant policy.
+
+An enterprise alternative is to separate responsibilities:
+
+| Responsibility | Typical permission boundary |
+|---|---|
+| Approved bootstrap identity | Connection-management authority; Workspace Admin when provisioning a Workspace Identity and appropriate permission-grant authority |
+| Routine deployment identity | Contributor in its target workspace and User access to preprovisioned connections |
+| Separate runtime principal or Workspace Identity | Only the notebook, model, and OneLake permissions required by the workload; do not automatically inherit the publisher's authority |
+
+That enterprise separation is a recommended adaptation, not the shipped
+Test/Prod job. The sample deliberately couples connection management and
+publication in one protected job so a cold stage can fail closed before
+publication rather than require a separate manual bootstrap.
+
+Connection GUIDs are non-secret references; access tokens, credentials, and
+Git provider tokens must stay outside Git.
+
+A GitHub Environment's **required reviewer** is a useful approval gate before
+privileged setup. Approval releases the job; it does **not** grant or elevate
+Fabric permissions. If temporary elevation is required, use the organization's
+approved privilege-management process or a separate privileged identity.
+This sample does not implement PIM, silently grant the deploying principal
+Admin, or claim that an Actions approval is an RBAC operation.
+
+See [the setup and permission contract](SETUP.md#post-etl-refresh-permissions)
+and the official [Create Connection](https://learn.microsoft.com/en-us/rest/api/fabric/core/connections/create-connection),
+[Provision Identity](https://learn.microsoft.com/en-us/rest/api/fabric/core/workspaces/provision-identity),
+and [developer tenant settings](https://learn.microsoft.com/en-us/fabric/admin/service-admin-portal-developer)
+documentation.
 
 ## Security across workspaces
 
@@ -31,9 +124,9 @@ Environment isolation, RBAC, and identity boundaries.
 
 | Concern area | Guidance |
 |---|---|
-| Environment isolation | <ul><li>One Fabric workspace per environment (Dev / Test / Prod), each with its own ID</li><li>One GitHub Environment per workspace (`Test`, `Prod`) — secrets are siloed; `Prod` secrets are not readable from a `Test` run</li><li>Branch-gated deploys keep environments siloed: the `test` branch can only deploy to the Test workspace, `main` to Prod</li><li>Deployment filters vary by method; plan routes also watch their code, dependencies, and plan paths. Tests run on every PR. See the [shared workflow reference](fabric-hybrid-cicd-guide.md#github-actions-workflows)</li></ul> |
-| Tenant settings (Fabric admin) | <ul><li>A Fabric Admin must enable service principal access to Fabric APIs in the Admin portal under Developer settings, and scope the setting to a dedicated security group containing only your CI/CD SPs — never the entire org ([developer tenant settings](https://learn.microsoft.com/en-us/fabric/admin/service-admin-portal-developer))</li><li>If using GitHub for source control, also enable Git integration with GitHub repositories — disabled by default ([Git integration tenant settings](https://learn.microsoft.com/en-us/fabric/admin/git-integration-admin-settings))</li><li>Use the same security group for both settings (Fabric API access and Git integration) so the SP isn't authorized for one and silently blocked from the other</li></ul> |
-| Access control (RBAC) | <ul><li>CI/CD SP gets Contributor on its target workspace — minimum role for `fabric-cicd` to publish items ([workspace roles](https://learn.microsoft.com/en-us/fabric/fundamentals/roles-workspaces#-workspace-roles))</li><li>Dev workspace is human-only (Fabric Git integration); Test/Prod are SP-only — no human writes</li></ul> |
+| Environment isolation | <ul><li>One Fabric workspace and one GitHub Environment per stage (`Dev`, `Test`, `Prod`), each with its own workspace ID and scoped secrets</li><li>Branch-gated deploys keep environments siloed: `dev` maps to Dev, `test` to Test, and `main` to Prod</li><li>Deployment filters vary by method; plan routes also watch their code, dependencies, and plan paths. Tests run on every PR. See the [shared workflow reference](fabric-release-process.md#github-actions-workflows)</li></ul> |
+| Tenant settings (Fabric admin) | <ul><li>Scope service-principal API and connection-creation settings to a dedicated group containing the approved deployment SPs, never the entire organization ([developer tenant settings](https://learn.microsoft.com/en-us/fabric/admin/service-admin-portal-developer))</li><li>Scope Fabric Git/GitHub integration settings to the users who perform Git operations ([Git integration tenant settings](https://learn.microsoft.com/en-us/fabric/admin/git-integration-admin-settings))</li><li>Do not reuse the SP allowlist as a substitute for the Git-user scope; they authorize different actors</li></ul> |
+| Access control (RBAC) | <ul><li>The deployment SP gets Contributor on Dev/Test/Prod for connection management, publication, and job submission; it does not receive workload activity permissions or create Workspace Identities ([workspace roles](https://learn.microsoft.com/en-us/fabric/fundamentals/roles-workspaces#-workspace-roles))</li><li>A Fabric workspace administrator creates each Workspace Identity and grants the Notebook/model/OneLake rights required by the workload</li><li>The named Dev workspace operator updates Git-connected Dev and runs its DataPipeline; selected Test/Prod jobs ensure connections, publish, and submit the DataPipeline</li></ul> |
 | CI/CD identity (deploys artifacts) | <ul><li>One Service Principal per environment in production (the demo uses one shared SP for simplicity)</li><li>Each SP scoped to Contributor on only its own workspace — Test compromise cannot touch Prod</li><li>SP secrets live in the matching GitHub Environment; `secrets: inherit` resolves the right values per env</li><li>Third-party actions pinned to full commit SHAs — supply-chain hardening</li></ul> |
 | Runtime workload identity (Container Apps / Functions / AKS calling Fabric) | <ul><li>Use a user-assigned managed identity (UAMI), one per workload, per environment. UAMI is the [Microsoft-recommended default for Microsoft services](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/overview#managed-identity-types)</li><li>Multiple Azure services in the same environment get **separate UAMIs** unless they're replicated instances of the *same* workload (e.g., HA replicas of one service). Different workloads (ingestion Function vs. reporting Container App) should not share a UAMI — different permission needs and shared blast radius ([replicated-resources guidance](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/managed-identity-best-practice-recommendations#choosing-system-or-user-assigned-managed-identities))</li><li>UAMI lifecycle is decoupled from compute — admin can pre-create the UAMI and grant Fabric workspace access *before* the resource exists ([best practices](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/managed-identity-best-practice-recommendations#choosing-system-or-user-assigned-managed-identities))</li><li>Grant least privilege on the target workspace — typically Viewer + item-level (e.g., `ReadAll` on a specific Lakehouse), not Contributor</li><li>Use system-assigned identity (SAMI) only when you need per-resource audit attribution, or you require permissions to be auto-revoked when the resource is deleted</li><li>Caveat: anyone who can deploy/run code on a resource with a UAMI inherits all its permissions — one UAMI per workload keeps the blast radius small ([best practice warning](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/managed-identity-best-practice-recommendations#consider-the-effect-of-assigning-managed-identities-to-azure-resources-andor-granting-assign-permissions-to-a-user))</li></ul> |
 
@@ -45,7 +138,7 @@ GitHub-native gates: code-review approval before merge (PR / branch protection),
 |---|---|
 | PR checks for revisions (gate before merge) | <ul><li>Require PRs into `dev`, `test`, and `main` — no direct pushes</li><li>Enforce a promotion path with source-branch restrictions: PRs into `test` must come from `dev`; PRs into `main` must come from `test`. PRs into `dev` are unrestricted (feature branches PR in)</li><li>Require the branch-specific status-check names listed in [Setup](SETUP.md#5-configure-github)</li><li>Require approving review(s) and code-owner review where configured; dismiss stale approvals when new commits are pushed</li><li>"Require conversation resolution before merging" forces reviewers' comments to be addressed</li><li>Require linear history / signed commits if compliance demands it</li><li>Restrict who can push to or bypass protection on the target branch</li><li>Configure these in Repository Settings → Rules → Rulesets ([branch protection rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets)). Require the [promotion-path workflow's](.github/workflows/enforce-promotion-path.yml) status check on `test` and `main`; fork owners configure the policy separately</li><li>A PR author cannot supply their own required approving review. A single-developer fork must choose an appropriate review policy; deployment-approval self-review is a separate Environment setting</li></ul> |
 | Deploy-time approval (gate before the workflow runs) | <ul><li>Configure GitHub Environment protection rules per environment (Settings → Environments → `Test` / `Prod`)</li><li>Add required reviewers — designated approvers must click "Approve and deploy" before the job starts; the run pauses in "Waiting" status until they do</li><li>Optional wait timer (e.g., 10 min) gives a window to abort an unintended deploy</li><li>Deployment branch restriction: e.g., only `main` can deploy to Prod — even if someone pushes the workflow file from a feature branch, it cannot target Prod</li><li>Approver set is independent from PR reviewers — supports separation of duties (devs approve code, Ops/Release approves Prod deploy)</li></ul> |
-| Audit trail and revision history | <ul><li>Every PR, review, merge, and deploy approval is recorded in GitHub with actor, timestamp, and commit SHA</li><li>GitHub Actions run history shows who triggered, who approved, what ran, exit status, and full logs — exportable for audit</li><li>The Git history itself is the revision log: every change to a Fabric item went through a reviewed PR; `git blame` / `git log` answers "who changed this and why"</li><li>Roll back by reverting the commit and merging — the same gates apply to the revert PR, so rollbacks are also reviewed and approved</li></ul> |
+| Audit trail and revision history | <ul><li>Every PR, review, merge, and deploy approval is recorded in GitHub with actor, timestamp, and commit SHA</li><li>GitHub Actions run history shows who triggered, who approved, what ran, exit status, and full logs — exportable for audit</li><li>Git history is the revision log for definitions captured in the repository: require reviewed PRs for those changes; `git blame` / `git log` answers "who changed this and why"</li><li>Check Git and deployment-route support independently. Capture definitions/configuration where possible, including items unsupported by the chosen publisher; retain approvals and alternate-route evidence for items managed outside Git</li><li>Roll back versioned definitions by reverting the commit and merging — the same gates apply to the revert PR, so these rollbacks are also reviewed and approved</li></ul> |
 | Rollback strategy (think about it before you need it) | <ul><li>Code rollback is the easy half: revert the commit and merge — the same PR gates apply, so the rollback is reviewed and audited like any other change</li><li>Data effects are harder and very company-specific. Things to think through with your team:<ul><li>Snapshotting / point-in-time-restore for Lakehouses and Warehouses before risky deploys</li><li>Whether downstream consumers (reports, agents, embedded apps) need a coordinated rollback or just the code revert</li><li>How to communicate downtime windows to business users</li><li>Which item types need a custom backout plan beyond `git revert` — anything that mutates data, not just definitions</li></ul></li><li>Test your rollback path in Test before you need it in Prod. A rollback you've never exercised is a hope, not a plan</li></ul> |
 
 ## Governance and compliance
@@ -54,8 +147,8 @@ Mapping the controls above to the three governance asks: audit, separation of du
 
 | Concern area | Guidance |
 |---|---|
-| Audit requirements | <ul><li>Git history is the system of record for what changed, when, and by whom — every Fabric item edit is a reviewed, signed-off commit</li><li>GitHub Actions run history captures who triggered each deploy, who approved it (Environment protection), exit status, and full logs — retained per org policy</li><li>PR conversations, review approvals, and merge events are timestamped and auditable (subject to your org's retention and governance settings)</li><li>This covers the CI/CD pipeline audit trail. Workspace-level activity audit (who *accessed* the workspace and what they did inside it) is owned outside the pipeline — see Adjacent controls below</li></ul> |
-| Separation of duties | <ul><li>Code authors cannot approve their own PRs — when required approvals are configured, GitHub enforces this at the platform level</li><li>PR reviewers and deploy approvers can be different people / teams (devs review code; Ops or Release approves Prod deploys via Environment protection)</li><li>Deployment authority and access-grant authority are separated — the CI/CD Contributor SP cannot grant workspace roles; only Admin/Member can. Applies equally to the runtime UAMI — the deployment SP cannot grant it Fabric access</li><li>Test/Prod workspaces are SP-only (see Access control row) — humans cannot write directly, only via an approved deploy workflow</li><li>The SP cannot push to the repo — the workflow's `GITHUB_TOKEN` is locked to `contents: read`, and the SP has no Git credentials</li></ul> |
+| Audit requirements | <ul><li>Git history records changes to versioned definitions/configuration; require reviewed, signed-off commits. For definitions or settings that cannot be versioned, retain the approved procedure, actor, target, and release evidence separately</li><li>GitHub Actions run history captures who triggered each deploy, who approved it (Environment protection), exit status, and full logs — retained per org policy</li><li>PR conversations, review approvals, and merge events are timestamped and auditable (subject to your org's retention and governance settings)</li><li>This covers the CI/CD pipeline audit trail. Workspace-level activity audit (who *accessed* the workspace and what they did inside it) is owned outside the pipeline — see Adjacent controls below</li></ul> |
+| Separation of duties | <ul><li>Code authors cannot approve their own PRs when required approvals are configured</li><li>PR reviewers and deploy approvers can be different people or teams</li><li>Use a privileged administrator for workspace/resource grants; the Contributor deployment SP cannot grant workspace roles</li><li>The sample separates deployment SP, GitHub PAT, Workspace Identity, and human connection administrator; production can further use per-environment instances</li><li>Dev uses a user's Fabric Git connection. Publishers and connection setup do not write commits or push to the repository</li></ul> |
 | Enterprise governance standards | <ul><li>Promotion path is enforced by branch policy: nothing reaches Prod without going through `dev` → `test` → `main` with reviews and deploy approvals at each stage</li><li>Environment protection rules can require approvers from a specific GitHub team (e.g., `@release-managers`), giving the change-management function a hard gate</li><li>Optional deployment wait timer creates an abort window before Prod changes go live</li><li>Where code-owner reviews are required, CODEOWNERS routes sensitive paths to designated reviewers</li><li>Keep CODEOWNERS in version control if used. Branch rules and Environment protection are external GitHub settings that owners configure and audit separately; cloning workflow YAML does not establish them</li></ul> |
 
 ## Adjacent controls owned outside the CI/CD pipeline

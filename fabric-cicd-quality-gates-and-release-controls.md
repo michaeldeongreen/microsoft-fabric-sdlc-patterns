@@ -67,6 +67,12 @@ At PR, inspect source definitions/code. After publication, inspect effective tar
 
 - Validate definition structure, connections, parameters, and dependency references against the target configuration.
 - Run critical paths on controlled Test input; check terminal execution, failure handling, and expected outputs. Verify the runtime source/destination identity, not just the deployer's access. [Connections](https://learn.microsoft.com/en-us/fabric/data-factory/data-source-management).
+- For this sample, both activities require Workspace Identity-authenticated
+  connections. Verify connector type, Workspace Identity authentication,
+  target workspace, connections-admin Owner, physical model/workspace
+  substitutions, the active Library's positive Integer minimum, and the
+  independent String run label. The deployment service principal publishes
+  and starts the DataPipeline but is not the activity runtime identity.
 
 ### Notebooks and Spark environments
 
@@ -86,7 +92,7 @@ At PR, inspect source definitions/code. After publication, inspect effective tar
 ### Semantic models and reports
 
 - Check structure, connections, relationships, and critical measures; review changed visuals and metrics. Static-check examples use tools such as Tabular Editor Best Practice Analyzer and PBI Inspector, not a universal Fabric validator. [Validation example](https://learn.microsoft.com/en-us/power-bi/developer/projects/projects-build-pipelines).
-- For Import models, wait for successful refresh before asserting results. For Direct Lake, query the intended current data. Test calculations and security with the supported consumer identities described below. [Refresh API](https://learn.microsoft.com/en-us/rest/api/power-bi/datasets/refresh-dataset-in-group).
+- For Import models, wait for successful refresh before asserting results. For Direct Lake, wait for required [framing](https://learn.microsoft.com/en-us/fabric/fundamentals/direct-lake-how-it-works#framing) after source ETL, then query the intended current data. Framing is not another ETL/data copy and its success does not validate DAX or consumer access. Test calculations and security with the supported consumer identities described below. [Refresh API](https://learn.microsoft.com/en-us/rest/api/power-bi/datasets/refresh-dataset-in-group).
 
 ### Dataflows Gen2
 
@@ -109,7 +115,7 @@ Source-only tests run at PR. Integration, data, and consumer tests run after Tes
 - Consumer tests: use the intended user's approved authentication. Model RLS is bypassed by workspace Admin/Member/Contributor roles; the deployment identity is not a substitute. [RLS behavior](https://learn.microsoft.com/en-us/fabric/security/service-admin-row-level-security).
 - Access boundaries: verify allowed/denied results on each relevant model/report, SQL, OneLake, and agent path. Model RLS alone does not secure direct data access; a failed login or timeout is not a passing denial test. [Permission model](https://learn.microsoft.com/en-us/fabric/security/permission-model).
 - Power BI Execute Queries cannot use service principals for RLS- or SSO-enabled models. Use a supported user-based route or recorded manual verification; never weaken MFA/Conditional Access to make automation work. [API limitations](https://learn.microsoft.com/en-us/rest/api/power-bi/datasets/execute-queries).
-- Harness checks: wait for operation/job-specific terminal success and inspect per-item outcomes and response-body errors. Fail CI on failed or missing required outcomes, cancellation, timeout, or unmet assertions; accepting a request, logging errors, or skipping checks is not a pass. [Jobs API](https://learn.microsoft.com/en-us/rest/api/fabric/core/job-scheduler/run-on-demand-item-job).
+- Harness checks: wait for operation/job/refresh-specific terminal success and inspect per-item outcomes and response-body errors. Fail CI on failed or missing required outcomes, cancellation, timeout, or unmet assertions; accepting a request, logging errors, or skipping checks is not a pass. [Jobs API](https://learn.microsoft.com/en-us/rest/api/fabric/core/job-scheduler/run-on-demand-item-job).
 
 ## 4. Approvals and release controls
 
@@ -128,10 +134,42 @@ Source-only tests run at PR. Integration, data, and consumer tests run after Tes
 
 ### Execution and completion
 
+- In this repository's
+  [shared Test/Prod follow-up](fabric-release-process.md#post-etl-semantic-model-refresh),
+  GitHub starts and polls `Patterns_Load_Validate_And_Refresh` only. Fabric owns
+  load -> read-only validation -> native refresh; failed validation skips
+  refresh, and refresh failure fails the pipeline. No external refresh fallback
+  or second ETL is wired. The schema/key/reference/source-date/minimum checks
+  are not the full model/business-result or consumer-validation suite.
+- The pipeline job wait is bounded at 60 minutes; load, validation, and refresh
+  activity limits are 20, 10, and 10 minutes, respectively. A GitHub polling
+  timeout is not server-side cancellation. Check the specific pipeline/activity
+  and refresh history before retrying; a failed workflow can leave work running.
 - Share a lock/concurrency policy across all routes targeting the same workspace; hold it through deployment, required workload execution, and smoke checks. Do not interrupt an in-progress release with a competing one.
 - Limit Production writes to approved deployment/operational identities. Keep secrets outside code; separate deployment, runtime, and consumer access. See [Governance Considerations](fabric-cicd-governance-considerations.md) for identity controls.
 - Prefer OIDC/workload identity federation for CI where supported; constrain trust and deployment branch policies and verify Fabric permissions. This repository currently uses client-secret authentication; the [OIDC example is planned](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns/issues/84).
-- Retain approvals, target configuration, per-item outcomes, job/test IDs, deletions, and run links with restricted access and masked results. Keep failed/partial attempts separate from the last fully validated Production release.
+- Retain approvals, target configuration, per-item outcomes, job/refresh/test IDs, deletions, and run links with restricted access and masked results. Keep failed/partial attempts separate from the last fully validated Production release.
+
+### Small failure demonstration
+
+Use an isolated feature or approved nonproduction target with disposable sample
+data, not Production: this pipeline's loader writes the sample tables.
+
+1. Record the active Library's `minimum_patient_count`, then raise it above the
+   observed patient count while keeping it a positive Integer. Run the pipeline.
+2. Confirm the validation activity fails and native refresh is skipped. Inspect
+   the passed threshold and independent `run_label`; do not require exact seed
+   counts in the runtime gate.
+3. Restore the original minimum and run once again. Require actual native
+   refresh completion, then separately query the model's date fields and check
+   consumer results.
+
+This demonstrates an environment policy versus per-run input, not enterprise
+certification. The default fabric-cicd Test release is live-verified through
+connection ensure, publication, and the same-revision DataPipeline. Prod, the
+three alternative publishers, current-revision Branch Out, model/report
+business results, and consumer access remain separate gates. See the
+[verification matrix](fabric-release-process.md#verification-status).
 
 ## 5. Support inventory and exceptions
 

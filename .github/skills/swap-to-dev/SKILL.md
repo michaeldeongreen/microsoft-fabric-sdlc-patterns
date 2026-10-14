@@ -1,17 +1,38 @@
 ---
 name: swap-to-dev
-description: 'Restore tracked Fabric files to dev workspace IDs and remove the current branch feature value set before opening a PR.'
+description: 'Restore committed Dev references from parameter rules and verify local readiness; offline, with no connection provisioning, login, Actions dispatch, or artifacts.'
+disable-model-invocation: true
 ---
 
 # Swap to Dev
 
-Run this after feature work to restore dev IDs before opening a pull request.
+An explicit invocation authorizes the local restoration and readiness check.
+Do not ask for another YES/NO. A preview request uses the
+[dry-run skill](../swap-to-dev-dryrun/SKILL.md), never the write-enabled path.
 
-## Procedure
+1. Confirm the intended feature checkout, not dev/test/main or detached HEAD.
+2. Use the committed baseline in both parameter files. Invalid, mismatched,
+   or template IDs are errors: stop and explain the facilitator's explicit
+   setup/cutover prerequisite. Never dispatch provisioning or regenerate IDs.
+3. If the branch feature value set exists, run:
 
-1. From the repository root, run `python scripts/workspace_swap.py --swap-to-dev`.
-2. Report the complete command output and summarize what changed.
-3. Remind the user to commit and push the changes before opening a PR to `dev`.
+   ```powershell
+   python scripts\workspace_swap.py --swap-to-dev
+   ```
 
-The script reads the feature IDs from the existing value set on disk. It does
-not consult `.env`.
+   If already restored, skip that write and go to readiness.
+4. Verify automatically:
+
+   ```powershell
+   python scripts\workspace_swap.py --check-ready
+   ```
+
+5. Report complete output and local changes; errors stop the workflow.
+   Remind the user to review/commit/push and create the PR to Dev.
+
+No Azure/GitHub authentication, local SP secrets, connection setup, artifacts,
+commits, pushes, Git sync, pipeline execution, or capacity changes are authorized.
+Readiness verifies source state, not live Fabric permissions. After merge,
+the human updates Dev in Fabric and runs the native pipeline.
+
+See the [development process](../../../fabric-development-process.md).

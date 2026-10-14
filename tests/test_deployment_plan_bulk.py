@@ -12,7 +12,7 @@ import yaml
 from deployment_plan_bulk import MAX_GROUPS, MAX_PLAN_BYTES, PLAN_SCHEMA, load_schedule, validate_guid
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCOPE = ["Lakehouse", "Ontology", "VariableLibrary", "Notebook", "SemanticModel", "Report", "DataAgent"]
+SCOPE = ["Lakehouse", "Ontology", "VariableLibrary", "Notebook", "SemanticModel", "Report", "DataAgent", "DataPipeline"]
 
 
 def _item(root: Path, name: str, item_type: str, number: int) -> str:
@@ -41,11 +41,12 @@ def test_real_plan_combines_only_independent_ready_groups() -> None:
         SCOPE,
     )
     assert [[group.name for group in batch] for batch in schedule.batches] == [
-        ["Lakehouse_Group"], ["Ontology_Group", "SemanticModel_Group"], ["DataAgent_Group"],
+        ["Lakehouse_Group"],
+        ["Import_Group", "Ontology_Group", "SemanticModel_Group", "Validation_Group", "Variables_Group"],
+        ["DataAgent_Group", "Pipeline_Group"],
     ]
     assert {item.selector for item in schedule.remaining_items} == {
-        "Patterns_Report.Report", "Patterns_Variables.VariableLibrary",
-        "Import_Patterns_Data.Notebook", "Patterns_Demo.Notebook", "Patterns_Patients_Data.Notebook",
+        "Patterns_Report.Report", "Patterns_Demo.Notebook", "Patterns_Patients_Data.Notebook",
     }
     assert "DeploymentPlan" not in schedule.item_types
     assert schedule.summary()["adapter"] == "isolated-bulk-ordering-only"

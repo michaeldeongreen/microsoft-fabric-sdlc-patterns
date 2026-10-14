@@ -3,15 +3,19 @@
 Two independent repository-owned adapters read a committed Fabric Deployment
 Plan: `fabric-cicd-plan` uses sequential non-bulk publishing, and
 `fabric-cicd-bulk` combines independent ready groups into strict fabric-cicd bulk
-selections. Each replaces hard-coded phases in its own method. The default non-bulk
-`fabric-cicd` and raw REST `bulk` implementations remain available and unchanged.
+selections. Each replaces hard-coded phases in its own method.
+**fabric-cicd non-bulk** (`fabric-cicd`) remains this repository's default and
+recommended starting point; see the
+[fabric-cicd Non-Bulk CI/CD Guide](fabric-hybrid-cicd-guide.md).
+The raw REST `bulk` method is a separate alternative example.
 
 These are ordering-only solution accelerators, not native Deployment Plan
 execution. Deployment Plans are in preview, and the fabric-cicd item-inclusion
 API used here is experimental. Validate the method in Test before production.
 Native Fabric Deployment Pipelines are a separate service and are not invoked
 by either adapter. Use the [README comparison](README.md#choose-a-deployment-method)
-to choose a route and the [shared workflow reference](fabric-hybrid-cicd-guide.md#github-actions-workflows)
+to choose a route and the
+[shared workflow reference](fabric-release-process.md#github-actions-workflows)
 to locate its caller and runner.
 
 > Support boundary: fabric-cicd maintainers describe selective deployment as
@@ -32,6 +36,7 @@ begin at [Isolated Bulk Adapter](#isolated-bulk-adapter-14x).
 <pre>
 <a href=".github/workflows/deploy-test-fabric-cicd-plan.yml">deploy-test-fabric-cicd-plan.yml</a> / <a href=".github/workflows/deploy-prod-fabric-cicd-plan.yml">deploy-prod-fabric-cicd-plan.yml</a>
   (orchestrator workflows)
+  -&gt; shared connection preflight, ensure, Owner verification, and ID persistence
   -&gt; <a href=".github/workflows/reusable-deploy-fabric-cicd-plan.yml">reusable-deploy-fabric-cicd-plan.yml</a> (reusable workflow)
      -&gt; <a href="scripts/deploy_fabric_cicd_non_bulk_plan.py">deploy_fabric_cicd_non_bulk_plan.py</a> (deployment adapter)
         -&gt; <a href="scripts/deployment_plan.py">deployment_plan.py</a> (plan reader and scheduler)
@@ -39,7 +44,10 @@ begin at [Isolated Bulk Adapter](#isolated-bulk-adapter-14x).
         -&gt; publish declared items in dependency order
         -&gt; publish remaining in-scope items
         -&gt; clean up eligible orphaned items
-  -&gt; <a href=".github/workflows/etl-test.yml">etl-test.yml</a> / <a href=".github/workflows/etl-prod.yml">etl-prod.yml</a> (ETL workflows), after successful deployment
+  -&gt; dependent run-etl job in the same workflow revision, after successful deployment
+     -&gt; <a href=".github/workflows/reusable-fabric-etl.yml">reusable-fabric-etl.yml</a>
+        -&gt; start Patterns_Load_Validate_And_Refresh and wait for its Pipeline job
+           -&gt; existing loader -&gt; read-only validation -&gt; native model refresh
 </pre>
 
 [deploy_fabric_cicd_non_bulk_plan.py](scripts/deploy_fabric_cicd_non_bulk_plan.py) calls
@@ -66,16 +74,24 @@ conflict changes the item's identity and requires the committed plan to be
 updated. Preserve Fabric-generated logical IDs and review metadata-overwrite
 prompts before accepting them.
 
-The current plan contains four groups:
+The plan orders publication dependencies, including:
 
 ```text
-                     ┌──> SemanticModel_Group
-Lakehouse_Group ─────┤
-                     └──> Ontology_Group ───> DataAgent_Group
+Lakehouse -> Patterns_Semantic_Model ───────────┐
+          -> Patterns_Variables ────────────────┤
+          -> Import_Patterns_Data ──────────────┼-> DataPipeline
+          -> Validate_Patterns_Data ────────────┘
+          -> Ontology -> Data Agent
 ```
 
-These groups deploy `PatternsLakehouse`, `Patterns_Semantic_Model`,
-`Patterns_Ontology`, and `Patterns_Data_Agent`, respectively.
+The pipeline's required definitions must exist before it is published.
+These edges do **not** run the loader, validate data, or refresh the model.
+The DataPipeline's success dependencies control that separate runtime sequence.
+The committed plan has eight declared groups. Its deterministic sequential
+order is `Lakehouse_Group` → `Import_Group` → `Ontology_Group` →
+`SemanticModel_Group` → `Validation_Group` → `Variables_Group` →
+`DataAgent_Group` → `Pipeline_Group`. Use the preview commands below to check
+the schedule after changing the plan or inventory.
 
 In the non-bulk method, each declared item gets a separate `publish_all_items(..., items_to_include=...)`
 call with fresh workspace state. Later calls can therefore resolve the target
@@ -86,9 +102,13 @@ deterministic order, not in parallel.
 from repository metadata and `ITEM_TYPE_IN_SCOPE`.
 [deploy_fabric_cicd_non_bulk_plan.py](scripts/deploy_fabric_cicd_non_bulk_plan.py) publishes
 those items in one additional library call using fabric-cicd's standard order.
-Here the remaining items are the report, Variable Library, and three notebooks.
-These are library calls, not single HTTP requests. The DeploymentPlan control
-item is not published or orphan-cleaned.
+The current remainder is three items: `Patterns_Demo`,
+`Patterns_Patients_Data`, and `Patterns_Report`. Variable Library, loader,
+validation, and pipeline now have explicit groups rather than belonging to the
+remainder. Custom plans can produce a different inventory; preview the graph.
+For this 11-item sample, non-bulk plan publishing makes nine library calls
+(eight declared groups plus one remainder selection), not nine HTTP requests.
+The DeploymentPlan control item is not published or orphan-cleaned.
 
 ## Isolated Bulk Adapter (1.4.x)
 
@@ -99,18 +119,24 @@ module imports the non-bulk plan implementation. Both readers support the same
 ordering-only schema, but the Python code is deliberately isolated.
 
 Only explicit `dependsOn` determines readiness. Independent ready groups are
-combined into one exact fabric-cicd selection, not sent in parallel. The current plan
-and inventory produce:
+combined into one exact fabric-cicd selection, not sent in parallel. The current
+plan gives DataPipeline explicit dependencies on `Patterns_Variables`,
+`Import_Patterns_Data`, `Validate_Patterns_Data`, and `Patterns_Semantic_Model`.
+For the committed 11-item sample, the read-only schedule is:
 
-| Selection | Items | Count |
+| Selection | Item count | Groups or remaining items |
 |---|---|---|
-| Ready batch 1 | Lakehouse | 1 |
-| Ready batch 2 | Ontology + Semantic Model | 2 |
-| Ready batch 3 | Data Agent | 1 |
-| Remainder | Report, Variable Library, three Notebooks | 5 |
+| Declared batch 1 | 1 | Lakehouse |
+| Declared batch 2 | 5 | Import, Ontology, SemanticModel, Validation, Variables |
+| Declared batch 3 | 2 | DataAgent, Pipeline |
+| Remainder | 3 | `Patterns_Demo`, `Patterns_Patients_Data`, `Patterns_Report` |
 
-The table is a fixture result, not a hardcoded type order. Changing authored
-dependencies changes the batches. Every call uses fresh workspace state,
+That is four library selections with item counts `[1, 5, 2, 3]`. The offline
+transport contract expects four bulk definition-import POSTs for this sample;
+inventory GETs, value-set activation PATCHes, and cleanup DELETEs are additional
+HTTP requests. These counts are not live deployment evidence or a hardcoded
+type order: changing dependencies or inventory changes the schedule. Preview
+the committed plan after changes. Every call uses fresh workspace state,
 explicit item types, and exact `Name.ItemType` inclusion selectors.
 fabric-cicd may split a selection into additional internal dependency batches for
 other repositories; one library call is not a fixed HTTP request count.
@@ -122,13 +148,13 @@ changing repository-wide routing. Copy the two repository-variable values from
 [Setup: fabric-cicd-bulk settings](SETUP.md#fabric-cicd-bulk-settings), and use
 the shared environment secrets there. Select this route only when ready for
 approved Test validation.
-The Test and Prod callers already supply the seven-type explicit scope.
+The Test and Prod callers supply an eight-type explicit scope including `DataPipeline`.
 Unlike non-bulk, an omitted or empty scope is an error, not an all-types default.
 
 From the checkout root, with dependencies installed:
 
 ```powershell
-$env:ITEM_TYPE_IN_SCOPE = '["Lakehouse","Ontology","VariableLibrary","Notebook","SemanticModel","Report","DataAgent"]'
+$env:ITEM_TYPE_IN_SCOPE = '["Lakehouse","Ontology","VariableLibrary","Notebook","SemanticModel","Report","DataAgent","DataPipeline"]'
 python scripts\deploy_fabric_cicd_bulk.py --plan data\fabric\DeploymentPlan.DeploymentPlan\plan.yml --dry-run
 ```
 
@@ -146,10 +172,15 @@ to both caller filters if it is stored elsewhere.
 
 ### fabric-cicd Replacements and Strict Success
 
-fabric-cicd 1.4.0 supports this repository's five filtered dynamic rules in
+fabric-cicd 1.4.0 supports this repository's filtered dynamic rules in
 [parameter.yml](data/fabric/parameter.yml) with bulk enabled. fabric-cicd owns
 replacement and Test/Prod value-set activation. Bulk does not port the raw
 REST find/replace engine or read [bulk-parameter.yml](data/fabric/bulk-parameter.yml).
+Pipeline rules replace the canonical Dev model and connection IDs.
+The runners enable `$ENV:` replacement and validate
+`NOTEBOOK_CONNECTION_ID` and `SEMANTIC_MODEL_REFRESH_CONNECTION_ID` before
+publishing. These are [Environment variables](SETUP.md#environment-variables),
+not credentials or connection-creation instructions.
 Before live authentication, the adapter requires each selected Variable Library
 to declare the exact environment name and contain its matching value-set file.
 Missing/mismatched metadata fails rather than letting fabric-cicd activate Default
@@ -164,7 +195,7 @@ are rejected. Any `key_value_replace` rule whose filters include those files is
 also rejected: fabric-cicd reserializes JSON even without a matching key or
 environment, which can enable a later text rule to change activation metadata.
 Scope library key-value rules to `**/variables.json`; ordinary workload files
-and library variables still use fabric-cicd parameterization. The five committed rules
+and library variables still use fabric-cicd parameterization. The committed rules
 are unaffected. This is a conservative adapter safety restriction, not an
 upstream fabric-cicd limitation.
 
@@ -193,9 +224,9 @@ separate requests, not standard definition-publish fallback.
 
 [The bulk contract tests](tests/test_deploy_fabric_cicd_bulk.py) run the actual
 released 1.4.0 publishing and parameterization code with only HTTP mocked and
-real requests blocked. Cold/warm Test/Prod fixtures observe four bulk imports
-each (sixteen total), with the parameter file present, correct physical
-replacements and activation requests, and zero standard definition POSTs.
+real requests blocked. Cold/warm fixtures exercise the parameter file, physical
+replacements, activation requests, and zero standard definition POSTs.
+Their stage names describe offline fixtures, not live Test/Prod validation.
 They also cover partial/failed/missing results, invalid parameters, cleanup
 exclusions, and unchanged source files. Adversarial-review regressions reject
 activation-metadata substitutions and chained key-value/text rules before any
@@ -224,7 +255,7 @@ Actions remain on Python 3.12. The exact 1.4.0 lower boundary is tested.
 | Python 3.14 support | Inherited upstream capability, not a reason to change this repository's Actions runtime. |
 | KQLQueryset, PaginatedReport, and Activator fixes | Inherit the fixes; these item types are not in this inventory. `Report` is not `PaginatedReport`. |
 | Semantic Model connection trailing-slash fix | Applies to fabric-cicd `bindConnection` requests; no `semantic_model_binding` is configured here. Do not claim all connection setup is solved. |
-| `$ENV:` name handling | No such rules here; the raw REST `$environment` placeholder is a different DSL. |
+| `$ENV:` name handling | Use the exact uppercase Notebook/refresh connection variable names in pipeline rules; the runners enable environment replacement. Raw REST retains its separate replacement engine. |
 | jsonpath-ng regression bound | Respect fabric-cicd's `>=1.7.0,<1.8.0` transitive constraint; no redundant direct pin. No active `key_value_replace` rules are added. |
 | New end-to-end tutorial | Reference material, not a replacement for the repository's architecture. |
 
@@ -235,24 +266,29 @@ and [bulk limitations](https://microsoft.github.io/fabric-cicd/1.4.0/how_to/opti
 
 The files below implement the **non-bulk plan route**. For the bulk counterpart
 and all other workflow families, use the
-[shared workflow reference](fabric-hybrid-cicd-guide.md#github-actions-workflows).
+[shared workflow reference](fabric-release-process.md#github-actions-workflows).
 
 | File | Role |
 |---|---|
 | [deploy-test-fabric-cicd-plan.yml](.github/workflows/deploy-test-fabric-cicd-plan.yml) | Deploys on qualifying pushes to `test`; also supports manual runs on `test` |
-| [deploy-prod-fabric-cicd-plan.yml](.github/workflows/deploy-prod-fabric-cicd-plan.yml) | Deploys on qualifying pushes to `main`, using the protected `Prod` environment |
+| [deploy-prod-fabric-cicd-plan.yml](.github/workflows/deploy-prod-fabric-cicd-plan.yml) | Deploys on qualifying pushes to `main`, using the `Prod` Environment and any configured protection |
 | [reusable-deploy-fabric-cicd-plan.yml](.github/workflows/reusable-deploy-fabric-cicd-plan.yml) | Installs dependencies, previews the schedule, and runs [deploy_fabric_cicd_non_bulk_plan.py](scripts/deploy_fabric_cicd_non_bulk_plan.py) |
 | [deploy_fabric_cicd_non_bulk_plan.py](scripts/deploy_fabric_cicd_non_bulk_plan.py) | Authenticates with `ClientSecretCredential` and orchestrates public fabric-cicd calls |
 | [deployment_plan.py](scripts/deployment_plan.py) | Validates the supported plan format and calculates the declared order and remainder |
 
 [deploy-test-fabric-cicd-plan.yml](.github/workflows/deploy-test-fabric-cicd-plan.yml)
 and [deploy-prod-fabric-cicd-plan.yml](.github/workflows/deploy-prod-fabric-cicd-plan.yml)
-use the same environment-scoped secrets and seven-type scope as the standard
-method. No additional source-workspace credential is needed. The existing
-[etl-test.yml](.github/workflows/etl-test.yml) and
-[etl-prod.yml](.github/workflows/etl-prod.yml) listeners recognize the new
-workflow names; [deploy_fabric_cicd_non_bulk_plan.py](scripts/deploy_fabric_cicd_non_bulk_plan.py)
-does not run ETL itself.
+use the same environment-scoped secrets, existing WI connection preflight, and
+eight-type scope as the standard method. Before the publisher starts, each
+selected job creates or reuses the stage WI pair, verifies the connections-admin
+group as Owner, and persists missing IDs. No additional source-workspace
+credential is needed. Their dependent ETL jobs use the same revision;
+[deploy_fabric_cicd_non_bulk_plan.py](scripts/deploy_fabric_cicd_non_bulk_plan.py)
+does not run ETL or model refresh itself. Both plan methods use the same
+[post-ETL follow-up](fabric-release-process.md#post-etl-semantic-model-refresh)
+as the default non-bulk and raw REST routes: GitHub starts and polls one pipeline;
+Fabric runs load → read-only validation → native refresh, waiting for completion.
+CI is not a second refresh owner.
 
 ## Enable the Method
 
@@ -265,9 +301,9 @@ while promoting
 [deploy-prod-fabric-cicd-plan.yml](.github/workflows/deploy-prod-fabric-cicd-plan.yml),
 and [reusable-deploy-fabric-cicd-plan.yml](.github/workflows/reusable-deploy-fabric-cicd-plan.yml)
 through `dev -> test -> main`.
-GitHub reads `workflow_run` listeners from the default branch, and a manually
-dispatched workflow must exist there too. Changing the selector before that
-rollout can leave Test without its automatic ETL follow-up.
+Automatic ETL uses `needs`, not a default-branch listener. Workflow files still
+need to exist on the default branch for the Actions manual-dispatch UI to list
+them. Wait for in-flight runs before changing the selector.
 
 In repository Settings > Secrets and variables > Actions > Variables, set:
 
@@ -282,15 +318,16 @@ Then:
 2. In Actions, choose `Deploy to Test (fabric-cicd Plan)` and run it with branch
    `test`, or merge a qualifying change into `test`.
 3. Review the schedule, deployment, and ETL results using the checks below.
-4. Promote to `main` after Test passes. The existing `Prod` approval gate applies.
+4. Promote to `main` after Test passes. Any configured Prod Environment
+   protection applies; the repository does not create that protection.
 
 A manual [deploy-test-fabric-cicd-plan.yml](.github/workflows/deploy-test-fabric-cicd-plan.yml)
 run on another branch is skipped.
 [deploy-test-fabric-cicd-plan.yml](.github/workflows/deploy-test-fabric-cicd-plan.yml)
 and [deploy-prod-fabric-cicd-plan.yml](.github/workflows/deploy-prod-fabric-cicd-plan.yml)
-do not cancel an already-running plan deployment; concurrency is controlled
-separately for Test and Prod. This does not coordinate a run from another
-deployment method.
+do not cancel an already-running plan deployment. Selected routes share one
+stage concurrency group, so Test releases serialize with other selected Test
+methods and Prod releases serialize with other selected Prod methods.
 
 [deploy-test-fabric-cicd-plan.yml](.github/workflows/deploy-test-fabric-cicd-plan.yml)
 and [deploy-prod-fabric-cicd-plan.yml](.github/workflows/deploy-prod-fabric-cicd-plan.yml)
@@ -354,6 +391,13 @@ physical IDs, and selects the Variable Library value set for `Test` or `Prod`.
 Keep source IDs and replacement rules aligned, and restore Dev bindings before
 promotion as described in the [Development Process](fabric-development-process.md).
 Reading a plan does not replace parameterization.
+The selected Test/Prod job automatically ensures the target Notebook and
+Power BI datasets Workspace Identity connections before the publisher runs.
+It verifies Owner for the configured group and persists missing GUIDs. The
+publisher then uses those connections read-only. See
+[Release Process](fabric-release-process.md#dev-to-test).
+A portable DeploymentPlan logical ID does not make the pipeline's physical
+model/connection GUIDs portable.
 Environment/value-set names must match exactly. fabric-cicd warns and falls
 back to the default value set if no name matches; keep the committed `Test`
 and `Prod` sets and verify the active set after deployment.
@@ -379,8 +423,9 @@ changes future routing, not the state already deployed.
 
 The raw Bulk collector excludes DeploymentPlan control folders so the new
 Git-synced item does not alter that older method's workload payload. It does
-not attach or execute the plan. The standard runner and the non-bulk plan logic
-remain unchanged; library bulk now has its own isolated ordering adapter.
+not attach or execute the plan. The standard non-plan runner uses its own
+publication phases; non-bulk plan ordering and library bulk scheduling remain
+independent adapters.
 
 ## Verify Before Production
 
@@ -388,21 +433,33 @@ Use an approved Test target and check:
 
 - The log names the installed fabric-cicd version and the selected standard or
   strict bulk publishing mode.
-- All four declared items and five remaining items deploy without duplication.
-- Targeted Notebook and Semantic Model fields and the Variable Library
-  Lakehouse ID contain the expected replacements. Intentional Dev defaults
+- All declared and remaining items, including the new validation notebook and
+  DataPipeline, deploy without duplication in the previewed order.
+- Targeted Notebook, Semantic Model, DataPipeline model/connection fields, and
+  the Variable Library Lakehouse ID contain the expected replacements. Intentional Dev defaults
   overridden by active value sets need not disappear from every file.
 - For bulk, verify the Report/model and logical-ID bindings across imports;
   do not infer them from the client request tests.
 - The correct value set is active before the existing ETL workflow runs once.
+- The CI service principal can publish and start the pipeline; its Workspace
+  Identity activities complete load → validation → native refresh. Verify
+  threshold/label forwarding and model ownership after CI deployment.
+- Verify the model's required date fields, calculations, and consumer paths
+  separately; source validation and refresh success are not query evidence.
 - A second deployment updates the same item IDs rather than creating duplicates.
 - Cleanup affects only the expected orphaned items and types.
 
 The [clean-workspace caveats](fabric-hybrid-cicd-guide.md#initial-deployment-to-a-clean-workspace)
 still apply, including Ontology/Graph Model initialization. Deploying a notebook
-does not populate tables; ordering alone does not replace ETL or connection setup.
-Offline tests cover scheduling and fabric-cicd parameterization with a mocked transport;
-they are not evidence of a successful live deployment in your tenant.
+does not populate tables; publishing `SemanticModel_Group` does not refresh it
+after the loader's writes. Ordering alone does not replace pipeline execution,
+Direct Lake framing, or connection setup. The follow-up does not attach a native plan
+or change either adapter's publishing order.
+Offline tests cover scheduling and fabric-cicd parameterization with a mocked
+transport; they are not evidence of a successful plan-route deployment in your
+tenant. The default non-bulk Test route is live-verified, but neither plan
+adapter has current live evidence. See the
+[shared verification matrix](fabric-release-process.md#verification-status).
 
 ## Relationship to Native Deployment Plans
 

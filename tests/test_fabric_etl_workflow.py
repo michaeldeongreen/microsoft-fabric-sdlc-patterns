@@ -18,6 +18,15 @@ def workflow(name: str) -> dict:
     )
 
 
+def test_readiness_installs_parameter_parser_before_check() -> None:
+    steps = workflow("check-pr-ready.yml")["jobs"]["check-pr-ready"]["steps"]
+    install = next(index for index, step in enumerate(steps)
+                   if step.get("run") == 'python -m pip install "PyYAML>=6.0"')
+    check = next(index for index, step in enumerate(steps)
+                 if step.get("run") == "python scripts/workspace_swap.py --check-ready")
+    assert install < check
+
+
 def test_pipeline_run_label_is_optional_for_notebook_only_callers() -> None:
     inputs = workflow("reusable-fabric-etl.yml")["on"]["workflow_call"]["inputs"]
     assert inputs["run_label"]["type"] == "string"

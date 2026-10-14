@@ -110,12 +110,22 @@ def fabric_dir(tmp_path: Path) -> Path:
     )
     (vs_dir / "Test.json").write_text("{}", encoding="utf-8")
     (vs_dir / "Prod.json").write_text("{}", encoding="utf-8")
-    (fabric.parent / pb.DEV_BINDINGS_FILENAME).write_text(
-        json.dumps(pb.DevPipelineBindings(
-            DEV_WS_ID, DEV_PIPELINE_VALUES["Semantic model"],
-            DEV_PIPELINE_VALUES["Notebook connection"], DEV_PIPELINE_VALUES["Refresh connection"],
-        ).document()), encoding="utf-8",
-    )
+    (fabric / "Test.SemanticModel" / ".platform").write_text("{}", encoding="utf-8")
+    baseline = {**DEV_PIPELINE_VALUES, "Refresh workspace": DEV_WS_ID}
+    expressions = {
+        "Semantic model": "$items.SemanticModel.Test.$id",
+        "Notebook connection": "$ENV:NOTEBOOK_CONNECTION_ID",
+        "Refresh connection": "$ENV:SEMANTIC_MODEL_REFRESH_CONNECTION_ID",
+        "Refresh workspace": "$workspace.$id",
+    }
+    (fabric / "parameter.yml").write_text(json.dumps({"find_replace": [
+        {"find_value": value, "replace_value": {"_ALL_": expressions[label]}, "item_type": "DataPipeline"}
+        for label, value in baseline.items()
+    ]}), encoding="utf-8")
+    (fabric / "bulk-parameter.yml").write_text(json.dumps({"substitutions": [
+        {"find": value, "replace_with": expressions[label], "item_types": ["DataPipeline"]}
+        for label, value in baseline.items()
+    ]}), encoding="utf-8")
 
     return fabric
 

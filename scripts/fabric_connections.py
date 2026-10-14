@@ -520,6 +520,8 @@ def _connection_id(
         raise FabricConnectionError("Fabric returned malformed connection skip-test metadata.")
     if "creationMethod" in details and details["creationMethod"] != connector.method:
         raise FabricConnectionError(f"{connector.type} connection has a different creation method.")
+    if authentication == "WorkspaceIdentity" and connection.get("allowUsageInUserControlledCode", False) is not False:
+        raise FabricConnectionError("Activity WI connections must not expose credentials to user-controlled code.")
     return connection_id
 
 
@@ -700,9 +702,7 @@ def ensure_pipeline_connections(
     connections = client.list("/connections") if len(result) < len(_CONNECTORS) else []
     for connector in _CONNECTORS:
         if connector.environment_key not in result:
-            existing_id = _named_connection(
-                connections, names[connector.environment_key], connector, authentication=authentication,
-            )
+            existing_id = _named_connection(connections, names[connector.environment_key], connector, authentication=authentication)
             if existing_id is not None:
                 result[connector.environment_key] = existing_id
     if len(set(result.values())) != len(result):
@@ -714,10 +714,9 @@ def ensure_pipeline_connections(
             principal_id = _identity(client.request("POST", f"{workspace_path}/provisionIdentity"))
             assignment = _identity_assignment(assignments, principal_id)
         if assignment is None:
-            client.request(
-                "POST", f"{workspace_path}/roleAssignments",
-                {"principal": {"id": principal_id, "type": "ServicePrincipal"}, "role": "Contributor"},
-            )
+            client.request("POST", f"{workspace_path}/roleAssignments", {
+                "principal": {"id": principal_id, "type": "ServicePrincipal"}, "role": "Contributor",
+            })
         elif assignment["role"] == "Viewer":
             assignment_id = validate_guid(assignment["id"], "Workspace role assignment ID")
             client.request("PATCH", f"{workspace_path}/roleAssignments/{assignment_id}", {"role": "Contributor"})
@@ -729,22 +728,19 @@ def ensure_pipeline_connections(
                     _object(bodies[connector.environment_key]["credentialDetails"], "connection credentials"),
                 )
             continue
-        name = names[connector.environment_key]
         try:
             created = client.request("POST", "/connections", bodies[connector.environment_key])
             connection_id = _connection_id(
-                created, connector, expected_name=name, authentication=authentication,
+                created, connector, expected_name=names[connector.environment_key], authentication=authentication,
             )
         except FabricRestError as error:
             if error.error_code != "DuplicateConnectionName":
                 raise
             connection_id = _named_connection(
-                client.list("/connections"), name, connector, authentication=authentication,
+                client.list("/connections"), names[connector.environment_key], connector, authentication=authentication,
             )
             if connection_id is None:
-                raise FabricConnectionError(
-                    "The managed connection name exists but is not accessible; ask its owner to grant connection access."
-                ) from None
+                raise FabricConnectionError("The managed connection name exists but is not accessible; ask its Owner for access.") from None
             if authentication == "ServicePrincipal":
                 _reconcile_credentials(
                     client, connection_id, connector,
@@ -754,3 +750,116 @@ def ensure_pipeline_connections(
             raise FabricConnectionError("Fabric returned the same ID for different pipeline connections.")
         result[connector.environment_key] = connection_id
     return result
+
+
+def provision_wi_connections(
+    client: FabricRestClient, workspace_id: str, environment: str, *,
+    notebook_connection_id: str | None = None,
+    refresh_connection_id: str | None = None,
+) -> dict[str, str]:
+    """Provision only connections; WI creation and workspace roles are human setup."""
+    workspace_id = validate_guid(workspace_id, "Workspace ID")
+    if environment not in {"Dev", "Test", "Prod", "Feature"}:
+        raise FabricConnectionError("Connection environment must be Dev, Test, Prod, or Feature.")
+    validate_connection_configuration(
+        workspace_id, authentication="WorkspaceIdentity",
+        notebook_connection_id=notebook_connection_id, refresh_connection_id=refresh_connection_id,
+    )
+    workspace = client.request("GET", f"/workspaces/{workspace_id}")
+    if validate_guid(workspace.get("id"), "Returned workspace ID") != workspace_id:
+        raise FabricConnectionError("Fabric returned a different workspace.")
+    if workspace.get("workspaceIdentity") is None:
+        raise FabricConnectionError("Create the target Workspace Identity and grant its access before provisioning connections.")
+    _identity(workspace["workspaceIdentity"])
+    result: dict[str, str] = {}
+    for connector, override in zip(_CONNECTORS, (notebook_connection_id, refresh_connection_id)):
+        if override:
+            override = validate_guid(override, "Existing connection ID")
+            result[connector.environment_key] = _connection_id(
+                client.request("GET", f"/connections/{override}"), connector,
+                expected_id=override, authentication="WorkspaceIdentity",
+            )
+    names = {connector.environment_key: f"Patterns-{environment}-{connector.suffix}-{workspace_id}" for connector in _CONNECTORS}
+    listed = client.list("/connections") if len(result) != 2 else []
+    for connector in _CONNECTORS:
+        if connector.environment_key not in result:
+            existing = _named_connection(listed, names[connector.environment_key], connector, authentication="WorkspaceIdentity")
+            if existing:
+                result[connector.environment_key] = existing
+    if len(set(result.values())) != len(result):
+        raise FabricConnectionError("Notebook and refresh connections must be distinct.")
+    missing = [connector for connector in _CONNECTORS if connector.environment_key not in result]
+    if missing:
+        metadata = client.list("/connections/supportedConnectionTypes?showAllCreationMethods=true")
+        bodies = {
+            connector.environment_key: _creation_body(
+                metadata, connector, names[connector.environment_key],
+                authentication="WorkspaceIdentity", credential_values={"credentialType": "WorkspaceIdentity"},
+            )
+            for connector in missing
+        }
+        for connector in missing:
+            body = {**bodies[connector.environment_key], "allowUsageInUserControlledCode": False}
+            try:
+                created = client.request("POST", "/connections", body)
+                connection_id = _connection_id(
+                    created, connector, expected_name=names[connector.environment_key], authentication="WorkspaceIdentity",
+                )
+            except FabricRestError as exc:
+                if exc.error_code != "DuplicateConnectionName":
+                    raise
+                connection_id = _named_connection(
+                    client.list("/connections"), names[connector.environment_key], connector,
+                    authentication="WorkspaceIdentity",
+                )
+                if connection_id is None:
+                    raise FabricConnectionError("Managed connection name exists but is inaccessible; ask its Owner for access.") from None
+            if connection_id in result.values():
+                raise FabricConnectionError("Fabric returned the same ID for different connection types.")
+            result[connector.environment_key] = connection_id
+    return result
+
+
+def grant_connection_group_owner(client: FabricRestClient, connection_ids: list[str], group_id: str) -> None:
+    """Grant an explicitly trusted group Owner, verifying every role by readback."""
+    group_id = validate_guid(group_id, "FABRIC_CONNECTION_ADMINS_GROUP_ID")
+    ids = [validate_guid(value, "Connection ID") for value in connection_ids]
+    if len(ids) != 2 or len(set(ids)) != 2 or group_id in ids:
+        raise FabricConnectionError("Group ownership requires two distinct connection IDs and a distinct group ID.")
+
+    def assignment(connection_id: str) -> dict[str, object] | None:
+        matches: list[dict[str, object]] = []
+        for role in client.list(f"/connections/{connection_id}/roleAssignments"):
+            principal = _object(role.get("principal"), "connection principal")
+            principal_id = validate_guid(principal.get("id"), "Connection principal ID")
+            if principal.get("type") not in {"User", "Group", "ServicePrincipal", "ServicePrincipalProfile", "EntireTenant"}:
+                raise FabricConnectionError("Malformed connection principal type.")
+            if role.get("role") not in {"User", "UserWithReshare", "Owner"}:
+                raise FabricConnectionError("Malformed connection role.")
+            if principal_id == group_id:
+                if principal["type"] != "Group":
+                    raise FabricConnectionError("Configured admin ID is not a Group in connection role metadata.")
+                validate_guid(role.get("id"), "Connection role assignment ID")
+                matches.append(role)
+        if len(matches) > 1:
+            raise FabricConnectionError("Duplicate admin-group connection roles require explicit correction.")
+        return matches[0] if matches else None
+
+    before = {connection_id: assignment(connection_id) for connection_id in ids}
+    for connection_id, current in before.items():
+        if current is not None and current["role"] == "Owner":
+            continue
+        if current is None:
+            client.request("POST", f"/connections/{connection_id}/roleAssignments", {
+                "principal": {"id": group_id, "type": "Group"}, "role": "Owner",
+            })
+        else:
+            client.request("PATCH", f"/connections/{connection_id}/roleAssignments/{current['id']}", {"role": "Owner"})
+        for attempt in range(3):
+            confirmed = assignment(connection_id)
+            if confirmed is not None and confirmed["role"] == "Owner":
+                break
+            if attempt < 2:
+                time.sleep(1)
+        else:
+            raise FabricConnectionError("Admin group Owner assignment was not confirmed; do not use or publish these bindings.")

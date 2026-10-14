@@ -1,61 +1,20 @@
 ---
 name: swap-to-dev-dryrun
-description: 'Preview returning a Fabric feature branch to Dev locally: show known baseline swaps or explain first-time setup, without login, Fabric API calls, provisioning, or file writes.'
+description: 'Preview the offline Dev restoration from committed parameter rules, without login, provisioning, workflow dispatch, artifacts, or file writes.'
 ---
 
 # Preview Swap to Dev
 
-Preview the workflow of `/swap-to-dev` without running live setup. No login,
-Fabric API calls, provisioning, credential loading, or file writes are allowed.
+Run the requested preview directly:
 
-When requested, execute the preview directly. Do not ask for confirmation or
-automatically follow it with the write-enabled swap.
+```powershell
+python scripts\workspace_swap.py --swap-to-dev --dry-run
+```
 
-## Procedure
+Validate the committed parameter-rule baseline. Missing, invalid, mismatched,
+or placeholder configuration is an explicit setup error, not permission to
+create resources or fall back to guessed IDs.
 
-1. Inspect the intended feature checkout and the non-secret
-   [Dev manifest](../../../data/fabric-dev-bindings.json). Do not inspect or
-   load Azure secrets.
-2. If the manifest has initialized resource IDs, preview the ordinary offline
-   restoration:
-
-   PowerShell:
-   ```powershell
-   python scripts\workspace_swap.py --swap-to-dev --dry-run
-   ```
-
-   Bash:
-   ```bash
-   python scripts/workspace_swap.py --swap-to-dev --dry-run
-   ```
-
-   The script validates the manifest. Invalid JSON/schema/keys/GUIDs or Dev
-   workspace mismatches are errors, not reasons to bootstrap automatically.
-   A repository without the native pipeline also uses this ordinary preview.
-3. Only if the manifest is absent or schemaVersion 1 with expected resource
-   keys has all resource IDs null, describe first-time Actions metadata import
-   using local validation only:
-
-   PowerShell:
-   ```powershell
-   python scripts\prepare_fabric_workspace.py --dev --dry-run
-   ```
-
-   Bash:
-   ```bash
-   python scripts/prepare_fabric_workspace.py --dev --dry-run
-   ```
-
-   Do not run the ordinary swap preview against missing baseline IDs.
-   Explain which setup and restoration steps would be needed, but say that
-   real connection/model GUIDs and exact replacements are unknown until a
-   trusted bootstrap artifact is obtained. Do not query or dispatch GitHub,
-   download artifacts, authenticate, or present templates as runnable Dev IDs.
-4. Report the command output, the known changes, and any unavailable exact
-   diff. A malformed or partially initialized manifest or local-template
-   error must be reported as a failure, not a successful setup preview.
-
-This is a preview only; no files are modified. It is optional, not a confirmation
-gate for `/swap-to-dev`. Never proceed to the live skill afterward or claim
-remote connection/permission verification. See the
-[guided development process](../../../fabric-development-process.md).
+Report the output and known diff. Do not authenticate, dispatch/download from
+Actions, call Fabric, read secrets, write files, or follow with the live swap.
+This optional preview is not a mandatory confirmation gate.

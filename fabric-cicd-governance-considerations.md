@@ -19,42 +19,40 @@ Three distinct identities show up in a Fabric solution. Confusing them is a comm
 
 | Identity | Purpose | Created / managed by | Authentication |
 |---|---|---|---|
-| **CI/CD service principal** | Creates/reconciles activity connections, deploys items, starts the pipeline, and is the default sample's activity identity | App owner registers it in Microsoft Entra; workspace admin grants Contributor in its target workspaces | Client secret in GitHub Environment secrets and securely submitted to Fabric connection APIs; consider separate runtime identities |
-| **Fabric Workspace Identity** | Optional secretless Notebook/native-refresh activity identity; retained in the working feature workspace | The optional bootstrap provisions it through the Fabric API; Fabric auto-manages its credentials | Managed by Fabric — no secret to handle ([Workspace identity](https://learn.microsoft.com/en-us/fabric/security/workspace-identity)) |
+| **CI/CD service principal** | Explicitly provisions/shares WI connections, deploys items, submits pipeline jobs; not the activity credential | App owner registers it; human workspace admin grants Contributor | Client secret in GitHub Environments, never copied into WI runtime credentials |
+| **Fabric Workspace Identity** | Target workspace's secretless activity authentication | Human workspace Admin creates it and grants resource rights; Fabric manages credentials | No secret to handle ([Workspace identity](https://learn.microsoft.com/en-us/fabric/security/workspace-identity)) |
 | **Runtime workload UAMI** | Container Apps / Functions / AKS calling Fabric REST APIs at runtime (not deploying items) | Platform admin creates a user-assigned managed identity per workload, per environment | Secretless — managed by Azure ([managed identity overview](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/overview)) |
 
 > **OIDC for the CI/CD SP — worth evaluating.** Microsoft's [Well-Architected guidance](https://learn.microsoft.com/en-us/azure/well-architected/security/identity-access#protect-nonidentity-based-secrets) is "avoid using secrets when you can." With [GitHub OIDC](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-azure), short-lived tokens replace a stored client secret. Restrict federated trust to the intended repository/environment and configure permitted deployment branches separately: an environment-based OIDC subject alone does not enforce a branch restriction. Fabric permissions and release approvals still apply. This removes client-secret storage/rotation, not every credential or authorization risk. The current workflows use client secrets; the [OIDC demonstration](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns/issues/84) is planned.
 
 ## Automated connection setup: the sample's privilege trade-off
 
-Connections and their credentials are not Git-synced Fabric items. That does
-**not** require manual setup: Fabric exposes APIs to create connections,
-provision Workspace Identities, and grant access. The deployment orchestration
-ensures these prerequisites before publishing the DataPipeline. A first run
-creates missing resources; subsequent runs discover and reuse them rather than
-creating a new connection for every release.
+Connections have their own tenant-level ACLs and are not Git-synced items.
+Workspace Admin does not automatically confer visibility or use. The explicit
+**Provision Fabric Connections** workflow creates/reuses two WI connections
+per workspace and requires verified **Owner** for the configured trusted group
+before exporting usable IDs. Missing group configuration is an error.
 
-For a compact, end-to-end accelerator, the default sample reuses the approved
-deployment principal for the two **ServicePrincipal** activity connections.
-This avoids creating new runtime identities that might require additional
-tenant allowlist approvals. The principal needs **Contributor** in Dev,
-Test, and Prod, tenant permission to create connections, and management access
-to its own connections. Reconciliation PATCHes the stored credentials from
-the current GitHub secrets, retaining the GUIDs when a client secret rotates.
+Humans create each WI and grant workspace/resource permissions first. The
+Contributor deployment SP does not provision identities, inspect workspace
+ACLs, or elevate itself. Ordinary publishers only validate/use existing WI
+connections, with no connection/credential/role writes or provisioning PAT.
 
-Sharing deployment and runtime authority, sharing one principal across stages,
-and storing a client secret in both GitHub and Fabric are **sample compromises,
-not enterprise best practices**. Anyone able to change or run a notebook can
-exercise that runtime identity's permissions. The code does not make this
-trade-off disappear by calling it bootstrap.
+Sharing one management SP and one connection-admin group across stages is a
+**sample compromise**, not environment isolation. Production should generally
+separate stage administration groups and narrow deployment authority.
+Environment-specific `FABRIC_CONNECTION_ADMINS_GROUP_ID` overrides support that
+without changing the workflow. Participants need User on Dev dependencies,
+not Owner of Test/Prod connections.
 
-Set `FABRIC_RUNTIME_AUTHENTICATION=WorkspaceIdentity` for the optional
-secretless activity path. Initial identity provisioning needs workspace Admin;
-role inspection/grants need Member or Admin. The helper grants the identity
-Contributor only in its own workspace and preserves stronger assignments.
-The feature workspace's existing Workspace Identity connections are not changed
-by the default upper-environment strategy. Applicable runtime-identity tenant
-allowlists still need approved trust; the helper does not manage Entra groups.
+The new environment-ID writer uses a GitHub credential, not the Azure SP.
+A repo-scoped PAT with Environments write is confined to provisioning;
+that permission is broader than the two variable names and includes other
+environment/secret-management operations. Reusing the facilitator's Fabric
+Git PAT is a sample convenience with coupled expiration/revocation. The
+reference demo's **non-expiring PAT is not best practice**: use expiration/
+rotation or a separately scoped GitHub App for production. Never distribute
+this PAT to workshop participants or run provisioning from unreviewed PR code.
 
 The Fabric administrator must separately authorize the principal through
 **Service principals can call Fabric public APIs** and **Service principals
@@ -71,12 +69,11 @@ An enterprise alternative is to separate responsibilities:
 | Routine deployment identity | Contributor in its target workspace and User access to the already provisioned connections |
 | Separate runtime principal or Workspace Identity | Only the notebook, model, and OneLake permissions required by the workload; do not automatically inherit the publisher's authority |
 
-Run the same idempotent bootstrap under the privileged identity in an
-admin-controlled workflow or platform provisioning process, then use the
-existing-connections deployment path under the lower-privilege publisher.
-Set `FABRIC_CONNECTION_MODE=existing` and provide the two approved connection
-IDs; this path validates accessible connection metadata without provisioning
-or credential writes. The connection owner handles credential rotation.
+Run provisioning in an admin-controlled workflow, then publish using existing
+WI connections under the appropriately scoped identity. The shipped publishers
+fix `FABRIC_CONNECTION_MODE=existing` and
+`FABRIC_RUNTIME_AUTHENTICATION=WorkspaceIdentity` and require both saved IDs.
+This path validates metadata without provisioning or credential writes.
 Connection GUIDs are non-secret references; access tokens, credentials, and
 Git provider tokens must stay outside Git.
 

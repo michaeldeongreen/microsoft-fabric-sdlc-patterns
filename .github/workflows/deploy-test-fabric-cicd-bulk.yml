@@ -22,7 +22,6 @@ on:
     branches: [test]
     paths:
       - "data/fabric/**"
-      - "data/fabric-dev-bindings.json"
       - "deployment-plans/**"
       - ".github/workflows/**"
       - "scripts/deploy_fabric_cicd_bulk.py"

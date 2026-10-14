@@ -229,8 +229,8 @@ When designing your development and CI/CD processes, identify which items in you
 
 1. **Fabric Capacity** — A Fabric or Power BI Premium capacity for all workspaces
 2. **Three Fabric Workspaces** — Dev (Git-connected), Test, and Prod
-3. **Service Principal** — Contributor on Dev/Test/Prod; the default bootstrap automatically creates/reconciles its activity connections. Shared deployment/runtime authority is a documented sample compromise; see [Setup](SETUP.md#post-etl-refresh-permissions)
-4. **GitHub Environments** — `Dev`, `Test`, and `Prod` with environment-scoped secrets; Dev additionally needs an approved GitHub read-only PAT connection
+3. **Service Principal and Workspace Identities** — SP Contributor for provisioning/deployment/job submission; each workspace's WI authenticates its activities. Humans create WIs and grant their access; see [permissions](SETUP.md#post-etl-refresh-permissions)
+4. **GitHub Environments and Admins Group** — `Dev`, `Test`, and `Prod` secrets, a trusted connection-Owner group, and a repository-scoped provisioning PAT; see [Setup](SETUP.md)
 5. **Fabric Admin Settings** — Authorize public APIs and connection creation for the approved principal; GitHub Git integration must also be enabled (see [developer tenant settings](https://learn.microsoft.com/en-us/fabric/admin/service-admin-portal-developer))
 
 ### Setup
@@ -243,16 +243,15 @@ After setup, use the [Development Process](fabric-development-process.md) for
 day-to-day feature work and the [Governance Considerations](fabric-cicd-governance-considerations.md)
 for production control decisions.
 
-The first Dev bootstrap Action discovers real connection/model IDs and exports
-only non-secret metadata. The local swap workflow imports it, records
-[fabric-dev-bindings.json](data/fabric-dev-bindings.json), and aligns both
-parameter files. Later swaps restore those real values offline. The manifest
-is deliberately uninitialized until that import runs; fake GUIDs do not pass
-PR readiness. SPN credentials stay in GitHub, never on participant machines.
-See [facilitator setup](SETUP.md#first-time-dev-bootstrap). Test/Prod bootstrap
-runs automatically in every publisher,
-reusing connections on repeat and injecting their IDs in memory rather than
-requiring manual GitHub-variable entry.
+The explicit **Provision Fabric Connections** action creates/reuses two WI
+connections per workspace, verifies the trusted group's **Owner** access, and
+saves their IDs in GitHub Environment variables. Ordinary deployments only
+validate/use those connections; the provisioning PAT is not on the release path.
+Local Dev IDs are recorded in the existing parameter rules, not an extra JSON
+manifest or downloaded artifact. Later swaps/readiness stay offline.
+See [facilitator setup](SETUP.md#first-time-dev-bootstrap). Participants never
+need deployment SP secrets. Shared administration across stages and PAT reuse/
+non-expiration are sample compromises, not production recommendations.
 
 Use the [method matrix](#choose-a-deployment-method) when evaluating an
 alternative after the default non-bulk route works. The [plan guide](fabric-deployment-plan-guide.md)

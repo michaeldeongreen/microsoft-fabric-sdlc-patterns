@@ -441,11 +441,10 @@ The first three secrets are identical across environments (single SPN). `FABRIC_
 - Test: the Test workspace ID
 - Prod: the Prod workspace ID
 
-These credentials authenticate publication/job submission and, by default,
-the two automatically managed ServicePrincipal activity connections.
-The shared bootstrap discovers/creates the connections and supplies their
-IDs in memory before substitution. Existing-only and Workspace Identity
-alternatives are described in [Setup](SETUP.md#environment-variables); verify
+These credentials authenticate publication/job submission, not activity runtime.
+The explicit provisioning action creates/shares the target WI pair and saves
+its two environment GUID variables. Publishers consume them read-only before
+substitution. The setup contract is described in [Setup](SETUP.md#environment-variables); verify
 [runtime/model/source permissions](SETUP.md#post-etl-refresh-permissions).
 Successful raw publishing does not prove activity or consumer authorization.
 

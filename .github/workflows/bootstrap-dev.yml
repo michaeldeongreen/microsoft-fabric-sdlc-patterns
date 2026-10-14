@@ -1,36 +1,44 @@
-name: Bootstrap Dev Connections
-run-name: Bootstrap Dev Connections ${{ inputs.request_id || github.run_id }}
+name: Provision Fabric Connections
+run-name: Provision Fabric Connections (${{ github.ref_name }}, ${{ inputs.operation }})
 
 on:
-  push:
-    branches: [dev]
-    paths:
-      - ".github/workflows/bootstrap-dev.yml"
-      - "scripts/bootstrap_dev_connections.py"
   workflow_dispatch:
     inputs:
-      request_id:
-        description: "Non-secret correlation ID supplied by the local preparation helper"
+      operation:
+        description: "Provision WI connections, or recover group ownership of an explicit legacy Dev pair"
+        required: true
+        default: provision
+        type: choice
+        options:
+          - provision
+          - share-existing
+      legacy_notebook_connection_id:
+        description: "Only for share-existing: exact legacy Dev Notebook connection ID"
         required: false
         type: string
-        default: ""
+      legacy_refresh_connection_id:
+        description: "Only for share-existing: exact legacy Dev refresh connection ID"
+        required: false
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: fabric-deploy-dev
+  group: fabric-connections-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
-  bootstrap:
-    name: Ensure Dev connections and export non-secret IDs
-    if: github.ref == 'refs/heads/dev'
+  provision:
+    name: Provision and share existing-workspace WI connections
+    if: contains(fromJSON('["refs/heads/dev","refs/heads/test","refs/heads/main"]'), github.ref)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    environment: Dev
+    timeout-minutes: 15
+    environment: ${{ github.ref == 'refs/heads/dev' && 'Dev' || github.ref == 'refs/heads/test' && 'Test' || 'Prod' }}
+    env:
+      FABRIC_WORKSPACE_ID: ${{ secrets.FABRIC_WORKSPACE_ID }}
     steps:
-      - name: Checkout reviewed bootstrap code
+      - name: Checkout reviewed setup code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
@@ -40,24 +48,45 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install authentication dependency
+      - name: Validate GitHub access and existing variable values
+        if: inputs.operation == 'provision'
+        id: existing
+        env:
+          FABRIC_CONNECTION_ADMINS_GROUP_ID: ${{ vars.FABRIC_CONNECTION_ADMINS_GROUP_ID }}
+          GH_ENV_VARIABLES_TOKEN: ${{ secrets.GH_ENV_VARIABLES_TOKEN }}
+        run: python scripts/bootstrap_dev_connections.py --operation preflight
+
+      - name: Install Fabric authentication dependency
         run: pip install "azure-identity>=1.15"
 
-      - name: Bootstrap Dev runtime connections
+      - name: Provision WI connections and verify group Owner
+        if: inputs.operation == 'provision'
+        id: connections
         env:
+          FABRIC_CONNECTION_ADMINS_GROUP_ID: ${{ vars.FABRIC_CONNECTION_ADMINS_GROUP_ID }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-          FABRIC_WORKSPACE_ID: ${{ secrets.FABRIC_WORKSPACE_ID }}
-          NOTEBOOK_CONNECTION_ID: ${{ vars.NOTEBOOK_CONNECTION_ID }}
-          SEMANTIC_MODEL_REFRESH_CONNECTION_ID: ${{ vars.SEMANTIC_MODEL_REFRESH_CONNECTION_ID }}
-          DEV_CONNECTION_GROUP_ID: ${{ vars.DEV_CONNECTION_GROUP_ID }}
-        run: python scripts/bootstrap_dev_connections.py --output bootstrap-output/dev-bindings.json
+          NOTEBOOK_CONNECTION_ID: ${{ steps.existing.outputs.NOTEBOOK_CONNECTION_ID }}
+          SEMANTIC_MODEL_REFRESH_CONNECTION_ID: ${{ steps.existing.outputs.SEMANTIC_MODEL_REFRESH_CONNECTION_ID }}
+        run: python scripts/bootstrap_dev_connections.py --operation provision
 
-      - name: Upload non-secret Dev binding metadata
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: fabric-dev-bindings
-          path: bootstrap-output/dev-bindings.json
-          if-no-files-found: error
-          retention-days: 30
+      - name: Save connection IDs without overwriting existing values
+        if: inputs.operation == 'provision'
+        env:
+          FABRIC_CONNECTION_ADMINS_GROUP_ID: ${{ vars.FABRIC_CONNECTION_ADMINS_GROUP_ID }}
+          GH_ENV_VARIABLES_TOKEN: ${{ secrets.GH_ENV_VARIABLES_TOKEN }}
+          NOTEBOOK_CONNECTION_ID: ${{ steps.connections.outputs.NOTEBOOK_CONNECTION_ID }}
+          SEMANTIC_MODEL_REFRESH_CONNECTION_ID: ${{ steps.connections.outputs.SEMANTIC_MODEL_REFRESH_CONNECTION_ID }}
+        run: python scripts/bootstrap_dev_connections.py --operation persist
+
+      - name: Recover admin-group ownership of explicit legacy Dev connections
+        if: inputs.operation == 'share-existing'
+        env:
+          FABRIC_CONNECTION_ADMINS_GROUP_ID: ${{ vars.FABRIC_CONNECTION_ADMINS_GROUP_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          LEGACY_NOTEBOOK_CONNECTION_ID: ${{ inputs.legacy_notebook_connection_id }}
+          LEGACY_REFRESH_CONNECTION_ID: ${{ inputs.legacy_refresh_connection_id }}
+        run: python scripts/bootstrap_dev_connections.py --operation share-existing

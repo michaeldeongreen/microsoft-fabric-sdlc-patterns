@@ -38,7 +38,7 @@ def pipeline_connection_environment(monkeypatch: pytest.MonkeyPatch) -> dict[str
         assert mode == "existing"
         assert notebook_connection_id == NOTEBOOK_CONNECTION_ID
         assert refresh_connection_id == REFRESH_CONNECTION_ID
-        assert authentication == "ServicePrincipal"
+        assert authentication == "WorkspaceIdentity"
         assert credentials is None
         return values
 

@@ -1,4 +1,4 @@
-"""Every publisher resolves connections without manually supplied target GUIDs."""
+"""Every publisher consumes the approved target WI connections before publishing."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ SCOPE = ["Lakehouse", "Ontology", "VariableLibrary", "Notebook", "SemanticModel"
 
 
 @pytest.mark.parametrize("method", ["standard", "plan", "sdk-bulk", "rest"])
-def test_all_publishers_bootstrap_before_any_definition_write(
+def test_all_publishers_validate_existing_wi_before_any_definition_write(
     canonical_fabric_repository: Path, monkeypatch: pytest.MonkeyPatch, method: str,
 ) -> None:
     repository = canonical_fabric_repository
@@ -36,19 +36,20 @@ def test_all_publishers_bootstrap_before_any_definition_write(
         "ENVIRONMENT": "Test", "ITEM_TYPE_IN_SCOPE": json.dumps(SCOPE),
         "AZURE_TENANT_ID": "77777777-1111-4777-8777-777777777777",
         "AZURE_CLIENT_ID": "88888888-2222-4888-8888-888888888888",
-        "AZURE_CLIENT_SECRET": "unit-test-only", "FABRIC_CONNECTION_MODE": "auto",
-        "FABRIC_RUNTIME_AUTHENTICATION": "ServicePrincipal",
+        "AZURE_CLIENT_SECRET": "unit-test-only", "FABRIC_CONNECTION_MODE": "existing",
+        "FABRIC_RUNTIME_AUTHENTICATION": "WorkspaceIdentity",
     }.items():
         monkeypatch.setenv(key, value)
     for key in CONNECTIONS:
-        monkeypatch.delenv(key, raising=False)
+        monkeypatch.setenv(key, CONNECTIONS[key])
     events: list[str] = []
 
     def ensure(*args: object, **kwargs: object) -> dict[str, str]:
-        assert kwargs["mode"] == "auto"
-        assert kwargs["authentication"] == "ServicePrincipal"
-        assert kwargs["notebook_connection_id"] is None
-        assert kwargs["refresh_connection_id"] is None
+        assert kwargs["mode"] == "existing"
+        assert kwargs["authentication"] == "WorkspaceIdentity"
+        assert kwargs["credentials"] is None
+        assert kwargs["notebook_connection_id"] == CONNECTIONS[bindings.NOTEBOOK_CONNECTION_ENV]
+        assert kwargs["refresh_connection_id"] == CONNECTIONS[bindings.REFRESH_CONNECTION_ENV]
         events.append("bootstrap")
         return CONNECTIONS
 

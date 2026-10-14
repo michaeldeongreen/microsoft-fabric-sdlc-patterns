@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,15 @@ def workflow(name: str) -> dict:
         (REPO_ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8"),
         Loader=yaml.BaseLoader,
     )
+
+
+def test_readiness_installs_parameter_parser_before_check() -> None:
+    steps = workflow("check-pr-ready.yml")["jobs"]["check-pr-ready"]["steps"]
+    install = next(index for index, step in enumerate(steps)
+                   if step.get("run") == 'python -m pip install "PyYAML>=6.0"')
+    check = next(index for index, step in enumerate(steps)
+                 if step.get("run") == "python scripts/workspace_swap.py --check-ready")
+    assert install < check
 
 
 def test_pipeline_run_label_is_optional_for_notebook_only_callers() -> None:
@@ -106,7 +116,7 @@ def test_every_publisher_runs_one_same_revision_dependent_pipeline(
     assert definition["concurrency"]["cancel-in-progress"] == "false"
     assert f"'fabric-deploy-{stage}'" in definition["concurrency"]["group"]
     assert "fabric-skipped" in definition["concurrency"]["group"]
-    assert "data/fabric-dev-bindings.json" in definition["on"]["push"]["paths"]
+    assert "data/fabric/**" in definition["on"]["push"]["paths"]
 
 
 def test_loader_notebook_remains_independent_of_model_refresh() -> None:
@@ -122,29 +132,27 @@ def test_loader_notebook_remains_independent_of_model_refresh() -> None:
     "reusable-deploy-fabric-cicd.yml", "reusable-deploy-fabric-cicd-plan.yml",
     "reusable-deploy-fabric-cicd-bulk.yml", "reusable-deploy-bulk.yml",
 ])
-def test_all_publishers_use_automatic_connections_with_optional_existing_ids(name: str) -> None:
+def test_all_publishers_consume_existing_wi_without_setup_token(name: str) -> None:
     job = workflow(name)["jobs"]["deploy"]
     assert job["environment"] == "${{ inputs.environment }}"
-    assert job["env"]["FABRIC_CONNECTION_MODE"] == "${{ vars.FABRIC_CONNECTION_MODE || 'auto' }}"
-    assert job["env"]["FABRIC_RUNTIME_AUTHENTICATION"] == "${{ vars.FABRIC_RUNTIME_AUTHENTICATION || 'ServicePrincipal' }}"
+    assert job["env"]["FABRIC_CONNECTION_MODE"] == "existing"
+    assert job["env"]["FABRIC_RUNTIME_AUTHENTICATION"] == "WorkspaceIdentity"
+    assert "GH_ENV_VARIABLES_TOKEN" not in json.dumps(job)
     for variable in ("NOTEBOOK_CONNECTION_ID", "SEMANTIC_MODEL_REFRESH_CONNECTION_ID"):
         assert job["env"][variable] == f"${{{{ vars.{variable} }}}}"
 
 
-def test_dev_is_manual_and_only_resource_bootstrap_runs_on_dev_push() -> None:
+def test_dev_is_manual_and_provisioning_is_explicit() -> None:
     assert not (REPO_ROOT / ".github" / "workflows" / "sync-dev.yml").exists()
     assert not (REPO_ROOT / "scripts" / "sync_fabric_git.py").exists()
     definition = workflow("bootstrap-dev.yml")
     assert definition["permissions"] == {"contents": "read"}
-    assert definition["on"]["push"]["branches"] == ["dev"]
-    assert definition["on"]["push"]["paths"] == [
-        ".github/workflows/bootstrap-dev.yml", "scripts/bootstrap_dev_connections.py",
-    ]
+    assert set(definition["on"]) == {"workflow_dispatch"}
     assert definition["concurrency"]["cancel-in-progress"] == "false"
-    assert set(definition["jobs"]) == {"bootstrap"}
-    bootstrap = definition["jobs"]["bootstrap"]
-    assert bootstrap["environment"] == "Dev"
-    assert bootstrap["if"] == "github.ref == 'refs/heads/dev'"
+    assert set(definition["jobs"]) == {"provision"}
+    bootstrap = definition["jobs"]["provision"]
+    assert "'refs/heads/dev'" in bootstrap["environment"]
+    assert 'refs/heads/dev' in bootstrap["if"]
     assert int(bootstrap["timeout-minutes"]) > 0
     execute = next(step for step in bootstrap["steps"] if "scripts/bootstrap_dev_connections.py" in step.get("run", ""))
     assert "${{" not in execute["run"]
@@ -156,5 +164,22 @@ def test_dev_is_manual_and_only_resource_bootstrap_runs_on_dev_push() -> None:
             int(sha, 16)
     for path in (REPO_ROOT / ".github" / "workflows").glob("*.yml"):
         candidate = workflow(path.name)
-        if "dev" in candidate["on"].get("push", {}).get("branches", []):
-            assert path.name == "bootstrap-dev.yml"
+        assert "dev" not in candidate["on"].get("push", {}).get("branches", [])
+
+
+def test_setup_token_is_confined_to_preflight_and_persistence_steps() -> None:
+    job = workflow("bootstrap-dev.yml")["jobs"]["provision"]
+    assert "GH_ENV_VARIABLES_TOKEN" not in job["env"]
+    steps = job["steps"]
+    token_steps = [step for step in steps if "GH_ENV_VARIABLES_TOKEN" in step.get("env", {})]
+    assert len(token_steps) == 2
+    assert all("AZURE_CLIENT_SECRET" not in step["env"] for step in token_steps)
+    assert all(step.get("if") == "inputs.operation == 'provision'" for step in token_steps)
+    saved = next(step for step in steps if step.get("run", "").endswith("--operation persist"))
+    assert saved["env"]["NOTEBOOK_CONNECTION_ID"] == "${{ steps.connections.outputs.NOTEBOOK_CONNECTION_ID }}"
+    assert saved["env"]["SEMANTIC_MODEL_REFRESH_CONNECTION_ID"] == "${{ steps.connections.outputs.SEMANTIC_MODEL_REFRESH_CONNECTION_ID }}"
+    assert "FABRIC_CONNECTION_ADMINS_GROUP_ID" not in job["env"]
+    script_steps = [step for step in steps if "bootstrap_dev_connections.py" in step.get("run", "")]
+    assert len(script_steps) == 4
+    assert all(step["env"]["FABRIC_CONNECTION_ADMINS_GROUP_ID"] == "${{ vars.FABRIC_CONNECTION_ADMINS_GROUP_ID }}"
+               for step in script_steps)

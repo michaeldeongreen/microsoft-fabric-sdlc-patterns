@@ -10,7 +10,7 @@ Swap back to dev (revert tracked files before opening a PR):
     python scripts/workspace_swap.py --swap-to-dev --dry-run
 
 Check the branch is PR-ready (CI gate; confirms dev IDs are present and the
-pipeline's model and connections match the real Dev manifest):
+pipeline's model and connections match the committed Dev parameter rules):
     python scripts/workspace_swap.py --check-ready
 
 No arguments required — reads the current git branch automatically.
@@ -22,13 +22,14 @@ Feature workspace IDs (one-time setup):
     FEATURE_LAKEHOUSE_ID are always required. When the repo has a pipeline with
     a native semantic-model refresh activity, FEATURE_SEMANTIC_MODEL_ID,
     FEATURE_NOTEBOOK_CONNECTION_ID and FEATURE_REFRESH_CONNECTION_ID are
-    required too. Automated preparation can discover these feature IDs.
+    required too. Explicit read-only preparation can discover item IDs after
+    the human supplies existing WI connection IDs.
 
-First-time Dev pipeline preparation (API setup, then an offline source swap):
-    python scripts/prepare_fabric_workspace.py --dev --swap-to-dev
+First-time Dev baseline recording (offline, from local .env):
+    python scripts/prepare_fabric_workspace.py --dev --replace-dev-bindings
 
-That command records real Dev resources in data/fabric-dev-bindings.json and
-aligns the parameter files. Subsequent swaps and readiness checks stay offline;
+That command aligns the existing parameter files and pipeline fields.
+Subsequent swaps and readiness checks stay offline;
 they never restore fake connection IDs or silently recreate deleted resources.
 
 Future enhancement (intentionally not implemented):

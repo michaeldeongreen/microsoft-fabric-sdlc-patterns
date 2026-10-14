@@ -276,7 +276,7 @@ and all other workflow families, use the
 
 [deploy-test-fabric-cicd-plan.yml](.github/workflows/deploy-test-fabric-cicd-plan.yml)
 and [deploy-prod-fabric-cicd-plan.yml](.github/workflows/deploy-prod-fabric-cicd-plan.yml)
-use the same environment-scoped secrets, automatic connection bootstrap, and
+use the same environment-scoped secrets, existing WI connection preflight, and
 eight-type scope as the standard method. No additional source-workspace
 credential is needed. Their dependent ETL jobs use the same revision;
 [deploy_fabric_cicd_non_bulk_plan.py](scripts/deploy_fabric_cicd_non_bulk_plan.py)
@@ -386,8 +386,8 @@ physical IDs, and selects the Variable Library value set for `Test` or `Prod`.
 Keep source IDs and replacement rules aligned, and restore Dev bindings before
 promotion as described in the [Development Process](fabric-development-process.md).
 Reading a plan does not replace parameterization.
-The shared bootstrap automatically ensures each target's Notebook and Power BI
-datasets connections and provides their GUIDs. Existing-only and Workspace
+The explicit provisioning workflow creates/shares each target's Notebook and Power BI
+datasets connections and persists their GUIDs. Publishers use existing Workspace
 Identity alternatives are described in [Setup](SETUP.md#environment-variables).
 A portable DeploymentPlan logical ID does not
 make the pipeline's physical model/connection GUIDs portable.

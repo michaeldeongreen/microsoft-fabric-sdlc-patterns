@@ -245,7 +245,7 @@ Each pair selects the same method for the corresponding Fabric workspace.
 | `fabric-cicd-bulk` | [deploy-test-fabric-cicd-bulk.yml](.github/workflows/deploy-test-fabric-cicd-bulk.yml) | [deploy-prod-fabric-cicd-bulk.yml](.github/workflows/deploy-prod-fabric-cicd-bulk.yml) |
 | `bulk` | [deploy-test-bulk.yml](.github/workflows/deploy-test-bulk.yml) | [deploy-prod-bulk.yml](.github/workflows/deploy-prod-bulk.yml) |
 
-- All callers watch Fabric definitions, the Dev binding manifest, shared connection/preparation helpers, their runner, and workflows.
+- All callers watch Fabric definitions/parameter rules, shared connection/preparation helpers, their runner, and workflows.
 - Both plan routes additionally watch `deployment-plans/**`, their own runner/reader, and `requirements-dev.txt`. Add any custom plan location to the applicable caller filters.
 - All callers support `workflow_dispatch`, restricted to `test` for Test and `main` for Prod.
 - An unknown selector skips all deployment jobs. Changing the variable alone does not trigger a deployment.
@@ -325,17 +325,14 @@ pipeline run and refresh history before retrying.
   the JSON job body under `executionData.parameters`. Invalid input is not
   silently replaced by a successful-looking default.
 
-The default Dev/Test/Prod automation uses **ServicePrincipal** connections,
-reusing the already-approved deployment principal. The working feature
-workspace retains **Workspace Identity** connections; that authentication is
-also an explicit secretless alternative.
+Each workspace uses its own **Workspace Identity** activity connections.
+The deployment SP publishes/submits jobs, separately from activity runtime.
 The user who authors a pipeline, CI service principal that publishes/starts
 it, connection runtime identity, model owner, and consumer are separate actors.
-The shared [bootstrap](scripts/fabric_connections.py) creates missing managed
-connections, reuses their IDs, and reconciles SP credentials before publishing.
-The runners supply `NOTEBOOK_CONNECTION_ID` and
-`SEMANTIC_MODEL_REFRESH_CONNECTION_ID` in memory. Manual variables are optional
-for the [existing-connections mode](SETUP.md#environment-variables).
+The explicit [provisioning action](.github/workflows/bootstrap-dev.yml) creates/
+reuses WI connections, verifies admin-group Owner, and persists their IDs.
+Publishers consume `NOTEBOOK_CONNECTION_ID` and
+`SEMANTIC_MODEL_REFRESH_CONNECTION_ID` read-only from their GitHub Environment.
 Connections are not deployed from Git, and physical model/connection references
 need target substitutions. Direct Lake separately checks the model owner's
 source access. See [required permissions](SETUP.md#post-etl-refresh-permissions).
@@ -417,8 +414,8 @@ the exact `$ENV:NOTEBOOK_CONNECTION_ID` and
 `$ENV:SEMANTIC_MODEL_REFRESH_CONNECTION_ID` names. The runners enable
 environment-variable replacement and validate both connection GUIDs before
 definition publication. The `>=1.4.0,<1.5.0` library range is required.
-The connection bootstrap, not fabric-cicd's replacement engine, owns resource
-creation/reconciliation. Source preflight checks actual fields and parameter
+The explicit provisioning workflow, not publishers or parameter replacement,
+owns connection creation/sharing. Source preflight checks actual fields and parameter
 baselines so stale feature IDs cannot silently miss a literal replacement.
 
 ---
@@ -456,8 +453,8 @@ three publication phases:
 The deployment's dependent ETL job starts the DataPipeline
 after successful deployment. Its loader creates/populates `doctors`, `patients`,
 and `appointments`; validation must succeed before native model refresh.
-The publisher's shared bootstrap prepares the target activity connections
-before publication; the default uses the approved SP and WI is optional.
+The publisher validates the already provisioned target WI pair before
+publication, without changing resources or stored credentials.
 See the [pipeline contract](#post-etl-semantic-model-refresh); the unchanged
 loader does not refresh the model itself.
 

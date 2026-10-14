@@ -1,4 +1,4 @@
-"""Offline preparation/source contracts; Fabric API behavior has its own tests."""
+"""Offline baseline recording and explicit, read-only feature preparation."""
 
 from __future__ import annotations
 
@@ -10,299 +10,169 @@ import pytest
 
 import pipeline_bindings as pb
 import prepare_fabric_workspace as prepare
-from bootstrap_dev_connections import BootstrapArtifact, BootstrapProvenance
 
-TARGET_WORKSPACE = "99999999-9999-4999-8999-999999999999"
-TARGET_CONNECTIONS = {
+WORKSPACE = "99999999-9999-4999-8999-999999999999"
+CONNECTIONS = {
     pb.NOTEBOOK_CONNECTION_ENV: "aaaaaaa1-1111-4111-8111-111111111111",
     pb.REFRESH_CONNECTION_ENV: "bbbbbbb2-2222-4222-8222-222222222222",
 }
-REPLACEMENT_CONNECTIONS = {
-    pb.NOTEBOOK_CONNECTION_ENV: "55555555-1111-4555-8555-555555555555",
-    pb.REFRESH_CONNECTION_ENV: "66666666-2222-4666-8666-666666666666",
-}
-
-
-@pytest.fixture(autouse=True)
-def runtime_identity(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("AZURE_TENANT_ID", "77777777-1111-4777-8777-777777777777")
-    monkeypatch.setenv("AZURE_CLIENT_ID", "88888888-2222-4888-8888-888888888888")
-    monkeypatch.setenv("AZURE_CLIENT_SECRET", "unit-test-only-never-log")
-    monkeypatch.delenv("FABRIC_RUNTIME_AUTHENTICATION", raising=False)
+MODEL = "77777777-1111-4777-8777-777777777777"
 
 
 def pipeline_path(repository: Path) -> Path:
-    return next(iter(pb.pipeline_files(repository)))
+    return pb.pipeline_files(repository)[0]
 
 
-def bootstrap_metadata(bindings: pb.DevPipelineBindings, *, model_name: str = "Patterns_Semantic_Model") -> BootstrapArtifact:
-    return BootstrapArtifact(
-        bindings,
-        BootstrapProvenance("example/workshop", "123", 1, "a" * 40, "refs/heads/dev", "push", model_name),
-    )
+def changed(bindings: pb.DevPipelineBindings) -> pb.DevPipelineBindings:
+    return pb.DevPipelineBindings(bindings.workspace_id, MODEL, *CONNECTIONS.values())
 
 
-def test_recording_updates_both_rules_manifest_and_source_without_platform_changes(
-    canonical_fabric_repository: Path,
-) -> None:
+def test_recording_updates_both_rules_source_but_not_platforms(canonical_fabric_repository: Path) -> None:
     repository = canonical_fabric_repository
-    old = pb.load_dev_bindings(repository)
-    platforms = {path: path.read_bytes() for path in repository.glob("*/.platform")}
-    comments = {
-        path: [line for line in path.read_text(encoding="utf-8").splitlines() if line.lstrip().startswith("#")]
-        for path in (repository / "parameter.yml", repository / "bulk-parameter.yml")
-    }
-    new = pb.DevPipelineBindings(
-        old.workspace_id, old.semantic_model_id,
-        REPLACEMENT_CONNECTIONS[pb.NOTEBOOK_CONNECTION_ENV], REPLACEMENT_CONNECTIONS[pb.REFRESH_CONNECTION_ENV],
-    )
-    prepare.record_dev_bindings(repository, new, rewrite_source=True)
-    assert pb.load_dev_bindings(repository) == new
-    for bulk in (False, True):
-        assert prepare.validate_deployment_source(repository, bulk=bulk) == new
-    for path, original in platforms.items():
-        assert path.read_bytes() == original
-    for path, original in comments.items():
-        assert [line for line in path.read_text(encoding="utf-8").splitlines()
-                if line.lstrip().startswith("#")] == original
-    notebook_ids = [
-        activity["typeProperties"]["notebookId"]
-        for activity in json.loads(pipeline_path(repository).read_text(encoding="utf-8"))["properties"]["activities"]
-        if activity["type"] == pb.NOTEBOOK_ACTIVITY_TYPE
-    ]
-    assert notebook_ids == ["3f21b546-f49f-9fef-4881-99b654a6701e", "decdcb11-8770-4216-8a28-eadf505d2679"]
+    original = {path: path.read_bytes() for path in repository.glob("*/.platform")}
+    values = changed(pb.load_dev_bindings(repository))
+    prepare.record_dev_bindings(repository, values, rewrite_source=True)
+    assert pb.load_dev_bindings(repository) == values
+    assert prepare.validate_deployment_source(repository) == values
+    assert all(path.read_bytes() == content for path, content in original.items())
+    assert not (repository.parent / "fabric-dev-bindings.json").exists()
 
 
-def test_preparation_can_record_dev_without_changing_active_feature_definition(
-    canonical_fabric_repository: Path,
-) -> None:
+def test_recording_can_leave_active_feature_source_untouched(canonical_fabric_repository: Path) -> None:
     repository = canonical_fabric_repository
-    old = pb.load_dev_bindings(repository)
-    path = pipeline_path(repository)
-    feature = pb.rewrite(path.read_text(encoding="utf-8"), {
-        "Semantic model": "77777777-1111-4777-8777-777777777777",
-        "Notebook connection": TARGET_CONNECTIONS[pb.NOTEBOOK_CONNECTION_ENV],
-        "Refresh connection": TARGET_CONNECTIONS[pb.REFRESH_CONNECTION_ENV],
-        "Refresh workspace": TARGET_WORKSPACE,
-    })
-    path.write_text(feature, encoding="utf-8")
-    prepare.record_dev_bindings(repository, old)
-    assert path.read_text(encoding="utf-8") == feature
+    original = pipeline_path(repository).read_bytes()
+    prepare.record_dev_bindings(repository, changed(pb.load_dev_bindings(repository)))
+    assert pipeline_path(repository).read_bytes() == original
     with pytest.raises(pb.PipelineBindingError, match="Dev baseline"):
         prepare.validate_deployment_source(repository)
 
 
-@pytest.mark.parametrize("bulk", [False, True])
-def test_replacement_rules_cannot_silently_miss_valid_source(
-    canonical_fabric_repository: Path, bulk: bool,
-) -> None:
+def test_changed_baseline_requires_explicit_cutover(canonical_fabric_repository: Path) -> None:
     repository = canonical_fabric_repository
-    bindings = pb.load_dev_bindings(repository)
-    path = repository / ("bulk-parameter.yml" if bulk else "parameter.yml")
-    path.write_text(
-        path.read_text(encoding="utf-8").replace(
-            bindings.notebook_connection_id, TARGET_CONNECTIONS[pb.NOTEBOOK_CONNECTION_ENV],
-        ), encoding="utf-8",
-    )
-    with pytest.raises(pb.PipelineBindingError, match="does not match"):
-        prepare.validate_deployment_source(repository, bulk=bulk)
+    values = changed(pb.load_dev_bindings(repository))
+    before = (repository / "parameter.yml").read_bytes()
+    with pytest.raises(pb.PipelineBindingError, match="reviewed cutover"):
+        prepare.prepare_dev(repository, values)
+    assert (repository / "parameter.yml").read_bytes() == before
+    assert prepare.prepare_dev(repository, values, replace_bindings=True, rewrite_source=True) == values
+    assert prepare.validate_deployment_source(repository) == values
 
 
-def test_upper_publishers_cannot_overwrite_git_synced_dev(canonical_fabric_repository: Path) -> None:
-    bindings = pb.load_dev_bindings(canonical_fabric_repository)
-    with pytest.raises(pb.PipelineBindingError, match="must not target Git-synced Dev"):
-        prepare.validate_deployment_source(
-            canonical_fabric_repository, target_workspace_id=bindings.workspace_id.upper(),
-        )
-
-
-def test_parameter_disagreement_fails_before_provisioning(
-    canonical_fabric_repository: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    repository = canonical_fabric_repository
-    bindings = pb.load_dev_bindings(repository)
-    path = repository / "bulk-parameter.yml"
-    path.write_text(
-        path.read_text(encoding="utf-8").replace(
-            bindings.refresh_connection_id, TARGET_CONNECTIONS[pb.REFRESH_CONNECTION_ENV],
-        ), encoding="utf-8",
-    )
-    record = Mock()
-    monkeypatch.setattr(prepare, "record_dev_bindings", record)
-    with pytest.raises(pb.PipelineBindingError, match="must agree"):
-        prepare.prepare_dev(repository, bootstrap_metadata(bindings))
-    record.assert_not_called()
-
-
-def test_deleted_or_recreated_dev_model_is_not_silently_rebaselined(
-    canonical_fabric_repository: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    repository = canonical_fabric_repository
-    old = pb.dev_bindings_path(repository).read_bytes()
-    bindings = pb.load_dev_bindings(repository)
-    changed = pb.DevPipelineBindings(
-        bindings.workspace_id, "77777777-1111-4777-8777-777777777777",
-        bindings.notebook_connection_id, bindings.refresh_connection_id,
-    )
-    with pytest.raises(pb.PipelineBindingError, match="differ from the recorded"):
-        prepare.prepare_dev(repository, bootstrap_metadata(changed))
-    assert pb.dev_bindings_path(repository).read_bytes() == old
-
-
-def test_existing_dev_connection_ids_are_pinned_during_repeat_preparation(
-    canonical_fabric_repository: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    repository = canonical_fabric_repository
-    bindings = pb.load_dev_bindings(repository)
-    ensure = Mock(side_effect=AssertionError("Dev import must not access Fabric"))
-    credentials = Mock(side_effect=AssertionError("Dev import must not read local SPN credentials"))
-    monkeypatch.setattr(prepare, "ensure_pipeline_connections", ensure)
-    monkeypatch.setattr(prepare, "runtime_credentials", credentials)
-    for _ in range(2):
-        assert prepare.prepare_dev(repository, bootstrap_metadata(bindings)) == bindings
-    ensure.assert_not_called()
-    credentials.assert_not_called()
-
-
-def test_explicit_replacement_updates_source_under_review_not_github(
-    canonical_fabric_repository: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_rule_disagreement_prevents_writes(canonical_fabric_repository: Path) -> None:
     repository = canonical_fabric_repository
     old = pb.load_dev_bindings(repository)
-    model = "77777777-1111-4777-8777-777777777777"
-    changed = pb.DevPipelineBindings(
-        old.workspace_id, model, REPLACEMENT_CONNECTIONS[pb.NOTEBOOK_CONNECTION_ENV],
-        REPLACEMENT_CONNECTIONS[pb.REFRESH_CONNECTION_ENV],
-    )
-    bindings = prepare.prepare_dev(
-        repository, bootstrap_metadata(changed), replace_bindings=True, rewrite_source=True,
-    )
-    assert bindings.workspace_id == old.workspace_id
-    assert bindings.semantic_model_id == model
-    assert prepare.validate_deployment_source(repository) == bindings
+    path = repository / "bulk-parameter.yml"
+    path.write_text(path.read_text(encoding="utf-8").replace(old.notebook_connection_id, MODEL), encoding="utf-8")
+    before = (repository / "parameter.yml").read_bytes()
+    with pytest.raises(pb.PipelineBindingError, match="must agree"):
+        prepare.record_dev_bindings(repository, old)
+    assert (repository / "parameter.yml").read_bytes() == before
 
 
-@pytest.mark.parametrize("changed", ["workspace", "model-name", "connection"])
-def test_import_target_and_existing_binding_mismatches_fail_before_local_writes(
-    canonical_fabric_repository: Path, changed: str,
+def test_upper_publishers_cannot_overwrite_dev(canonical_fabric_repository: Path) -> None:
+    current = pb.load_dev_bindings(canonical_fabric_repository)
+    with pytest.raises(pb.PipelineBindingError, match="must not target Git-synced Dev"):
+        prepare.validate_deployment_source(canonical_fabric_repository, target_workspace_id=current.workspace_id.upper())
+
+
+def test_dev_cli_is_offline_and_uses_only_local_ids(
+    canonical_fabric_repository: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
 ) -> None:
-    directory = canonical_fabric_repository
-    original = {path: path.read_bytes() for path in (
-        pb.dev_bindings_path(directory), directory / "parameter.yml", directory / "bulk-parameter.yml",
-    )}
-    bindings = pb.load_dev_bindings(directory)
-    model_name = "Patterns_Semantic_Model"
-    if changed == "workspace":
-        bindings = pb.DevPipelineBindings(
-            TARGET_WORKSPACE, bindings.semantic_model_id,
-            bindings.notebook_connection_id, bindings.refresh_connection_id,
-        )
-    elif changed == "model-name":
-        model_name = "Different_Model"
-    else:
-        bindings = pb.DevPipelineBindings(
-            bindings.workspace_id, bindings.semantic_model_id,
-            REPLACEMENT_CONNECTIONS[pb.NOTEBOOK_CONNECTION_ENV], bindings.refresh_connection_id,
-        )
-    with pytest.raises(pb.PipelineBindingError):
-        prepare.prepare_dev(directory, bootstrap_metadata(bindings, model_name=model_name))
-    assert all(path.read_bytes() == contents for path, contents in original.items())
+    values = pb.load_dev_bindings(canonical_fabric_repository)
+    env = tmp_path / ".env"
+    env.write_text("\n".join(f"{key}={value}" for key, value in {
+        "DEV_WORKSPACE_ID": values.workspace_id, "DEV_SEMANTIC_MODEL_ID": values.semantic_model_id,
+        "DEV_NOTEBOOK_CONNECTION_ID": values.notebook_connection_id, "DEV_REFRESH_CONNECTION_ID": values.refresh_connection_id,
+    }.items()), encoding="utf-8")
+    monkeypatch.setattr(prepare, "ENV_FILE", env)
+    client = Mock(side_effect=AssertionError("No Azure or GitHub access in local Dev preparation"))
+    monkeypatch.setattr(prepare, "create_client", client)
+    for key in ("AZURE_CLIENT_SECRET", "GH_ENV_VARIABLES_TOKEN"):
+        monkeypatch.delenv(key, raising=False)
+    prepare.main(["--dev", "--repository-directory", str(canonical_fabric_repository)])
+    client.assert_not_called()
+    assert prepare.validate_deployment_source(canonical_fabric_repository) == values
 
 
-def test_local_dev_cli_needs_neither_azure_login_nor_local_spn_secrets(
+def test_duplicate_local_ids_rejected(tmp_path: Path) -> None:
+    path = tmp_path / ".env"
+    path.write_text("DEV_WORKSPACE_ID=x\nDEV_WORKSPACE_ID=y", encoding="utf-8")
+    with pytest.raises(pb.PipelineBindingError, match="Duplicate"):
+        prepare.local_dev_bindings(path)
+
+
+def test_dry_run_is_local_and_read_only(
     canonical_fabric_repository: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    directory = canonical_fabric_repository
-    artifact = bootstrap_metadata(pb.load_dev_bindings(directory))
-    for name in ("AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"):
-        monkeypatch.delenv(name, raising=False)
-    github = Mock(return_value=artifact)
-    azure = Mock(side_effect=AssertionError("Dev mode must not authenticate to Azure"))
-    monkeypatch.setattr(prepare, "get_bootstrap_artifact", github)
-    monkeypatch.setattr(prepare, "create_client", azure)
-    prepare.main(["--dev", "--repository-directory", str(directory), "--bootstrap-run-id", "123"])
-    github.assert_called_once_with(prepare.REPO_ROOT, run_id="123")
-    azure.assert_not_called()
-    assert pb.load_dev_bindings(directory) == artifact.bindings
-
-
-def test_dev_dry_run_does_not_contact_github_either(
-    canonical_fabric_repository: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    github = Mock(side_effect=AssertionError("Preview must stay local"))
-    azure = Mock(side_effect=AssertionError("Preview must not authenticate"))
-    monkeypatch.setattr(prepare, "get_bootstrap_artifact", github)
-    monkeypatch.setattr(prepare, "create_client", azure)
-    prepare.main([
-        "--dev", "--repository-directory", str(canonical_fabric_repository), "--dry-run",
-    ])
-    github.assert_not_called()
-    azure.assert_not_called()
-
-
-def test_auto_mode_needs_no_manually_entered_target_ids(monkeypatch: pytest.MonkeyPatch) -> None:
-    for name in (pb.NOTEBOOK_CONNECTION_ENV, pb.REFRESH_CONNECTION_ENV, "FABRIC_CONNECTION_MODE"):
-        monkeypatch.delenv(name, raising=False)
-    assert prepare.connection_mode() == "auto"
-
-
-def test_existing_mode_reports_missing_values_without_api_calls(monkeypatch: pytest.MonkeyPatch) -> None:
-    for name in (pb.NOTEBOOK_CONNECTION_ENV, pb.REFRESH_CONNECTION_ENV):
-        monkeypatch.delenv(name, raising=False)
-    monkeypatch.setenv("FABRIC_CONNECTION_MODE", "existing")
-    with pytest.raises(pb.PipelineBindingError, match="connection variables"):
-        prepare.connection_mode()
-
-
-@pytest.mark.parametrize("value", ["AUTO", "typo", " auto", "existing "])
-def test_unknown_modes_are_not_silent_defaults(value: str) -> None:
-    with pytest.raises(pb.PipelineBindingError, match="FABRIC_CONNECTION_MODE"):
-        prepare.connection_mode({"FABRIC_CONNECTION_MODE": value})
-
-
-def test_automatic_ids_feed_sdk_and_raw_rest_contract(
-    canonical_fabric_repository: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    for name in (pb.NOTEBOOK_CONNECTION_ENV, pb.REFRESH_CONNECTION_ENV):
-        monkeypatch.delenv(name, raising=False)
-    monkeypatch.setenv("FABRIC_CONNECTION_MODE", "auto")
-    ensure = Mock(return_value=TARGET_CONNECTIONS)
-    monkeypatch.setattr(prepare, "ensure_pipeline_connections", ensure)
-    tokens = Mock(return_value="unit-test-only")
-    assert prepare.prepare_pipeline_connections(canonical_fabric_repository, TARGET_WORKSPACE, tokens) == TARGET_CONNECTIONS
-    assert pb.require_pipeline_connections(canonical_fabric_repository) == TARGET_CONNECTIONS
-    assert ensure.call_args.kwargs["mode"] == "auto"
-    assert ensure.call_args.kwargs["notebook_connection_id"] is None
-    assert ensure.call_args.kwargs["refresh_connection_id"] is None
-    assert ensure.call_args.kwargs["authentication"] == "ServicePrincipal"
-
-
-def test_incomplete_bootstrap_output_cannot_fall_back_to_old_environment_ids(
-    canonical_fabric_repository: Path, pipeline_connection_environment: dict[str, str],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(prepare, "ensure_pipeline_connections", Mock(return_value={}))
-    with pytest.raises(pb.PipelineBindingError, match="did not return"):
-        prepare.prepare_pipeline_connections(
-            canonical_fabric_repository, TARGET_WORKSPACE, lambda: "unit-test-only",
-        )
-
-
-def test_dry_run_has_no_credentials_no_cloud_calls_and_no_edits(
-    canonical_fabric_repository: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
+    original = {path: path.read_bytes() for path in canonical_fabric_repository.rglob("*") if path.is_file()}
     client = Mock()
     monkeypatch.setattr(prepare, "create_client", client)
-    original = {path: path.read_bytes() for path in [
-        pb.dev_bindings_path(canonical_fabric_repository), pipeline_path(canonical_fabric_repository),
-        canonical_fabric_repository / "parameter.yml", canonical_fabric_repository / "bulk-parameter.yml",
-    ]}
     prepare.main(["--dev", "--repository-directory", str(canonical_fabric_repository), "--dry-run"])
     client.assert_not_called()
-    assert all(path.read_bytes() == contents for path, contents in original.items())
+    assert all(path.read_bytes() == value for path, value in original.items())
 
 
-def test_failed_local_write_restores_owned_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("mode", ["auto", "AUTO", "existing ", "typo"])
+def test_publishers_cannot_implicitly_provision(mode: str) -> None:
+    with pytest.raises(pb.PipelineBindingError, match="FABRIC_CONNECTION_MODE"):
+        prepare.connection_mode({"FABRIC_CONNECTION_MODE": mode})
+
+
+def test_publishers_require_both_ids() -> None:
+    with pytest.raises(pb.PipelineBindingError, match="connection variables"):
+        prepare.connection_mode({})
+    assert prepare.connection_mode(CONNECTIONS) == "existing"
+    assert prepare.runtime_authentication({}) == "WorkspaceIdentity"
+    with pytest.raises(pb.PipelineBindingError, match="WorkspaceIdentity"):
+        prepare.runtime_authentication({"FABRIC_RUNTIME_AUTHENTICATION": "ServicePrincipal"})
+
+
+def test_readonly_target_ids_feed_all_publishers(
+    canonical_fabric_repository: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for key, value in CONNECTIONS.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.delenv("FABRIC_CONNECTION_MODE", raising=False)
+    monkeypatch.delenv("FABRIC_RUNTIME_AUTHENTICATION", raising=False)
+    ensure = Mock(return_value=CONNECTIONS)
+    monkeypatch.setattr(prepare, "ensure_pipeline_connections", ensure)
+    assert prepare.prepare_pipeline_connections(canonical_fabric_repository, WORKSPACE, lambda: "test-token") == CONNECTIONS
+    assert ensure.call_args.kwargs["mode"] == "existing"
+    assert ensure.call_args.kwargs["authentication"] == "WorkspaceIdentity"
+    assert ensure.call_args.kwargs["credentials"] is None
+
+
+def test_initial_import_stages_and_restores_exact_canonical_item(canonical_fabric_repository: Path) -> None:
+    repository = canonical_fabric_repository
+    folder = pipeline_path(repository).parent
+    original = {path.name: path.read_bytes() for path in folder.iterdir() if path.is_file()}
+    prepare.stage_initial_pipeline(repository, restore=False)
+    assert not pb.pipeline_files(repository)
+    assert (repository.parent / "fabric-initialization" / folder.name / ".platform").is_file()
+    prepare.stage_initial_pipeline(repository, restore=True)
+    assert {path.name: path.read_bytes() for path in folder.iterdir() if path.is_file()} == original
+    assert not (repository.parent / "fabric-initialization").exists()
+
+
+def test_staged_pipeline_can_be_rebound_before_first_import(canonical_fabric_repository: Path) -> None:
+    repository = canonical_fabric_repository
+    prepare.stage_initial_pipeline(repository, restore=False)
+    values = changed(pb.load_dev_bindings(repository))
+    prepare.record_dev_bindings(repository, values, rewrite_source=True)
+    prepare.stage_initial_pipeline(repository, restore=True)
+    assert prepare.validate_deployment_source(repository) == values
+
+
+def test_initial_stage_never_overwrites_existing_items(canonical_fabric_repository: Path) -> None:
+    repository = canonical_fabric_repository
+    destination = repository.parent / "fabric-initialization" / pipeline_path(repository).parent.name
+    destination.mkdir(parents=True)
+    with pytest.raises(pb.PipelineBindingError, match="overwrite"):
+        prepare.stage_initial_pipeline(repository, restore=False)
+    assert pipeline_path(repository).exists()
+
+
+def test_failed_local_write_restores_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     first, second = tmp_path / "first.json", tmp_path / "second.json"
     first.write_text("original-first", encoding="utf-8")
     second.write_text("original-second", encoding="utf-8")

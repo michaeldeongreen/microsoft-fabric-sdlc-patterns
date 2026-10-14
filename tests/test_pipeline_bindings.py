@@ -149,89 +149,77 @@ class TestGuidHelpers:
         assert pb.guid_problem(OTHER["Semantic model"], "MY_ID") is None
 
 
-class TestDevManifest:
+class TestCommittedDevBaseline:
     @pytest.fixture()
-    def repository(self, tmp_path: Path) -> Path:
-        directory = tmp_path / "fabric"
-        variables = directory / "Patterns_Variables.VariableLibrary" / "variables.json"
-        variables.parent.mkdir(parents=True)
-        variables.write_text(json.dumps({"variables": [
-            {"name": "target_workspace_id", "value": DEV_WS_ID},
-        ]}), encoding="utf-8")
-        return directory
-
-    def bindings(self) -> pb.DevPipelineBindings:
-        return pb.DevPipelineBindings(
-            DEV_WS_ID, OTHER["Semantic model"], OTHER["Notebook connection"], OTHER["Refresh connection"],
-        )
-
-    def write(self, directory: Path, document: object) -> Path:
-        path = pb.dev_bindings_path(directory)
-        path.write_text(json.dumps(document), encoding="utf-8")
-        return path
+    def repository(self, canonical_fabric_repository: Path) -> Path:
+        return canonical_fabric_repository
 
     def test_loads_real_non_secret_source_ids(self, repository: Path):
-        bindings = self.bindings()
-        self.write(repository, bindings.document())
+        bindings = pb.load_dev_bindings(repository)
+        assert bindings.notebook_connection_id != pb.NOTEBOOK_CONNECTION_PLACEHOLDER_ID
         assert pb.load_dev_bindings(repository) == bindings
-        assert pb.dev_bindings_path(repository).parent == repository.parent
-        assert not pb.dev_bindings_path(repository).is_relative_to(repository)
+        assert not (repository.parent / "fabric-dev-bindings.json").exists()
 
     def test_missing_configuration_is_not_a_successful_template_fallback(self, repository: Path):
-        with pytest.raises(pb.DevBindingsNotInitialized, match="prepare_fabric_workspace"):
+        (repository / "parameter.yml").write_text("find_replace: []", encoding="utf-8")
+        with pytest.raises(pb.PipelineBindingError, match="four native"):
             pb.load_dev_bindings(repository)
 
-    def test_explicit_uninitialized_configuration_fails_readiness(self, repository: Path):
-        self.write(repository, {key: (value if key == "schemaVersion" else None)
-                                for key, value in self.bindings().document().items()})
-        with pytest.raises(pb.DevBindingsNotInitialized, match="uninitialized"):
-            pb.load_dev_bindings(repository)
-
-    def test_partial_initialization_is_an_error_not_a_setup_fallback(self, repository: Path):
-        self.write(repository, {**self.bindings().document(), "notebookConnectionId": None})
-        with pytest.raises(pb.PipelineBindingError, match="partially initialized") as result:
-            pb.load_dev_bindings(repository)
-        assert not isinstance(result.value, pb.DevBindingsNotInitialized)
-
-    @pytest.mark.parametrize("version", [True, "1", 2, None])
-    def test_rejects_unknown_schema(self, repository: Path, version: object):
-        self.write(repository, {**self.bindings().document(), "schemaVersion": version})
-        with pytest.raises(pb.PipelineBindingError, match="schemaVersion"):
-            pb.load_dev_bindings(repository)
-
-    @pytest.mark.parametrize("value", ["not-a-guid", pb.ZERO_GUID, " " + DEV_WS_ID, 42])
+    @pytest.mark.parametrize("value", ["not-a-guid", pb.ZERO_GUID])
     def test_rejects_invalid_external_ids(self, repository: Path, value: object):
-        self.write(repository, {**self.bindings().document(), "notebookConnectionId": value})
-        with pytest.raises(pb.PipelineBindingError, match="notebookConnectionId"):
+        old = pb.load_dev_bindings(repository).notebook_connection_id
+        path = repository / "parameter.yml"
+        path.write_text(path.read_text(encoding="utf-8").replace(old, str(value)), encoding="utf-8")
+        with pytest.raises(pb.PipelineBindingError, match="Notebook connection"):
             pb.load_dev_bindings(repository)
 
     def test_rejects_fake_connection_markers(self, repository: Path):
-        self.write(repository, {
-            **self.bindings().document(), "notebookConnectionId": pb.NOTEBOOK_CONNECTION_PLACEHOLDER_ID,
-        })
-        with pytest.raises(pb.PipelineBindingError, match="placeholder"):
+        old = pb.load_dev_bindings(repository).notebook_connection_id
+        for name in ("parameter.yml", "bulk-parameter.yml"):
+            path = repository / name
+            path.write_text(path.read_text(encoding="utf-8").replace(old, pb.NOTEBOOK_CONNECTION_PLACEHOLDER_ID), encoding="utf-8")
+        with pytest.raises(pb.DevBindingsNotInitialized, match="uninitialized"):
             pb.load_dev_bindings(repository)
 
-    def test_rejects_connection_reuse_for_different_purposes(self, repository: Path):
-        self.write(repository, {
-            **self.bindings().document(), "semanticModelRefreshConnectionId": OTHER["Notebook connection"],
-        })
-        with pytest.raises(pb.PipelineBindingError, match="distinct"):
-            pb.load_dev_bindings(repository)
-
-    def test_rejects_another_workspaces_manifest(self, repository: Path):
-        self.write(repository, {**self.bindings().document(), "workspaceId": BYSTANDER})
+    def test_rejects_another_workspaces_rules(self, repository: Path):
+        old = pb.load_dev_bindings(repository).workspace_id
+        for name in ("parameter.yml", "bulk-parameter.yml"):
+            path = repository / name
+            path.write_text(path.read_text(encoding="utf-8").replace(old, BYSTANDER), encoding="utf-8")
         with pytest.raises(pb.PipelineBindingError, match="Variable Library"):
             pb.load_dev_bindings(repository)
 
-    def test_rejects_unknown_configuration_fields(self, repository: Path):
-        self.write(repository, {**self.bindings().document(), "clientSecret": "not-a-real-secret"})
-        with pytest.raises(pb.PipelineBindingError, match="exactly"):
+    def test_rejects_disagreement_between_parameter_formats(self, repository: Path):
+        old = pb.load_dev_bindings(repository).notebook_connection_id
+        path = repository / "bulk-parameter.yml"
+        path.write_text(path.read_text(encoding="utf-8").replace(old, BYSTANDER), encoding="utf-8")
+        with pytest.raises(pb.PipelineBindingError, match="must agree"):
             pb.load_dev_bindings(repository)
 
+    @pytest.mark.parametrize("environments", [{"Test"}, {"Prod"}, {"Other"}])
+    def test_rejects_incomplete_target_environment_coverage(self, repository: Path, environments: set[str]):
+        path = repository / "parameter.yml"
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+        rule = next(rule for rule in document["find_replace"] if
+                    rule["replace_value"] == {"_ALL_": "$ENV:NOTEBOOK_CONNECTION_ID"})
+        rule["replace_value"] = {name: "$ENV:NOTEBOOK_CONNECTION_ID" for name in environments}
+        path.write_text(yaml.safe_dump(document), encoding="utf-8")
+        with pytest.raises(pb.PipelineBindingError, match="both Test and Prod"):
+            pb.load_dev_bindings(repository)
+
+    @pytest.mark.parametrize("environments", [{"_ALL_"}, {"Test", "Prod"}])
+    def test_accepts_complete_target_environment_coverage(self, repository: Path, environments: set[str]):
+        original = pb.load_dev_bindings(repository)
+        path = repository / "parameter.yml"
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+        rule = next(rule for rule in document["find_replace"] if
+                    rule["replace_value"] == {"_ALL_": "$ENV:NOTEBOOK_CONNECTION_ID"})
+        rule["replace_value"] = {name: "$ENV:NOTEBOOK_CONNECTION_ID" for name in environments}
+        path.write_text(yaml.safe_dump(document), encoding="utf-8")
+        assert pb.load_dev_bindings(repository) == original
+
     def test_real_dev_ids_are_rejected_for_feature_configuration(self, repository: Path):
-        bindings = self.bindings()
-        self.write(repository, bindings.document())
+        bindings = pb.load_dev_bindings(repository)
         values, errors = pb.read_binding_values({
             "FEATURE_SEMANTIC_MODEL_ID": bindings.semantic_model_id,
             "FEATURE_NOTEBOOK_CONNECTION_ID": bindings.notebook_connection_id,

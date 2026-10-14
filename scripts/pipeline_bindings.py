@@ -1,5 +1,5 @@
 """
-Shared bindings for the native Patterns pipeline (stdlib only, no side effects).
+Shared bindings and committed parameter-rule baselines for the native pipeline.
 
 Patterns_Load_Validate_And_Refresh carries three environment-specific GUIDs
 that the item registry in workspace_swap.py can't rewrite by value:
@@ -12,17 +12,16 @@ The committed values are the baseline:
 
     - Semantic model: the Dev workspace's real model ID.
     - The constants below describe the initial, unconfigured source templates.
-    - Automated Dev preparation records real IDs in the sibling
-      data/fabric-dev-bindings.json manifest and aligns both parameter files.
-    - Swaps and readiness read that manifest offline. Unconfigured connection
+    - Local Dev preparation records real IDs in both parameter files.
+    - Swaps and readiness read those committed rules offline. Unconfigured connection
       templates are never accepted as runnable Dev bindings.
 
 Used by workspace_swap.py (swap and readiness check) and by the deploy scripts,
 which validate canonical source fields before automated connection setup.
 
-Fork setup: the Dev bootstrap Action discovers the resources; run
-prepare_fabric_workspace.py --dev to import its validated non-secret metadata.
-Do not edit Python constants, copy connection GUIDs, or supply SP secrets locally.
+Fork setup: provision connections explicitly, record the resulting IDs in
+.env, then run prepare_fabric_workspace.py --dev for a reviewed baseline cutover.
+PyYAML is needed to read the existing parameter files; no cloud calls occur.
 """
 
 from __future__ import annotations
@@ -50,7 +49,6 @@ REFRESH_CONNECTION_PLACEHOLDER_ID = "22222222-2222-4222-8222-222222222222"
 # CI variables (GitHub Environment variables) that replace the connection templates.
 NOTEBOOK_CONNECTION_ENV = "NOTEBOOK_CONNECTION_ID"
 REFRESH_CONNECTION_ENV = "SEMANTIC_MODEL_REFRESH_CONNECTION_ID"
-DEV_BINDINGS_FILENAME = "fabric-dev-bindings.json"
 
 
 class PipelineBindingError(ValueError):
@@ -58,7 +56,7 @@ class PipelineBindingError(ValueError):
 
 
 class DevBindingsNotInitialized(PipelineBindingError):
-    """Automated Dev preparation has not recorded real baseline resources."""
+    """The committed parameter rules still contain unconfigured templates."""
 
 
 @dataclass(frozen=True)
@@ -86,57 +84,101 @@ class DevPipelineBindings:
         }
 
 
-def dev_bindings_path(repo_dir: str | os.PathLike[str]) -> Path:
-    return Path(repo_dir).resolve().parent / DEV_BINDINGS_FILENAME
+@dataclass(frozen=True)
+class ParameterSources:
+    path: Path
+    text: str
+    values: dict[str, str]
+    model_name: str
+
+
+def parameter_sources(repo_dir: Path, *, bulk: bool) -> ParameterSources:
+    try:
+        import yaml
+    except ImportError as exc:
+        raise PipelineBindingError("Install requirements-dev.txt; committed parameter rules need PyYAML.") from exc
+    path = repo_dir / ("bulk-parameter.yml" if bulk else "parameter.yml")
+    text = path.read_text(encoding="utf-8")
+    try:
+        document = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        raise PipelineBindingError(f"{path.name}: invalid YAML.") from exc
+    rules = document.get("substitutions" if bulk else "find_replace") if isinstance(document, dict) else None
+    if not isinstance(rules, list):
+        raise PipelineBindingError(f"{path.name}: expected pipeline substitution rules.")
+    values: dict[str, str] = {}
+    model_names: set[str] = set()
+    for rule in rules:
+        if not isinstance(rule, dict):
+            raise PipelineBindingError(f"{path.name}: each replacement must be an object.")
+        item_types = rule.get("item_types" if bulk else "item_type")
+        if isinstance(item_types, str):
+            item_types = [item_types]
+        if not isinstance(item_types, list) or "DataPipeline" not in item_types:
+            continue
+        replacement = rule.get("replace_with" if bulk else "replace_value")
+        if not bulk:
+            if not isinstance(replacement, dict) or not replacement:
+                raise PipelineBindingError(f"{path.name}: pipeline replace_value must be an environment map.")
+            if any(not isinstance(key, str) for key in replacement):
+                raise PipelineBindingError(f"{path.name}: pipeline environment names must be strings.")
+            if "_ALL_" not in replacement and not {"Test", "Prod"}.issubset(replacement):
+                raise PipelineBindingError(f"{path.name}: pipeline replacement must cover _ALL_ or both Test and Prod.")
+            if any(not isinstance(value, str) for value in replacement.values()):
+                raise PipelineBindingError(f"{path.name}: pipeline target expressions must be strings.")
+            replacements = set(replacement.values())
+            if len(replacements) != 1:
+                raise PipelineBindingError(f"{path.name}: sample rules require one target expression.")
+            replacement = next(iter(replacements))
+        if not isinstance(replacement, str):
+            raise PipelineBindingError(f"{path.name}: pipeline replacement must be a string.")
+        model_match = re.fullmatch(r"\$items\.SemanticModel\.([^$]+?)\.\$id", replacement)
+        if model_match:
+            label = "Semantic model"
+            model_names.add(model_match.group(1))
+        else:
+            label = {
+                f"$ENV:{NOTEBOOK_CONNECTION_ENV}": "Notebook connection",
+                f"$ENV:{REFRESH_CONNECTION_ENV}": "Refresh connection",
+                "$workspace.$id": "Refresh workspace",
+            }.get(replacement, "")
+        if not label:
+            continue
+        value = rule.get("find" if bulk else "find_value")
+        if not isinstance(value, str):
+            raise PipelineBindingError(f"{path.name}: {label} find value must be a GUID.")
+        problem = guid_problem(value, label)
+        if problem:
+            raise PipelineBindingError(f"{path.name}: {problem}")
+        if label in values:
+            raise PipelineBindingError(f"{path.name}: duplicate {label} replacement.")
+        values[label] = value
+    if set(values) != {*BASELINE_VALUES, "Refresh workspace"} or len(model_names) != 1:
+        raise PipelineBindingError(f"{path.name}: expected exactly the four native pipeline binding rules.")
+    if len({value.lower() for value in values.values()}) != 4:
+        raise PipelineBindingError(f"{path.name}: source binding GUIDs must be distinct.")
+    model_name = next(iter(model_names))
+    model_path = (repo_dir / f"{model_name}.SemanticModel" / ".platform").resolve()
+    if model_path.parent.parent != repo_dir.resolve() or not model_path.is_file():
+        raise PipelineBindingError(f"{path.name}: referenced Semantic Model is not in the repository.")
+    return ParameterSources(path, text, values, model_name)
 
 
 def load_dev_bindings(repo_dir: str | os.PathLike[str]) -> DevPipelineBindings:
-    """Read real canonical Dev resources; never substitute initial fake GUIDs."""
-    path = dev_bindings_path(repo_dir)
-    instructions = (
-        "Run python scripts/prepare_fabric_workspace.py --dev --swap-to-dev "
-        "before opening the feature-to-dev PR."
-    )
-    if not path.exists():
-        raise DevBindingsNotInitialized(f"{path.name} is not initialized. {instructions}")
-    try:
-        document = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise PipelineBindingError(f"{path.name} is not valid JSON: {exc}") from exc
-    if (
-        not isinstance(document, dict)
-        or type(document.get("schemaVersion")) is not int
-        or document["schemaVersion"] != 1
-    ):
-        raise PipelineBindingError(f"{path.name} must use schemaVersion 1.")
-    keys = ("workspaceId", "semanticModelId", "notebookConnectionId", "semanticModelRefreshConnectionId")
-    if set(document) != {"schemaVersion", *keys}:
-        raise PipelineBindingError(f"{path.name} must contain exactly schemaVersion and {', '.join(keys)}.")
-    if all(document[key] is None for key in keys):
-        raise DevBindingsNotInitialized(f"{path.name} has uninitialized Dev IDs. {instructions}")
-    if any(document[key] is None for key in keys):
-        raise PipelineBindingError(f"{path.name} is partially initialized; restore a complete reviewed baseline.")
-    values: dict[str, str] = {}
-    for key in keys:
-        value = document[key]
-        if not isinstance(value, str):
-            raise PipelineBindingError(f"{path.name}: {key} must be a GUID string.")
-        problem = guid_problem(value, key)
-        if problem:
-            raise PipelineBindingError(f"{path.name}: {problem}")
-        values[key] = value
-    if len({value.lower() for value in values.values()}) != len(keys):
-        raise PipelineBindingError(f"{path.name}: Dev resource IDs must be distinct.")
-    placeholders = {NOTEBOOK_CONNECTION_PLACEHOLDER_ID, REFRESH_CONNECTION_PLACEHOLDER_ID}
-    if placeholders.intersection(value.lower() for value in values.values()):
-        raise PipelineBindingError(f"{path.name}: placeholder GUIDs are not Dev connections. {instructions}")
-    if values["workspaceId"] != dev_workspace_id(repo_dir):
-        raise PipelineBindingError(
-            f"{path.name}: workspaceId does not match the Variable Library's Dev workspace. {instructions}"
-        )
+    """Read the shared baseline from both parameter files, not a private .env."""
+    directory = Path(repo_dir)
+    standard = parameter_sources(directory, bulk=False)
+    bulk = parameter_sources(directory, bulk=True)
+    if standard.values != bulk.values or standard.model_name != bulk.model_name:
+        raise PipelineBindingError("Both parameter files must agree on the canonical Dev baseline.")
+    values = standard.values
+    if values["Refresh workspace"].lower() != dev_workspace_id(directory).lower():
+        raise PipelineBindingError("Parameter rules do not match the Variable Library's Dev workspace.")
+    if {NOTEBOOK_CONNECTION_PLACEHOLDER_ID, REFRESH_CONNECTION_PLACEHOLDER_ID}.intersection(values.values()):
+        raise DevBindingsNotInitialized("Dev connection rules are uninitialized; record real IDs from local .env.")
     return DevPipelineBindings(
-        values["workspaceId"], values["semanticModelId"],
-        values["notebookConnectionId"], values["semanticModelRefreshConnectionId"],
+        values["Refresh workspace"], values["Semantic model"],
+        values["Notebook connection"], values["Refresh connection"],
     )
 
 

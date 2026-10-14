@@ -1,6 +1,6 @@
 ---
 name: prepare-feature-workspace
-description: 'Prepare a newly branched Fabric feature workspace: discover item IDs, ensure Workspace Identity activity connections, and populate local .env without swapping tracked definitions.'
+description: 'Validate manually prepared feature Workspace Identity connections and discover item IDs into local .env without cloud writes or swapping tracked definitions.'
 disable-model-invocation: true
 ---
 
@@ -13,8 +13,9 @@ workspace before swapping. This skill remains preparation-only.
 
 An explicit invocation authorizes preparation. Do not ask for an additional
 `YES` or `NO`, or execute merely because the user asks for an explanation.
-Preparation can create connections, provision a Workspace Identity, and ensure
-its workspace permissions. It updates the ignored `.env`, not tracked item
+Preparation only validates existing WI connections and discovers item IDs.
+The human first creates WI, grants its roles, creates the pair, and supplies
+both connection GUIDs. It updates the ignored `.env`, not tracked item
 definitions.
 
 ## Procedure
@@ -63,8 +64,9 @@ definitions.
    python scripts/prepare_fabric_workspace.py --feature --use-azure-cli
    ```
 
-   The script discovers exact item names and creates/reuses the two supported
-   activity connections. Let it validate configuration and resource metadata;
+   The script discovers exact item names and validates the two supplied
+   activity connections without creating resources or modifying roles/credentials.
+   Let it validate configuration and resource metadata;
    do not duplicate its API logic.
 5. Report the command output and the non-secret configuration changes. On
    failure, report the error and stop; do not invent IDs or silently continue.

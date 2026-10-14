@@ -87,9 +87,9 @@ separate jobs, so the scripts remain easy to test and troubleshoot:
 
 | Job | Script | Purpose | When needed |
 |---|---|---|---|
-| **Prepare feature resources** | [prepare_fabric_workspace.py](scripts/prepare_fabric_workspace.py) | Use the developer's Fabric API session to discover feature items and ensure its runtime connections | Each new feature workspace |
-| **Bootstrap Dev resources** | [bootstrap-dev.yml](.github/workflows/bootstrap-dev.yml) | Use GitHub Environment secrets to create/reuse Dev connections; export only non-secret bindings | Facilitator setup or deliberate resource recovery |
-| **Import Dev metadata** | [prepare_fabric_workspace.py](scripts/prepare_fabric_workspace.py) | Obtain and validate the bootstrap artifact through `gh`; no local SPN credentials or Fabric calls | First local return while the canonical baseline is uninitialized |
+| **Prepare feature resources** | [prepare_fabric_workspace.py](scripts/prepare_fabric_workspace.py) | Validate manually created WI connections and discover item IDs with the user's account | Each new feature workspace |
+| **Provision shared-stage connections** | [bootstrap-dev.yml](.github/workflows/bootstrap-dev.yml) | Create/reuse each pair, verify group Owner, and persist environment GUID variables | Explicit facilitator setup/recovery |
+| **Record Dev baseline** | [prepare_fabric_workspace.py](scripts/prepare_fabric_workspace.py) | Align local `.env` Dev inputs with both committed parameter files, offline | Initial setup or reviewed resource cutover |
 | **Swap references** | [workspace_swap.py](scripts/workspace_swap.py) | Rewrite local tracked references and add/remove the feature value set; no Fabric API calls | Going to feature or returning to Dev |
 
 Use this decision guide:
@@ -98,55 +98,38 @@ Use this decision guide:
 |---|---|---|
 | New feature workspace after Branch Out | `/swap-to-feature` | Prepare the selected feature resources, discover IDs, then swap local references |
 | Returning from feature, with real Dev bindings already initialized | `/swap-to-dev` | Restore references offline and verify local readiness |
-| First return while the Dev manifest is absent or entirely uninitialized | `/swap-to-dev` | Import trusted Actions-created IDs, then restore references and verify readiness |
+| Missing or inconsistent committed Dev rules | Facilitator setup | Stop; explicitly record real baseline IDs before an ordinary swap |
 | Resuming the same known prepared feature workspace | `/swap-to-feature` | Use the complete valid local bindings; no new setup is needed |
 | Optional preview | `/swap-to-feature-dryrun` or `/swap-to-dev-dryrun` | Local preview only; unknown IDs are reported, never invented |
 
-Preparation establishes the connections; swapping changes which connections
+Manual/Actions setup establishes the connections; preparation validates them;
+swapping changes which connections
 the tracked pipeline references. Neither skill commits, pushes, syncs Fabric,
 activates a value set, or runs the pipeline. Invalid or partially initialized
 Dev configuration fails explicitly rather than being silently regenerated.
 
 #### Facilitator Setup: Dev Connection Bootstrap
 
-Complete this once before participants need to return their first pipeline
-feature to Dev. Participants never need the application's client secret:
+Follow the ordered [setup checklist](SETUP.md). Humans create each stage's WI
+and grant its rights. The deployment SP remains Contributor; setup never
+elevates it to manage workspace ACLs.
 
-1. Configure the `Dev` GitHub Environment with the existing service principal's
-   `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, and the explicit
-   Dev `FABRIC_WORKSPACE_ID`. Restrict it to branch `dev`. Give that SP the
-   documented workspace/tenant access and keep the sample capacity active.
-   The Dev Semantic Model must already exist from initial Git setup.
-2. Run [Bootstrap Dev Connections](.github/workflows/bootstrap-dev.yml) from
-   the reviewed `dev` branch. It discovers the model, creates/reuses the two
-   supported ServicePrincipal activity connections, and uploads
-   `fabric-dev-bindings` containing `dev-bindings.json`. Only resource IDs and
-   run provenance are exported; no SPN credentials or access tokens are included.
-   For manual Dev use, configure the non-secret `DEV_CONNECTION_GROUP_ID`
-   Environment variable with an explicitly trusted operator group's object ID.
-   Bootstrap grants that group **User** on exactly the two Dev activity
-   connections, idempotently preserving existing stronger assignments.
-   The actual Git updater/runner must belong to the group. Approved existing
-   grants are an alternative; without the variable, bootstrap warns that human
-   access has not been established or verified. Confirm access before Update
-   all or pipeline execution; workspace roles and Git credentials do not imply it.
-3. For this repository's initial migration only, introduce that workflow and
-   its source-independent helpers through a **bootstrap-only PR to Dev**.
-   Its merge triggers the first bootstrap through `push`; it does not include
-   the Fabric feature definitions or new readiness requirements. Do not
-   promote an older workload through Test/Prod just to make
-   the setup workflow available. A fork of the completed sample already has
-   this infrastructure; future pipeline features do not need another setup PR.
-4. Let the first `/swap-to-dev` import the output. The helper verifies the
-   repository, exact workflow, Dev ref, approved source commit, successful run,
-   artifact provenance, and agreement with the local Dev workspace/model.
-   If no run exists but the workflow is registered, it can dispatch the Dev
-   bootstrap and wait. Missing setup, failed runs, approval waits, or invalid
-   metadata are surfaced; there is no fallback to local SPN credentials.
+Configure `FABRIC_CONNECTION_ADMINS_GROUP_ID` and the environment-scoped
+provisioning PAT. Run **Provision Fabric Connections** explicitly on the
+reviewed stage branch. It creates/reuses the stage's WI pair, grants the group
+**Owner**, verifies readback, and persists the two environment variables.
+No model/pipeline prerequisite, artifacts, implicit dispatch, or missing-group
+success. Ordinary publishers use the stored IDs read-only.
 
-Bootstrap does not publish items, perform Update from Git, or start the
-pipeline. Those belong to the later workload deployment. This separates the
-one-time facilitator prerequisite from the participant's two commands.
+Record the actual Dev IDs in local `.env` and the committed parameter rules.
+For a fresh fork, stage the native pipeline outside the Git folder until the
+base items and real model references are initialized. This is one-time setup,
+not another infrastructure PR per feature.
+
+Give participants **User** on Dev's baseline pair, not all-stage Owner.
+They use their own Git accounts, manually prepare their private workspace's
+WI/pair, and run the two normal swap skills. A routine Dev return is offline
+and never needs a deployment SP secret.
 
 #### Step-by-Step: Swap to Feature Workspace
 
@@ -172,8 +155,8 @@ one-time facilitator prerequisite from the participant's two commands.
      intentionally supplied for the same target are preserved.
    - Runs the local swap, satisfying its terminal `YES` prompt automatically.
 
-   No separate preparation skill is required. The API setup needs the
-   bootstrap permissions documented in
+   No separate preparation skill is required. The human prepares WI and its
+   pair first; API validation needs the access documented in
    [Setup](SETUP.md#post-etl-refresh-permissions).
    For an optional preview, use `/swap-to-feature-dryrun`; it performs no login,
    API calls, or writes. It reports unknown IDs if setup has not yet run.
@@ -181,8 +164,8 @@ one-time facilitator prerequisite from the participant's two commands.
    The underlying swap script:
    - Detects the current branch name (no arguments needed).
    - Reads dev IDs from `variables.json` (the default value set).
-   - Uses real canonical Dev model/connection IDs from the generated
-     [Dev manifest](data/fabric-dev-bindings.json) as restoration baselines.
+   - Uses real canonical Dev model/connection IDs from both committed parameter
+     files as restoration baselines.
    - Reads feature workspace/item/connection IDs from `.env`. Missing, empty,
      or malformed required GUIDs fail explicitly; there is no interactive discovery fallback.
    - Displays the planned changes; direct terminal callers still type `YES`,
@@ -203,7 +186,7 @@ one-time facilitator prerequisite from the participant's two commands.
    ```
 6. **Sync** the feature workspace from the Fabric UI (Update from Git).
    Use the pipeline definition supplied by Git, not a manually recreated copy;
-   its runtime connections were prepared by the skill in step 4.
+   its runtime connections were manually prepared and validated in step 4.
 7. **Activate the feature value set** in the Fabric UI: open the Variable Library → select the feature value set → activate it.
 8. **Verify the pipeline bindings, then run `Patterns_Load_Validate_And_Refresh`:**
    check both Notebook connections, the native refresh connection, and the
@@ -222,23 +205,13 @@ one-time facilitator prerequisite from the participant's two commands.
 
 Before merging back to `dev`, all feature-specific changes must be reverted so dev IDs are restored:
 
-1. **Run `/swap-to-dev`.** The skill chooses the correct path:
-   - **Initialized Dev:** use the recorded real IDs and perform the ordinary
-     offline swap. No login or Fabric API calls.
-   - **First migration:** when the
-     [Dev manifest](data/fabric-dev-bindings.json) is absent or has its expected
-     resource IDs all null, obtain the trusted bootstrap metadata through the
-     developer's authenticated GitHub CLI. Record its real IDs and align both
-     parameter files, then invoke the existing swap. No Azure login or local
-     SPN credentials are needed.
-   - **Invalid or partially initialized Dev configuration:** report the error
-     and stop. Do not silently replace canonical connections or generate fake
-     GUIDs.
+1. **Run `/swap-to-dev`.** It restores the real baseline from the committed
+   parameter rules offline. No login, GitHub artifact, SP secret, or workflow
+   dispatch. Missing/invalid/disagreeing rules fail explicitly; the facilitator
+   must complete the deliberate setup/cutover instead of generating fake IDs.
 
-   No separate participant preparation command is needed. Actions uses the
-   SPN credentials stored in GitHub; the local helper downloads only its
-   non-secret output. If the facilitator's bootstrap prerequisite is missing,
-   the skill reports it and stops before swapping.
+   No separate participant preparation command is needed. This source-state
+   check does not certify live connection permissions.
 
    The underlying swap:
    - Reads feature IDs from the branch value set.
@@ -355,12 +328,14 @@ Note: Copilot cannot auto-trigger the script on branch checkout. You still need 
 
 `workspace_swap.py` reads feature bindings from `.env` at the repo root.
 This file is gitignored; each developer maintains its explicit feature
-workspace target. Preparation discovers the remaining IDs and ensures the
-intended runtime identity without display-name workspace guessing.
+workspace target. Humans first create WI and its two activity connections.
+Preparation validates those supplied IDs and discovers item IDs without
+display-name workspace guessing or cloud-resource writes.
 
 1. Copy `.env.sample` to `.env`.
-2. Set `FEATURE_WORKSPACE_ID` from the explicitly selected Branch Out workspace.
-   Invoke `/swap-to-feature`; its preparation phase discovers:
+2. Set `FEATURE_WORKSPACE_ID` and both connection IDs for the explicitly
+   prepared Branch Out workspace. Invoke `/swap-to-feature`; it discovers/
+   validates:
 
    | `.env` key | Feature binding |
    |---|---|
@@ -370,7 +345,7 @@ intended runtime identity without display-name workspace guessing.
    | `FEATURE_NOTEBOOK_CONNECTION_ID` | Workspace Identity Notebook connection GUID |
    | `FEATURE_REFRESH_CONNECTION_ID` | Workspace Identity Power BI datasets connection GUID |
 
-3. If using preexisting connections, supply their physical GUIDs before
+3. Supply the existing connections' physical GUIDs before
    preparation. Do not substitute `.platform` logical IDs.
 4. The same `/swap-to-feature` invocation applies the local swap after successful
    preparation. There is no second skill to run.
@@ -396,11 +371,10 @@ python scripts\prepare_fabric_workspace.py --feature --use-azure-cli
 python scripts\workspace_swap.py
 ```
 
-For the first return to Dev, obtain validated Actions metadata and invoke the
-existing swap:
+For an explicit Dev setup/cutover, record local Dev IDs (not credentials):
 
 ```powershell
-python scripts\prepare_fabric_workspace.py --dev --swap-to-dev
+python scripts\prepare_fabric_workspace.py --dev --replace-dev-bindings
 ```
 
 For later returns with an initialized Dev baseline:
@@ -411,10 +385,9 @@ python scripts\workspace_swap.py --swap-to-dev
 
 Only feature API preparation needs the approved Azure CLI session. If its
 sign-in is needed, use device code with the approved tenant and Fabric scope.
-Dev import uses authenticated `gh` access and never loads local Azure/SPN
-credentials. No interactive login is used in Actions. Advanced recovery can
-select a reviewed output with `--bootstrap-run-id <run-id>`; changing a recorded
-canonical GUID also requires the deliberate `--replace-dev-bindings` option.
+Dev baseline recording is offline; no `gh`, Actions artifact, or local SPN
+credential is involved. Changing a canonical GUID requires deliberate
+`--replace-dev-bindings` and review. No interactive login is used in Actions.
 
 Add `--dry-run` to either preparation mode for a local setup preview. Add
 `--dry-run` to the ordinary swap for an exact local diff only when the required

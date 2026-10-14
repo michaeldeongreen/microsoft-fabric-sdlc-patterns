@@ -14,7 +14,7 @@ name: Deploy and Run Pipeline - Prod (fabric-cicd)
 on:
   push:
     branches: [main]
-    paths: ["data/fabric/**", "data/fabric-dev-bindings.json", "scripts/deploy_fabric_cicd_non_bulk.py", "scripts/fabric_connections.py", "scripts/prepare_fabric_workspace.py", "scripts/pipeline_bindings.py", "scripts/run_fabric_etl.py", ".github/workflows/**"]
+    paths: ["data/fabric/**", "scripts/deploy_fabric_cicd_non_bulk.py", "scripts/fabric_connections.py", "scripts/prepare_fabric_workspace.py", "scripts/pipeline_bindings.py", "scripts/run_fabric_etl.py", ".github/workflows/**"]
   workflow_dispatch:
 
 permissions:

@@ -9,7 +9,7 @@ disable-model-invocation: true
 After Branch Out, use this one skill to prepare the feature target when needed
 and switch tracked Fabric items to it. The Python scripts remain separate:
 [prepare_fabric_workspace.py](../../../scripts/prepare_fabric_workspace.py)
-owns API setup; [workspace_swap.py](../../../scripts/workspace_swap.py) owns
+owns read-only API validation; [workspace_swap.py](../../../scripts/workspace_swap.py) owns
 local rewriting and the feature value set.
 
 An explicit `/swap-to-feature` invocation or request to apply the swap is
@@ -31,6 +31,10 @@ preview with live preparation or a swap.
    from Dev. Ask for the GUID if missing; never guess by workspace name.
 2. For a new Branch Out workspace or uninitialized feature bindings, prepare
    before swapping:
+   - The human must first create the workspace WI and its two WI connections,
+     grant the required workspace permissions, and supply both connection IDs.
+     Preparation never provisions those resources. Missing IDs are a setup
+     prerequisite, not authorization to create connections implicitly.
    - Start with fresh feature values from [.env.sample](../../../.env.sample)
      for a different workspace. Do not carry previous connection IDs into the
      new target; preserve unrelated local settings.
@@ -64,8 +68,8 @@ preview with live preparation or a swap.
      python scripts/prepare_fabric_workspace.py --feature --use-azure-cli
      ```
 
-     Preparation ensures the supported feature Workspace Identity resources
-     and populates `.env`. On any authentication, permission, dependency, or
+     Preparation validates the existing feature WI connections and discovers
+     item IDs into `.env`. On any authentication, permission, dependency, or
      preparation error, report it and stop before the swap. Do not start a
      capacity or change tenant policy to bypass a failure.
 

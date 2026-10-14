@@ -6,7 +6,6 @@ on:
     branches: [test]
     paths:
       - "data/fabric/**"
-      - "data/fabric-dev-bindings.json"
       - "deployment-plans/**"
       - "scripts/deployment_plan.py"
       - "scripts/deploy_fabric_cicd_non_bulk_plan.py"

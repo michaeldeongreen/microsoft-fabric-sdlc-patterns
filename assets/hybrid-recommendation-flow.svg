@@ -22,7 +22,7 @@
   <!-- Feature workspace -->
   <rect x="30" y="260" width="160" height="55" rx="8" fill="#6f42c1" stroke="#59359a" stroke-width="1.5"/>
   <text x="110" y="284" text-anchor="middle" font-size="11" fill="#fff" font-weight="bold">Feature Workspace</text>
-  <text x="110" y="300" text-anchor="middle" font-size="9" fill="#d4c5f9">(feature branch)</text>
+  <text x="110" y="300" text-anchor="middle" font-size="9" fill="#d4c5f9">(feature branch; human WI pair)</text>
 
   <!-- Arrow: dev → feature -->
   <line x1="110" y1="225" x2="110" y2="260" stroke="#6f42c1" stroke-width="2" marker-end="url(#arrowPurple)"/>
@@ -68,13 +68,13 @@
 
   <!-- fabric-cicd deploy -->
   <rect x="565" y="150" width="190" height="28" rx="4" fill="#e8f0fe" stroke="#0078d4" stroke-width="1"/>
-  <text x="575" y="169" font-size="9" fill="#0078d4"><tspan font-weight="bold">1.</tspan> fabric-cicd non-bulk (default)</text>
+  <text x="575" y="169" font-size="9" fill="#0078d4"><tspan font-weight="bold">1.</tspan> Ensure WI pair + persist IDs</text>
 
   <rect x="565" y="184" width="190" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
-  <text x="575" y="203" font-size="9" fill="#333"><tspan font-weight="bold">2.</tspan> Start/poll Fabric pipeline</text>
+  <text x="575" y="203" font-size="9" fill="#333"><tspan font-weight="bold">2.</tspan> fabric-cicd publish</text>
 
   <rect x="565" y="218" width="190" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
-  <text x="575" y="237" font-size="9" fill="#333"><tspan font-weight="bold">3.</tspan> Automated &amp; manual testing</text>
+  <text x="575" y="237" font-size="9" fill="#333"><tspan font-weight="bold">3.</tspan> Pipeline + acceptance</text>
 
   <!-- Arrow: Dev → Test -->
   <line x1="510" y1="175" x2="565" y2="175" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
@@ -90,13 +90,13 @@
 
   <!-- fabric-cicd deploy -->
   <rect x="835" y="150" width="210" height="28" rx="4" fill="#e8f0fe" stroke="#0078d4" stroke-width="1"/>
-  <text x="845" y="169" font-size="9" fill="#0078d4"><tspan font-weight="bold">1.</tspan> fabric-cicd non-bulk (default)</text>
+  <text x="845" y="169" font-size="9" fill="#0078d4"><tspan font-weight="bold">1.</tspan> Ensure WI pair + persist IDs</text>
 
   <rect x="835" y="184" width="210" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
-  <text x="845" y="203" font-size="9" fill="#333"><tspan font-weight="bold">2.</tspan> Start/poll Fabric pipeline</text>
+  <text x="845" y="203" font-size="9" fill="#333"><tspan font-weight="bold">2.</tspan> fabric-cicd publish</text>
 
   <rect x="835" y="218" width="210" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
-  <text x="845" y="237" font-size="9" fill="#333"><tspan font-weight="bold">3.</tspan> Production validation</text>
+  <text x="845" y="237" font-size="9" fill="#333"><tspan font-weight="bold">3.</tspan> Pipeline + Prod validation</text>
 
   <!-- Arrow: Test → Prod -->
   <line x1="775" y1="175" x2="835" y2="175" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
@@ -111,7 +111,7 @@
   <line x1="742" y1="337" x2="774" y2="337" stroke="#28a745" stroke-width="1.5" marker-end="url(#arrowGreen)"/>
   <rect x="774" y="324" width="276" height="26" rx="4" fill="#fff" stroke="#28a745"/>
   <text x="912" y="341" text-anchor="middle" font-size="10" fill="#333">Native Semantic Model refresh + wait</text>
-  <text x="675" y="365" text-anchor="middle" font-size="9" fill="#555">On success only; automatically reconciled SP connections (WI optional). One refresh owner.</text>
+  <text x="675" y="365" text-anchor="middle" font-size="9" fill="#555">On success only; Workspace Identity connections required. One refresh owner.</text>
 
   <!-- ==================== OPTIONAL PUBLISHER EXTENSION (conceptual) ==================== -->
   <rect x="545" y="385" width="525" height="68" rx="6" fill="none" stroke="#6f42c1" stroke-width="2" stroke-dasharray="6,3"/>
@@ -133,7 +133,7 @@
   <text x="420" y="518" text-anchor="middle" font-size="11" font-weight="bold" fill="#333">parameter.yml (Deploy-time)</text>
   <text x="420" y="534" text-anchor="middle" font-size="9" fill="#555">Rewrites physical workspace/item IDs;</text>
   <text x="420" y="548" text-anchor="middle" font-size="9" fill="#555">$ENV: selects target connection GUIDs.</text>
-  <text x="420" y="562" text-anchor="middle" font-size="9" fill="#555">API bootstrap creates/reuses connections.</text>
+  <text x="420" y="562" text-anchor="middle" font-size="9" fill="#555">Selected release ensures Test/Prod connections.</text>
 
   <!-- ==================== REPOSITORY DEFAULT ==================== -->
   <rect x="580" y="460" width="490" height="120" rx="8" fill="#e8f5e9" stroke="#28a745" stroke-width="1"/>
@@ -156,8 +156,8 @@
   <rect x="550" y="645" width="14" height="14" rx="2" fill="none" stroke="#6f42c1" stroke-width="1.5" stroke-dasharray="3,2"/>
   <text x="572" y="657" font-size="10" fill="#333">Optional native publisher (verify support; not implemented)</text>
 
-  <text x="50" y="681" font-size="10" fill="#555">Earlier prototype activities + API label succeeded. Current OneLake-path revision and Git binding resolution need live checks;</text>
-  <text x="50" y="697" font-size="10" fill="#555">CI SP publication/start and Test/Prod end-to-end execution remain unverified.</text>
+  <text x="50" y="681" font-size="10" fill="#555">Default fabric-cicd Test verified: connection ensure, publication, and same-revision DataPipeline.</text>
+  <text x="50" y="697" font-size="10" fill="#555">Prod, alternative publishers, and the complete current Branch Out cycle remain unverified.</text>
 
   <!-- Arrow markers -->
   <defs>

@@ -13,8 +13,9 @@
 #
 # Dynamic placeholders (resolved at deploy time):
 #   $workspace.$id                    target workspace ID
-#   $items.<Type>.<Name>.$id          ID of an item deployed in phase 1
+#   $items.<Type>.<Name>.$id          ID of an item deployed in an earlier batch
 #   $environment                      value of the ENVIRONMENT env var (Test/Prod)
+#   $ENV:<name>                       value supplied by the selected release job
 
 substitutions:
   # Replace dev Semantic Model ID in the DataPipeline native refresh activity.
@@ -24,13 +25,13 @@ substitutions:
     item_types: [DataPipeline]
 
   # Replace the Dev Notebook connection with the automatically resolved target connection.
-  # Dev preparation replaces this initial template; the runner supplies NOTEBOOK_CONNECTION_ID.
+  # This is the canonical Dev ID; the selected release supplies NOTEBOOK_CONNECTION_ID.
   - find: "850993cb-0d6f-4aa6-86d9-8656fd6eb662"
     replace_with: "$ENV:NOTEBOOK_CONNECTION_ID"
     item_types: [DataPipeline]
 
   # Replace the Dev refresh connection with the automatically resolved target connection.
-  # Dev preparation replaces this initial template; the runner supplies SEMANTIC_MODEL_REFRESH_CONNECTION_ID.
+  # This is the canonical Dev ID; the selected release supplies SEMANTIC_MODEL_REFRESH_CONNECTION_ID.
   - find: "dcfd6b38-e5ce-4b08-8c95-a298b0134efc"
     replace_with: "$ENV:SEMANTIC_MODEL_REFRESH_CONNECTION_ID"
     item_types: [DataPipeline]

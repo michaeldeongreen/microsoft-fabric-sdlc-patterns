@@ -69,6 +69,8 @@ jobs:
           GH_ENV_VARIABLES_TOKEN: ${{ secrets.GH_ENV_VARIABLES_TOKEN }}
         run: python scripts/bootstrap_dev_connections.py --operation preflight
 
+      # Repeat releases intentionally validate and reuse the saved WI pair
+      # before publication instead of assuming first-run connection state.
       - name: Ensure WI connections and verify admin-group Owner
         id: connections
         env:

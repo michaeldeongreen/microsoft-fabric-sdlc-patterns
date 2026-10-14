@@ -174,6 +174,9 @@ October 2026
 
 [Reference implementation](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns)
 
+Operational status: Dev `a417191`; verified Test release `e87f435` on
+2026-10-14.
+
 <!--
 Introduce yourself and position the session as the CD follow-on to the earlier CI presentation.
 Official Microsoft documentation is canonical; this repository is one opinionated GitHub implementation.
@@ -425,13 +428,14 @@ Git history can support every Git-backed option; the evidence row highlights the
 
 **Repository default and recommended starting point:** `fabric-cicd` non-bulk.
 
-The plan adapters are experimental alternatives; direct Bulk APIs are Preview.
+The plan adapters are experimental. Current Bulk Import docs show v1 without
+`?beta=true`; the repository's legacy-query raw caller remains unverified.
 
 **Binding ≠ deletion:** binding fixes target references; orphan cleanup removes source-absent items.
 
 <!--
 The repository bounds fabric-cicd to >=1.4.0,<1.5.0. The pre-1.4 dynamic-variable fallback is historical; parameter-file presence alone is not a fallback condition in 1.4.0.
-Offline tests using actual fabric-cicd and mocked HTTP check substitutions, bulk outcomes, and zero standard definition POSTs. These are not live Test/Prod evidence.
+Offline tests using actual fabric-cicd and mocked HTTP check substitutions, bulk outcomes, and zero standard definition POSTs. These are not live evidence for the bulk or plan routes.
 Bulk ordering is an independent repository adapter, not native plan attachment. Library, Import, Validation, and Model are explicit DataPipeline prerequisites. The current 11-item sample has declared batch sizes [1,5,2] plus remainder 3: four selections and an expected four bulk definition-import POSTs in the offline contract, not four total HTTP requests or live evidence. Preview after plan/inventory changes. Live Report byPath bindings still require validation.
 The raw script first captures Lakehouse/Ontology IDs, then the model ID, then publishes the DataPipeline. These three batches handle physical references; supported logical-ID dependencies are a separate service capability.
 -->
@@ -461,10 +465,12 @@ The raw script first captures Lakehouse/Ontology IDs, then the model ID, then pu
 | `test` | Test | GitHub Actions |
 | `main` | Prod | GitHub Actions |
 
-**One writer per workspace**
+One definition writer per workspace
 
 - Dev is Fabric Git-managed.
 - Test and Prod definitions are API-managed.
+- Selected Test/Prod jobs ensure Workspace Identity connections before
+  publication.
 - GitHub starts one Fabric DataPipeline: load → validate → native refresh.
 
 ---
@@ -487,9 +493,10 @@ Publish 3: DataPipeline (fresh Notebook/Model discovery)
 Post-deploy: one DataPipeline — load → validate → native refresh
 ```
 
-**Also encoded:** item scope, automatic connection reconciliation, pipeline
-name lookup, success dependencies, and failure behavior. A DeploymentPlan
-orders publication, not the workload activities or connection bootstrap.
+Also encoded: item scope, Workspace Identity connection ensure, Owner
+verification, create-only ID persistence, pipeline name lookup, success
+dependencies, and failure behavior. A DeploymentPlan orders publication, not
+the workload activities or connection setup.
 
 > The pipeline does not need tribal Fabric knowledge when that knowledge is made explicit and testable in the repository.
 
@@ -500,13 +507,13 @@ orders publication, not the workload activities or connection bootstrap.
 # Four selectable deployment paths
 
 Compare capabilities in the [README method matrix](../README.md#choose-a-deployment-method);
-locate files in the [shared workflow reference](../fabric-hybrid-cicd-guide.md#github-actions-workflows).
+locate files in the [shared workflow reference](../fabric-release-process.md#github-actions-workflows).
 
 | `DEPLOY_METHOD` | Result |
 |---|---|
 | unset or `fabric-cicd` | fabric-cicd non-bulk — default and recommended starting point |
 | `fabric-cicd-bulk` | Experimental fabric-cicd bulk + client-read plan; requires `DEPLOYMENT_PLAN_PATH` |
-| `bulk` | Raw REST Bulk Import example (Preview) |
+| `bulk` | Raw REST Bulk Import example; current endpoint compatibility must be revalidated |
 | `fabric-cicd-plan` | Experimental independent sequential non-bulk plan adapter |
 | anything else | All deployment jobs skip |
 
@@ -547,7 +554,10 @@ Default **fabric-cicd non-bulk** walkthrough; other methods use different caller
 PR test → main: branch checks + unit tests
   ↓ merge/push; DEPLOY_METHOD selects the publisher
 Prod Environment supplies identity + workspace
-  ↓ reusable template checks out the revision + authenticates
+  ↓ PAT preflight + validate saved connection IDs
+Deployment SP ensures WI pair + verifies admin-group Owner
+  ↓ PAT creates missing ID variables; current IDs flow to publisher
+reusable template checks out the revision + authenticates
 deploy script + parameter.yml → Fabric APIs
 3 publish calls → orphan cleanup
   ↓ successful deployment
@@ -559,7 +569,7 @@ Prod ETL starts/polls DataPipeline; release checks remain separate
 1. [`enforce-promotion-path.yml`](../.github/workflows/enforce-promotion-path.yml) — permits only `test → main`
 2. [`run-tests.yml`](../.github/workflows/run-tests.yml) — installs dependencies and runs pytest for every PR
 3. [`deploy-prod.yml`](../.github/workflows/deploy-prod.yml) — runs the standard route when selected, targeting Prod
-4. [`reusable-deploy-fabric-cicd.yml`](../.github/workflows/reusable-deploy-fabric-cicd.yml) — authenticates and runs the standard deployment
+4. [`reusable-deploy-fabric-cicd.yml`](../.github/workflows/reusable-deploy-fabric-cicd.yml) — preflights, ensures connections, persists IDs, and runs the standard deployment
 5. [`deploy_fabric_cicd_non_bulk.py`](../scripts/deploy_fabric_cicd_non_bulk.py) — controls phases and orphan cleanup
    - [`parameter.yml`](../data/fabric/parameter.yml) — rewrites target workspace/item IDs before upload
 6. [`reusable-fabric-etl.yml`](../.github/workflows/reusable-fabric-etl.yml) — the caller's dependent `run-etl` job starts the pipeline only after deployment succeeds
@@ -575,7 +585,9 @@ Prod ETL starts/polls DataPipeline; release checks remain separate
 | Promote to `main` | Branch rules, status checks, source-branch restriction |
 | Select deployment | Repository `DEPLOY_METHOD` variable |
 | Enter Prod | GitHub Environment secrets and optional reviewers |
-| Authenticate | Environment-scoped service principal |
+| Manage Fabric connections | Environment-scoped deployment service principal |
+| Persist connection IDs | Environment-scoped GitHub PAT |
+| Run activities | Prod Workspace Identity |
 | Run workflow | Read-only `GITHUB_TOKEN`, pinned Actions |
 | Prove outcome | Commit SHA, run logs, ETL result, Fabric audit |
 
@@ -588,11 +600,8 @@ Prod ETL starts/polls DataPipeline; release checks remain separate
 - Evaluate GitHub OIDC instead of a stored client secret
 
 <!--
-Current demo posture on 2026-09-25:
-- Branch rulesets are active, but required approvals are zero.
-- Prod Environment protection and deployment branch policy are not configured.
-- DEPLOY_METHOD currently selects fabric-cicd-bulk.
-Be explicit about current versus recommended controls when showing Settings.
+Before presenting live Settings, recheck branch rules, Environment protection,
+and DEPLOY_METHOD. Do not present an earlier demo-time setting as current.
 -->
 
 ---
@@ -615,9 +624,9 @@ publish definitions + target bindings
   → separate model date / DAX / consumer checks
 ```
 
-> Earlier prototype: Workspace Identity activities + API label succeeded.
-> Current OneLake-path revision, Git binding resolution, and CI SP/Test/Prod
-> execution still need live verification.
+> Verified on 2026-10-14: default Test connection ensure, publication, and
+> same-revision DataPipeline. Prod, alternative publishers, and the complete
+> current Branch Out cycle still need live verification.
 
 <!--
 Model-owner source access and consumer date-field/DAX checks remain separate.
@@ -719,5 +728,5 @@ It is reproducing a working Fabric solution across item types whose definitions,
 
 | Official guidance | This repository |
 |---|---|
-| [Plan CI/CD for Fabric solutions](https://learn.microsoft.com/en-us/fabric/fundamentals/understand-best-practices-fabric-cicd)<br>[Choose a Fabric CI/CD workflow](https://learn.microsoft.com/en-us/fabric/cicd/manage-deployment)<br>[End-to-end automation tutorial](https://learn.microsoft.com/en-us/fabric/cicd/tutorial-end-to-end-automation) | [Setup](../SETUP.md)<br>[Release options](../fabric-cicd-release-options.md)<br>[Shared workflow reference](../fabric-hybrid-cicd-guide.md#github-actions-workflows)<br>[Quality gates and recovery](../fabric-cicd-quality-gates-and-release-controls.md) |
+| [Plan CI/CD for Fabric solutions](https://learn.microsoft.com/en-us/fabric/fundamentals/understand-best-practices-fabric-cicd)<br>[Choose a Fabric CI/CD workflow](https://learn.microsoft.com/en-us/fabric/cicd/manage-deployment)<br>[End-to-end automation tutorial](https://learn.microsoft.com/en-us/fabric/cicd/tutorial-end-to-end-automation) | [Setup](../SETUP.md)<br>[Development process](../fabric-development-process.md)<br>[Release process](../fabric-release-process.md)<br>[Quality gates and recovery](../fabric-cicd-quality-gates-and-release-controls.md) |
 | [`fabric-cicd` parameterization](https://microsoft.github.io/fabric-cicd/1.4.0/how_to/parameterization/)<br>[Optional and selective features](https://microsoft.github.io/fabric-cicd/1.4.0/how_to/optional_feature/)<br>[Code reference](https://microsoft.github.io/fabric-cicd/1.4.0/reference/code_reference/) | [Direct Bulk API implementation](../fabric-bulk-cicd-guide.md)<br>[Deployment Plan adapters](../fabric-deployment-plan-guide.md)<br>[Reference implementation](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns) |

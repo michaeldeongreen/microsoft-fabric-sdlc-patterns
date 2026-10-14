@@ -1,17 +1,28 @@
-# Bulk CI/CD Implementation Guide
+# Raw REST Bulk CI/CD Guide
 
-This is the **raw REST bulk — custom Python caller** route (`DEPLOY_METHOD=bulk`), not fabric-cicd bulk.
+This is the raw REST bulk custom-Python route (`DEPLOY_METHOD=bulk`), not
+fabric-cicd bulk.
 For fabric-cicd bulk with library-managed replacements, use the
 [Deployment Plan guide](fabric-deployment-plan-guide.md#isolated-bulk-adapter-14x).
 Compare all four implementations in the [README matrix](README.md#choose-a-deployment-method).
 
-This repository implements an alternative deployment path for Microsoft Fabric using the **[Bulk Import Item Definitions API](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions)** (Preview). The default implementation is documented in the [fabric-cicd Non-Bulk CI/CD Guide](fabric-hybrid-cicd-guide.md). This raw REST example publishes the same workload definitions (DataPipelines, Notebooks, Lakehouses, Variable Libraries, Semantic Models, Reports, Ontologies, Data Agents) using GitHub Actions and the Fabric REST API directly.
+This route publishes the sample workload through the
+[Bulk Import Item Definitions API](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions).
+The default implementation is documented in the
+[fabric-cicd Non-Bulk CI/CD Guide](fabric-hybrid-cicd-guide.md).
 
 For the strategic comparison between fabric-cicd and the Bulk APIs (and the recommendation), see [fabric-cicd-release-options.md](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis).
 
-> **Important framing.** The Bulk Import API itself has known gaps (no parameterization, no value-set activation, no delete). This repo implements caller-side workarounds for the first two — they are not platform fixes or proof of live route parity. If you choose raw REST bulk, you own that caller-side work. **fabric-cicd non-bulk is this repository's default and recommended starting point**, not a universal ranking.
->
-> An earlier three-activity feature prototype succeeded under a user invoker with Workspace Identity activity credentials. The current explicit-OneLake-path validation revision is only offline-validated; Git sync/Branch Out binding resolution, CI service-principal publishing/start, and Test/Prod end-to-end execution remain live checks.
+The Bulk Import API does not apply this repository's parameterization, activate
+the target Variable Library value set, or delete orphans. The custom caller
+implements the first two behaviors. It remains an example that you own, not a
+platform fix.
+
+The current Microsoft API reference shows the v1 endpoint without
+`?beta=true`. The checked-in caller still sends that legacy query parameter and
+has not been live-verified against the current contract. Revalidate and update
+the caller before selecting `bulk`. The default non-bulk Test route is verified;
+raw bulk is not.
 
 ---
 
@@ -42,6 +53,8 @@ Git repo (dev branch)
 ┌─────────────────────────────────────────────────────┐
 │  deploy-test-bulk.yml (orchestrator)                │
 │                                                     │
+│  ensure Test WI connections + persist IDs           │
+│                                                     │
 │  deploy-bulk                                        │
 │    └─ reusable-deploy-bulk.yml                      │
 │       └─ scripts/deploy_fabric_rest_bulk.py         │
@@ -66,8 +79,9 @@ Git repo (dev branch)
        → native refresh of Patterns_Semantic_Model
 ```
 
-The same pattern applies to Prod: `deploy-prod-bulk.yml` owns its dependent
-pipeline job, triggered on push to `main`.
+The same checked-in contract targets Prod, but neither raw bulk Test nor Prod
+has current live evidence. Shared promotion and connection behavior is in
+[Release Process](fabric-release-process.md).
 
 Like the [default fabric-cicd non-bulk route](fabric-hybrid-cicd-guide.md#architecture-overview),
 raw REST first creates items whose IDs dependents need. It now has a third
@@ -125,7 +139,7 @@ microsoft-fabric-sdlc-patterns/
 │       ├── reusable-deploy-bulk.yml         # Template: Bulk Import API deployment
 │       ├── reusable-fabric-etl.yml          # Template: start/poll one Fabric job
 │       ├── check-pr-ready.yml               # PR check: blocks feature IDs from merging to dev
-│       ├── run-tests.yml                    # PR check: runs pytest when scripts/tests change
+│       ├── run-tests.yml                    # PR check: runs pytest on every PR
 │       └── enforce-promotion-path.yml       # PR check: enforces dev→test→main source-branch promotion
 ├── data/
 │   └── fabric/                              # Fabric item definitions (repository_directory)
@@ -154,7 +168,7 @@ microsoft-fabric-sdlc-patterns/
 
 All four method families live in [.github/workflows/](.github/workflows/).
 `DEPLOY_METHOD` selects their deployment jobs; the
-[shared workflow reference](fabric-hybrid-cicd-guide.md#github-actions-workflows)
+[shared workflow reference](fabric-release-process.md#github-actions-workflows)
 maps every caller and template.
 
 ---
@@ -163,29 +177,24 @@ maps every caller and template.
 
 ### What Triggers What
 
-| Event | Workflow Triggered | What It Does |
-|---|---|---|
-| Push to `test` (Fabric definitions or workflow changes), `DEPLOY_METHOD=bulk` | `deploy-test-bulk.yml` | Imports workload definitions to Test, excluding DeploymentPlan control items |
-| `deploy-test-bulk.yml` deployment job succeeds | Its dependent `run-etl` job | Starts/polls `Patterns_Load_Validate_And_Refresh` in Test, using the same revision |
-| Push to `main` (Fabric definitions or workflow changes), `DEPLOY_METHOD=bulk` | `deploy-prod-bulk.yml` | Imports workload definitions to Prod, excluding DeploymentPlan control items |
-| `deploy-prod-bulk.yml` deployment job succeeds | Its dependent `run-etl` job | Starts/polls the same pipeline in Prod through configured protections |
-
-Set `DEPLOY_METHOD=bulk` for this route. For other values and their capabilities,
-use the [README method matrix](README.md#choose-a-deployment-method). Unselected
-jobs may appear as skipped workflow runs; changing the selector alone does
-not initiate a deployment.
+See [Release Process: What triggers what](fabric-release-process.md#what-triggers-what).
+For this route, `DEPLOY_METHOD=bulk` selects `deploy-test-bulk.yml` or
+`deploy-prod-bulk.yml`.
 
 ### The Bulk Deploy Job
 
-Each deploy workflow calls `reusable-deploy-bulk.yml`, which invokes `scripts/deploy_fabric_rest_bulk.py`. The script:
+After the shared connection prelude, each deploy workflow calls
+`reusable-deploy-bulk.yml`, which invokes
+`scripts/deploy_fabric_rest_bulk.py`. The script:
 
 1. Acquires an Entra ID bearer token using the SPN's client credentials.
 2. Walks `data/fabric/` and builds a `definitionParts[]` array — one entry per file, with the path and base64-encoded content.
 3. Loads `bulk-parameter.yml` to get the substitution rules and value-set activation config.
 4. Validates target connection GUIDs before publishing and stages dynamic-ID
    dependencies, with DataPipelines deferred until their model IDs are known.
-5. POSTs to `https://api.fabric.microsoft.com/v1/workspaces/{ws}/items/bulkImportDefinitions?beta=true`
-   in the required batches: three for this sample.
+5. POSTs three batches to the checked-in bulk URL. The current script still
+   appends legacy `?beta=true`; reconcile it with the current documented v1
+   endpoint before use.
 6. PATCHes the deployed VariableLibrary to set the active value set.
 
 The Bulk Import API can return `200 OK` with the result body inline, or `202 Accepted` with a Long-Running Operation (LRO). The script handles both transparently — see [Gotchas](#lro-polling).
@@ -198,38 +207,24 @@ success dependents; GitHub does not perform an external refresh.
 
 ## GitHub Actions Workflows
 
-Use the [shared reference](fabric-hybrid-cicd-guide.md#github-actions-workflows)
-for all workflow triggers, selectors, and runners. The templates below are
-the raw route's local implementation details.
+Use the [shared reference](fabric-release-process.md#github-actions-workflows)
+for workflow triggers, selectors, reusable templates, and the ETL handoff.
+The compatibility headings below preserve older links without duplicating the
+shared contract.
 
 ### Reusable Templates (called via `workflow_call`)
 
-| Template | Purpose |
-|---|---|
-| `reusable-deploy-bulk.yml` | Acquires a token (via the SPN secrets), checks out the repo, installs `requests` + `PyYAML`, and invokes `scripts/deploy_fabric_rest_bulk.py` with the workspace ID, repository directory, and target environment as env vars. |
-| `reusable-fabric-etl.yml` | Resolves a Fabric item by **name/type**, starts and polls its job, and reports failures. All four methods select the DataPipeline; Fabric owns validation and refresh. |
-
-Test and Prod configure `item_type: DataPipeline`, `job_type: Pipeline`, and
-an optional `run_label` passed through `RUN_LABEL` to the JSON job parameters.
-The runner still supports unparameterized Notebook jobs, but no external
-refresh input or fallback remains. See the
-[shared pipeline contract](fabric-hybrid-cicd-guide.md#post-etl-semantic-model-refresh)
-for Direct Lake framing, completion/failure criteria, and the live-validation boundary.
+See
+[Release Process: Reusable templates](fabric-release-process.md#reusable-templates-called-via-workflow_call).
 
 ### Why Reusable Workflows (Not Composite Actions)
 
-Reusable workflows support the `environment:` keyword at the job level, which enables:
-
-- **GitHub Environment protection rules** (required reviewers, branch restrictions on Prod)
-- **Environment-scoped secrets** (each environment has its own `FABRIC_WORKSPACE_ID`)
-- `secrets: inherit` forwards all environment secrets without enumeration
+See
+[Release Process: Why reusable workflows](fabric-release-process.md#why-reusable-workflows-not-composite-actions).
 
 ### Manual Re-runs via `workflow_dispatch`
 
-`etl-test.yml` and `etl-prod.yml` are manual recovery workflows. Automatic ETL
-is a dependent job in the deployment workflow, so it uses that branch's
-revision rather than a default-branch listener. Dispatch recovery from `test`
-for Test or `main` for Prod; it does not republish definitions.
+See [Release Process: ETL callers and handoff](fabric-release-process.md#etl-callers-and-handoff).
 
 ---
 
@@ -297,7 +292,7 @@ variable_library:
 
 The native model reference uses
 `$items.SemanticModel.Patterns_Semantic_Model.$id`, not the Dev physical ID.
-The caller also resolves the source connection markers from the target's
+The caller also replaces the canonical Dev connection GUIDs with the target's
 `NOTEBOOK_CONNECTION_ID` and `SEMANTIC_MODEL_REFRESH_CONNECTION_ID`
 [Environment variables](SETUP.md#environment-variables). GUID preflight and
 replacement do not create connections or prove their Workspace Identity access.
@@ -387,72 +382,22 @@ not undo already-imported items. Never treat partial publication as success.
 
 ## Prerequisites & Setup
 
-### 1. Fabric Capacity
+Complete [Setup](SETUP.md) first. Raw bulk adds these route-specific
+requirements:
 
-A Fabric or Power BI Premium capacity is required for all workspaces.
+1. Every workspace that receives Fabric item types must use an F SKU or Fabric
+   Trial. Power BI Premium is sufficient only when every imported definition is
+   a Power BI item.
+2. Every item type in a request must support the deployment service principal.
+   One unsupported type can fail the entire bulk request.
+3. Set repository variable `DEPLOY_METHOD=bulk`.
+4. Reconcile the checked-in legacy `?beta=true` request with the current
+   documented v1 endpoint, then live-verify the route in Test.
 
-### 2. Fabric Workspaces
-
-Three workspaces are needed:
-
-- **microsoft-fabric-sdlc-patterns-dev** — connected to the `dev` branch via Fabric Git integration
-- **microsoft-fabric-sdlc-patterns-test** — not Git-connected, receives deployments via the Bulk Import API
-- **microsoft-fabric-sdlc-patterns-prod** — not Git-connected, receives deployments via the Bulk Import API
-
-### 3. Service Principal
-
-Create a Service Principal for CI/CD automation:
-
-```bash
-az ad sp create-for-rbac --name "SPN-Microsoft-Fabric-SDLC-Patterns" \
-  --query "{tenantId:tenant, clientId:appId, clientSecret:password}" -o json
-```
-
-- Add the SPN as **Contributor** on both Test and Prod workspaces (Workspace → Manage access → Add people or groups).
-- Contributor is the minimum required role per the [Fabric Create Item API](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/create-item) documentation.
-- **Critical for bulk:** every item type in your repo must support service principals. The Bulk Import API enforces SPN coverage at the request level — a single unsupported item type fails the whole call. See the [comparison table in release-options](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for context.
-
-> **Important:** A Fabric Admin must enable service principal access to Fabric APIs in the Fabric Admin portal under Developer settings, scoped to a security group containing only your CI/CD SPs. See [developer tenant settings](https://learn.microsoft.com/en-us/fabric/admin/service-admin-portal-developer) and the [Governance Considerations](fabric-cicd-governance-considerations.md) for details.
-
-### 4. GitHub Environments
-
-Create two GitHub Environments in the repository settings (Settings → Environments):
-
-| Environment | Protection Rules |
-|---|---|
-| `Test` | None (deploy flows automatically on merge) |
-| `Prod` | Required reviewers, deployment branch restriction to `main` only |
-
-> **Note:** The environment name is also used as the value substituted for `$environment` in `bulk-parameter.yml`'s `active_value_set` placeholder. So the GitHub Environment names must match the Variable Library value-set names (`Test`, `Prod`) exactly.
-
-### 5. GitHub Environment Secrets
-
-Add these secrets to **both** `Test` and `Prod` environments:
-
-| Secret | Description |
-|---|---|
-| `AZURE_TENANT_ID` | Entra ID tenant ID |
-| `AZURE_CLIENT_ID` | Service Principal client/app ID |
-| `AZURE_CLIENT_SECRET` | Service Principal client secret |
-| `FABRIC_WORKSPACE_ID` | Target workspace ID (different per environment) |
-
-The first three secrets are identical across environments (single SPN). `FABRIC_WORKSPACE_ID` differs:
-
-- Test: the Test workspace ID
-- Prod: the Prod workspace ID
-
-These credentials authenticate publication/job submission, not activity runtime.
-The explicit provisioning action creates/shares the target WI pair and saves
-its two environment GUID variables. Publishers consume them read-only before
-substitution. The setup contract is described in [Setup](SETUP.md#environment-variables); verify
-[runtime/model/source permissions](SETUP.md#post-etl-refresh-permissions).
-Successful raw publishing does not prove activity or consumer authorization.
-
-### 6. Set the `DEPLOY_METHOD` Repository Variable
-
-Set `DEPLOY_METHOD=bulk` in Settings → Secrets and variables → Actions →
-Variables for this raw deployment job. Unset selects standard `fabric-cicd`;
-other selectors follow the [README matrix](README.md#choose-a-deployment-method).
+The selected Test/Prod release still requires all five Environment secrets,
+including `GH_ENV_VARIABLES_TOKEN`, and performs the shared automatic
+connection ensure before the raw publisher runs. See
+[Release Process](fabric-release-process.md#connection-lifecycle-by-stage).
 
 ---
 
@@ -580,13 +525,28 @@ deployment dispatch or the manual recovery workflow on the intended branch.
 The renamed `Deploy and Run Pipeline` callers also avoid matching legacy
 default-branch listeners during rollout, preventing duplicate automatic ETLs.
 
-### `?beta=true` Required Today
+### Reconcile the Legacy `?beta=true` Query
 
-The bulk endpoint URL is currently `POST /v1/workspaces/{ws}/items/bulkImportDefinitions?beta=true`. When the API graduates from Preview, drop the query parameter. The TODO is noted in the script's module docstring and in `reusable-deploy-bulk.yml`.
+The checked-in script sends:
 
-### Microsoft Tutorial's URL Is Wrong
+```text
+POST /v1/workspaces/{workspaceId}/items/bulkImportDefinitions?beta=true
+```
 
-The Microsoft Learn [Bulk Import tutorial](https://learn.microsoft.com/en-us/fabric/cicd/tutorial-bulkapi-cicd) uses `/importItemDefinitions` (singular) — that endpoint produces `404`. The correct path is `/items/bulkImportDefinitions` per the [API reference page](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions). Verified against a live workspace.
+The current [API reference](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions)
+and [Bulk Import tutorial](https://learn.microsoft.com/en-us/fabric/cicd/tutorial-bulkapi-cicd)
+show `/items/bulkImportDefinitions` without the query parameter and no longer
+label the operation Preview. The old tutorial-path discrepancy is resolved.
+
+This documentation correction does not prove the checked-in caller is
+compatible with the current service. Update and live-verify the caller before
+using `DEPLOY_METHOD=bulk`.
+
+### Microsoft Tutorial Endpoint
+
+The current tutorial and API reference agree on
+`/items/bulkImportDefinitions`. Do not retain the former singular
+`/importItemDefinitions` workaround in new implementations.
 
 ---
 
@@ -679,11 +639,12 @@ These are deliberate non-goals for this demo repo. They can be added incremental
 ## References
 
 - [fabric-cicd-release-options.md](fabric-cicd-release-options.md) — Strategy doc with the fabric-cicd vs Bulk APIs comparison
-- [fabric-cicd Non-Bulk CI/CD Guide](fabric-hybrid-cicd-guide.md) — Default non-bulk implementation and shared workflow reference
+- [Release Process](fabric-release-process.md) — Shared promotion, connection, and DataPipeline contract
+- [fabric-cicd Non-Bulk CI/CD Guide](fabric-hybrid-cicd-guide.md) — Default non-bulk publisher mechanics
 - [fabric-cicd-governance-considerations.md](fabric-cicd-governance-considerations.md) — Identity, RBAC, branch protection, approval gates
-- [Fabric Bulk Import Item Definitions API (Preview)](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions) — Endpoint reference
+- [Fabric Bulk Import Item Definitions API](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions) — Current endpoint reference
 - [Fabric Long-Running Operations](https://learn.microsoft.com/en-us/rest/api/fabric/articles/long-running-operation) — `?async=true` semantics, polling pattern
 - [Fabric Update Variable Library](https://learn.microsoft.com/en-us/rest/api/fabric/variablelibrary/items/update-variable-library) — PATCH endpoint used by value-set activation
-- [Microsoft Bulk Import tutorial](https://learn.microsoft.com/en-us/fabric/cicd/tutorial-bulkapi-cicd) — Microsoft's walkthrough (note the URL discrepancy called out under [Gotchas](#microsoft-tutorials-url-is-wrong))
+- [Microsoft Bulk Import tutorial](https://learn.microsoft.com/en-us/fabric/cicd/tutorial-bulkapi-cicd) — Microsoft's current walkthrough
 - [Fabric Create Item API — Permissions](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/create-item) — Contributor role requirement
 - [GitHub Reusable Workflows](https://docs.github.com/en/actions/sharing-automations/reusing-workflows) — `workflow_call`, inputs, secrets

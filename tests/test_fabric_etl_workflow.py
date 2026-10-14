@@ -117,6 +117,7 @@ def test_every_publisher_runs_one_same_revision_dependent_pipeline(
     assert f"'fabric-deploy-{stage}'" in definition["concurrency"]["group"]
     assert "fabric-skipped" in definition["concurrency"]["group"]
     assert "data/fabric/**" in definition["on"]["push"]["paths"]
+    assert "scripts/bootstrap_dev_connections.py" in definition["on"]["push"]["paths"]
 
 
 def test_loader_notebook_remains_independent_of_model_refresh() -> None:
@@ -132,14 +133,64 @@ def test_loader_notebook_remains_independent_of_model_refresh() -> None:
     "reusable-deploy-fabric-cicd.yml", "reusable-deploy-fabric-cicd-plan.yml",
     "reusable-deploy-fabric-cicd-bulk.yml", "reusable-deploy-bulk.yml",
 ])
-def test_all_publishers_consume_existing_wi_without_setup_token(name: str) -> None:
-    job = workflow(name)["jobs"]["deploy"]
+def test_all_routes_ensure_connections_then_publish_with_resolved_wi_ids(name: str) -> None:
+    definition = workflow(name)
+    assert set(definition["jobs"]) == {"deploy"}
+    job = definition["jobs"]["deploy"]
     assert job["environment"] == "${{ inputs.environment }}"
     assert job["env"]["FABRIC_CONNECTION_MODE"] == "existing"
     assert job["env"]["FABRIC_RUNTIME_AUTHENTICATION"] == "WorkspaceIdentity"
-    assert "GH_ENV_VARIABLES_TOKEN" not in json.dumps(job)
+    assert "GH_ENV_VARIABLES_TOKEN" not in job["env"]
     for variable in ("NOTEBOOK_CONNECTION_ID", "SEMANTIC_MODEL_REFRESH_CONNECTION_ID"):
-        assert job["env"][variable] == f"${{{{ vars.{variable} }}}}"
+        assert variable not in job["env"]
+    assert "FABRIC_CONNECTION_ADMINS_GROUP_ID" not in job["env"]
+    steps = job["steps"]
+    helper_steps = [(index, step) for index, step in enumerate(steps)
+                    if "bootstrap_dev_connections.py" in step.get("run", "")]
+    assert [step["run"] for _, step in helper_steps] == [
+        "python scripts/bootstrap_dev_connections.py --operation preflight",
+        "python scripts/bootstrap_dev_connections.py --operation provision",
+        "python scripts/bootstrap_dev_connections.py --operation persist",
+    ]
+    preflight, provision, persist = [step for _, step in helper_steps]
+    assert preflight["id"] == "existing"
+    assert provision["id"] == "connections"
+    for _, step in helper_steps:
+        assert "if" not in step
+        assert "continue-on-error" not in step
+        assert step["env"]["ENVIRONMENT"] == "${{ inputs.environment }}"
+        assert step["env"]["FABRIC_WORKSPACE_ID"] == "${{ secrets.FABRIC_WORKSPACE_ID }}"
+        assert step["env"]["FABRIC_CONNECTION_ADMINS_GROUP_ID"] == "${{ vars.FABRIC_CONNECTION_ADMINS_GROUP_ID }}"
+    token_steps = [step for step in steps if "GH_ENV_VARIABLES_TOKEN" in step.get("env", {})]
+    assert token_steps == [preflight, persist]
+    assert all("AZURE_CLIENT_SECRET" not in step["env"] for step in token_steps)
+    assert "GH_ENV_VARIABLES_TOKEN" not in provision["env"]
+    assert provision["env"]["AZURE_CLIENT_SECRET"] == "${{ secrets.AZURE_CLIENT_SECRET }}"
+    publish_index, publish = next(
+        (index, step) for index, step in enumerate(steps)
+        if step.get("run", "").startswith("python scripts/deploy_") and "--dry-run" not in step["run"]
+    )
+    assert helper_steps[-1][0] < publish_index
+    assert "GH_ENV_VARIABLES_TOKEN" not in publish["env"]
+    assert "if" not in publish and "continue-on-error" not in publish
+    for credential in ("AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"):
+        assert credential not in job["env"]
+        assert [step for step in steps if credential in step.get("env", {})] == [provision, publish]
+        assert provision["env"][credential] == f"${{{{ secrets.{credential} }}}}"
+        assert publish["env"][credential] == f"${{{{ secrets.{credential} }}}}"
+    for variable in ("NOTEBOOK_CONNECTION_ID", "SEMANTIC_MODEL_REFRESH_CONNECTION_ID"):
+        assert provision["env"][variable] == f"${{{{ steps.existing.outputs.{variable} }}}}"
+        expected = f"${{{{ steps.connections.outputs.{variable} }}}}"
+        assert persist["env"][variable] == expected
+        assert publish["env"][variable] == expected
+    for index, step in enumerate(steps):
+        if "--dry-run" in step.get("run", ""):
+            assert index < helper_steps[0][0]
+            assert "AZURE_CLIENT_SECRET" not in step.get("env", {})
+            assert "GH_ENV_VARIABLES_TOKEN" not in step.get("env", {})
+    install = next(step["run"] for step in steps if step["name"] == "Install dependencies")
+    assert "azure-identity" in install
+    assert steps[0]["with"]["persist-credentials"] == "false"
 
 
 def test_dev_is_manual_and_provisioning_is_explicit() -> None:

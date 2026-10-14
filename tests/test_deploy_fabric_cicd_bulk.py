@@ -867,7 +867,12 @@ def test_bulk_preview_precedes_secrets_and_all_sdk_ranges_match() -> None:
     execute = next(i for i, step in enumerate(steps) if "AZURE_CLIENT_SECRET" in step.get("env", {}))
     assert preview < execute
     assert all("AZURE_CLIENT_SECRET" not in step.get("env", {}) for step in steps[:execute])
-    assert steps[execute]["run"] == "python scripts/deploy_fabric_cicd_bulk.py"
+    assert steps[execute]["run"] == "python scripts/bootstrap_dev_connections.py --operation provision"
+    publish = next(i for i, step in enumerate(steps)
+                   if step.get("run") == "python scripts/deploy_fabric_cicd_bulk.py")
+    persist = next(i for i, step in enumerate(steps)
+                   if step.get("run") == "python scripts/bootstrap_dev_connections.py --operation persist")
+    assert execute < persist < publish
     for step in steps:
         if "uses" in step:
             sha = step["uses"].split("@")[1]

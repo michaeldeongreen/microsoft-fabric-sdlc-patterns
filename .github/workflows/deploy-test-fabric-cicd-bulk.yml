@@ -27,6 +27,7 @@ on:
       - "scripts/deploy_fabric_cicd_bulk.py"
       - "scripts/deployment_plan_bulk.py"
       - "scripts/fabric_connections.py"
+      - "scripts/bootstrap_dev_connections.py"
       - "scripts/prepare_fabric_workspace.py"
       - "scripts/pipeline_bindings.py"
       - "scripts/run_fabric_etl.py"

@@ -98,7 +98,7 @@ def parameter_sources(repo_dir: Path, *, bulk: bool) -> ParameterSources:
     except ImportError as exc:
         raise PipelineBindingError("Install requirements-dev.txt; committed parameter rules need PyYAML.") from exc
     path = repo_dir / ("bulk-parameter.yml" if bulk else "parameter.yml")
-    text = path.read_text(encoding="utf-8")
+    text = path.read_bytes().decode("utf-8")
     try:
         document = yaml.safe_load(text)
     except yaml.YAMLError as exc:

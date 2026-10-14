@@ -38,6 +38,26 @@ def test_recording_updates_both_rules_source_but_not_platforms(canonical_fabric_
     assert not (repository.parent / "fabric-dev-bindings.json").exists()
 
 
+@pytest.mark.parametrize("newline", [b"\n", b"\r\n"])
+def test_recording_preserves_parameter_bytes_except_ids(
+    canonical_fabric_repository: Path, newline: bytes,
+) -> None:
+    repository = canonical_fabric_repository
+    old = pb.load_dev_bindings(repository)
+    new = changed(old)
+    originals = {}
+    for name in ("parameter.yml", "bulk-parameter.yml"):
+        path = repository / name
+        content = path.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", newline)
+        path.write_bytes(content)
+        originals[path] = content
+    prepare.record_dev_bindings(repository, new)
+    for path, content in originals.items():
+        for label, value in old.values.items():
+            content = content.replace(value.encode("utf-8"), new.values[label].encode("utf-8"))
+        assert path.read_bytes() == content
+
+
 def test_recording_can_leave_active_feature_source_untouched(canonical_fabric_repository: Path) -> None:
     repository = canonical_fabric_repository
     original = pipeline_path(repository).read_bytes()

@@ -8,7 +8,7 @@
           "workspaceId": "00000000-0000-0000-0000-000000000000"
         },
         "externalReferences": {
-          "connection": "3385b34a-d547-4ff8-991a-d7acbc693d79"
+          "connection": "850993cb-0d6f-4aa6-86d9-8656fd6eb662"
         },
         "policy": {
           "timeout": "0.00:20:00",
@@ -43,7 +43,7 @@
           }
         },
         "externalReferences": {
-          "connection": "3385b34a-d547-4ff8-991a-d7acbc693d79"
+          "connection": "850993cb-0d6f-4aa6-86d9-8656fd6eb662"
         },
         "policy": {
           "timeout": "0.00:10:00",
@@ -74,7 +74,7 @@
           "timeout": "00:10:00"
         },
         "externalReferences": {
-          "connection": "4acc0609-d422-45ee-b461-c90c04c52014"
+          "connection": "dcfd6b38-e5ce-4b08-8c95-a298b0134efc"
         },
         "policy": {
           "timeout": "0.00:10:00",

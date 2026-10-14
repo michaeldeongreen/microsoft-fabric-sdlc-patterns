@@ -1,350 +1,352 @@
 # Set Up This Repository
 
-This guide takes an independent fork from empty workspaces to a working
-`dev -> test -> main` promotion flow. It assumes familiarity with Azure and
-GitHub, but no prior Microsoft Fabric setup experience.
-
-The steps below use **fabric-cicd non-bulk**, this repository's default and
-recommended starting point.
-[fabric-cicd](https://microsoft.github.io/fabric-cicd) is the Python library
-that publishes the items. Use the
-[fabric-cicd Non-Bulk CI/CD Guide](fabric-hybrid-cicd-guide.md) for the default
-implementation and the [four-method comparison](README.md#choose-a-deployment-method)
-to evaluate alternatives for specific workload requirements. This starting
-point does not require native Fabric Deployment Pipelines or a Deployment Plan.
-The [shared workflow reference](fabric-hybrid-cicd-guide.md#github-actions-workflows)
-explains each caller, trigger, template, and runner.
+An ordered path from a fresh fork to `dev -> test -> main`, using
+**fabric-cicd non-bulk**, the default deployment method. See the
+[implementation guide](fabric-hybrid-cicd-guide.md) and
+[method comparison](README.md#choose-a-deployment-method) for alternatives.
 
 ## What You Will Build
 
-| Branch | Fabric workspace | Update method |
+| Branch | Workspace | Updates |
 |---|---|---|
-| `dev` | Development | Fabric Git integration |
-| `test` | Test | GitHub Actions and fabric-cicd non-bulk |
-| `main` | Production | GitHub Actions and fabric-cicd non-bulk |
+| `dev` | Dev | Human Fabric Git Update all |
+| `test` | Test | GitHub Actions deployment and pipeline run |
+| `main` | Prod | Approved GitHub Actions deployment and pipeline run |
 
-Only the Dev workspace is connected to Git. Test and Production receive
-deployments after pull requests are merged through `dev -> test -> main`.
+Each workspace has its own Workspace Identity (WI) and two WI-authenticated
+connections: Notebook and Semantic Model refresh. Connections are tenant-level
+resources with separate permissions, not items copied by Git.
+
+The native `Patterns_Load_Validate_And_Refresh` pipeline loads demonstration
+data, validates it, then refreshes the model. Use dedicated sample workspaces,
+never business Production data.
+
+### Setup checklist and responsibility
+
+| Step | Who |
+|---|---|
+| Fork, create workspaces/SP/group, configure WI and secrets | Repository owner/platform administrator |
+| Create/reuse connections, grant group Owner, save GUID variables | Explicit provisioning action |
+| Establish real Dev references, connect/sync Git, run Dev | Repository owner |
+| Branch Out, prepare private feature workspace, swap references | Developer using their own account |
+| Deploy and run Test/Prod | Existing deployment actions |
+
+> Earlier user-invoked feature prototypes completed all three activities with
+> WI. That is not proof of the current CI caller, fresh Branch Out, or every
+> deployment method. Use the normal feature/Dev/Test runs to verify results;
+> report actual permission/binding failures rather than creating prototypes.
 
 ## Before You Start
 
 ### GitHub
 
-- Permission to fork the repository and administer the fork.
-- A fine-grained personal access token (PAT) scoped to the fork with
-  `Contents: Read and write`. Fabric uses this user-specific token for Git
-  integration. Do not store it in the repository or as a GitHub Actions secret.
-- GitHub Actions enabled on the fork.
+- Administration rights on your fork and Actions enabled.
+- A new fine-grained PAT restricted to the fork: **Contents read/write** for
+  Fabric Git and **Environments read/write** for saving connection-ID variables.
+  Enter it securely in your Fabric Git account and the provisioning secrets.
+  Do not put it in source, `.env`, artifacts, logs, or chat.
+- Set an expiration and plan renewal. The reference demonstration deliberately
+  uses a non-expiring PAT; **that is not best practice**. Token reuse couples
+  Fabric Git and variable-storage availability. GitHub Environments write also
+  authorizes other environment-management/secret-write operations.
+- Each developer configures their **own** Fabric Git credentials. Do not
+  distribute the repository owner's PAT. A GitHub App/separate expiring credential
+  is a production alternative, not required for this sample.
 
-### Azure
+### Azure and Fabric
 
-- Permission to create an Entra application and service principal, or an
-  existing service principal for CI/CD.
-- Access to the tenant ID, client ID, and client secret.
-- A Fabric capacity to host three workspaces.
-
-### Fabric
-
-- Permission to create workspaces and assign them to the capacity.
-- A Fabric administrator who can enable Git integration, GitHub integration,
-  and service-principal access to Fabric APIs for the appropriate security
-  groups. See [Fabric tenant settings](https://learn.microsoft.com/fabric/admin/about-tenant-settings).
+- One existing or newly registered deployment service principal (SPN).
+- A capacity and permission to create/administer the sample workspaces.
+- Tenant approvals for Git/GitHub integration, **Service principals can call
+  Fabric public APIs**, and **Service principals can create workspaces,
+  connections, and deployment pipelines**, limited to approved principals.
+- Permission to create a security-enabled Entra connections-administrators
+  group and manage its membership.
 
 ## 1. Fork the Repository
 
-1. Fork the repository and clone the fork.
-2. Confirm that `dev`, `test`, and `main` exist. If the fork contains only
-   `main`, create `test` and `dev` from the same commit.
-3. Enable GitHub Actions on the fork.
-4. Do not protect the branches yet. Fabric must first commit the fork's Dev
-   bindings to `dev`.
+1. Fork/clone the repository; establish `dev`, `test`, and `main` from the same
+   completed sample revision if the fork contains only `main`.
+2. Enable Actions. Finish initial Dev baseline commits before imposing branch
+   rules that prohibit the repository owner's one-time initialization.
+3. Install the existing local tools:
+
+   ```powershell
+   pip install -r requirements-dev.txt
+   ```
+
+   Swaps read the YAML parameter files using PyYAML. No local Azure SP secret
+   or provisioning PAT is required by local developer scripts.
 
 ## 2. Create the Service Principal and Workspaces
 
-Create a service principal for GitHub Actions. This command creates credentials
-but does not grant Fabric workspace access:
+Use one deployment SP for the sample; no second Azure SP is needed to write
+GitHub variables. GitHub writes use the PAT, not an Azure credential.
+If creating an application, save its initial secret securely:
 
-```bash
-az ad sp create-for-rbac --name "SPN-Fabric-SDLC-Patterns" \
-  --query "{tenantId:tenant, clientId:appId, clientSecret:password}" -o json
+```powershell
+az ad sp create-for-rbac --name "SPN-Fabric-SDLC-Patterns"
 ```
 
-Store the output securely. The client secret is shown only when it is created.
+Create Dev, Test, and Prod workspaces and record the IDs **Fabric assigns**.
+Only Dev will be Git-connected. Give the deployment SP **Contributor** on
+each target workspace, preserving any stronger approved assignment.
 
-Create three Fabric workspaces on the Fabric capacity. The names below are
-recommended, not required:
+In each workspace, a human Admin opens **Workspace settings -> Workspace
+identity**, creates WI if absent, and grants that identity **Contributor**
+through **Manage access** for this same-workspace Notebook workload.
+The identity also needs the required model/OneLake resource access.
 
-| Workspace | Git-connected? | Service principal role |
-|---|---|---|
-| `microsoft-fabric-sdlc-patterns-dev` | Yes, to `dev` | None required |
-| `microsoft-fabric-sdlc-patterns-test` | No | Contributor |
-| `microsoft-fabric-sdlc-patterns-prod` | No | Contributor |
-
-Open each workspace and copy its ID from the browser URL. In a URL such as
-`https://app.fabric.microsoft.com/groups/<workspace-id>/...`, the GUID after
-`/groups/` is the workspace ID. See
-[Find your Microsoft Fabric workspace ID](https://learn.microsoft.com/fabric/data-factory/upgrade-pipelines-how-to-find-your-fabric-workspace-id).
-
-In the Test and Production workspaces, open `Manage access`, add the service
-principal by its name or application/client ID, and assign the `Contributor`
-role.
+Create a trusted Entra **Connections-Admins** security group and add the
+connection administrator(s). It will receive **Owner** on both connections in each stage.
+This does not grant its members workspace Admin.
 
 ### Post-ETL Refresh Permissions
 
-The shipped Test/Prod ETL callers reuse this service principal for
-`Patterns_Semantic_Model` refresh. Before running them, verify:
+| Actor | Workspace/resource rights | Connection rights |
+|---|---|---|
+| Human setup administrator | Admin to create WI; appropriate item access | Group Owner for management |
+| Deployment SP | Contributor to publish and submit jobs | Owns the resources it provisions; publishers only read/use them |
+| Workspace Identity | Required Notebook/model/OneLake rights; Contributor is the Notebook baseline | Runtime authentication selected by the activity |
+| Developer | Member/Contributor on shared Dev | User on Dev dependencies, shared by an Owner |
 
-- The tenant permits this service principal to use Power BI APIs, and any
-  allowed security group includes it. Review the administrator's
-  [service-principal developer settings](https://learn.microsoft.com/en-us/fabric/admin/service-admin-portal-developer#service-principals-can-call-fabric-public-apis).
-- The principal can see the target workspace/model, has model *write*
-  permission to trigger refresh, and can read the refresh result.
-- The **model owner** has source access independently of the refresh caller.
-  For Direct Lake on OneLake, verify *Read* plus *ReadAll* or the applicable
-  OneLake security roles for the source tables. Direct Lake checks owner
-  authorization regardless of who initiates refresh. See
-  [Direct Lake owners](https://learn.microsoft.com/en-us/fabric/fundamentals/direct-lake-security-integration#direct-lake-owners).
-- The model's effective source/connection identity is also authorized.
-  Verify the intended SSO or supported fixed-identity configuration; do not
-  replace SSO merely to make the workflow pass. See
-  [Direct Lake security and connections](https://learn.microsoft.com/en-us/fabric/fundamentals/direct-lake-security-integration).
-- The target is on an active capacity that supports enhanced refresh.
+Git update validates connection use. Workspace Admin or item ownership alone
+does not grant connection access. Share individual developers as **User** in
+**Settings -> Manage connections and gateways -> Connections -> Manage users**;
+do not put all developers in the all-environment administrator group.
 
-The refresh script uses `ClientSecretCredential` and the same Azure secrets,
-but requests a Power BI token with scope
-`https://analysis.windows.net/powerbi/api/.default`. A Fabric-scoped token
-(`https://api.fabric.microsoft.com/.default`) is not interchangeable.
-No additional GitHub secret is required. A successful refresh by an interactive
-user does **not** prove that the service principal has these permissions.
+The job submitter is still the SP, but WI-authenticated activities do not use
+its secret as their runtime credential. The SP is not elevated to provision
+WIs or inspect/change workspace ACLs. See
+[Notebook WI permissions](https://learn.microsoft.com/en-us/fabric/data-factory/notebook-activity#using-fabric-workspace-identity-wi-in-the-notebook-activity)
+and [governance](fabric-cicd-governance-considerations.md#automated-connection-setup-the-samples-privilege-trade-off).
 
-## 3. Initialize the Dev Workspace
+<a id="5-configure-github"></a>
 
-In the empty Dev workspace:
-
-1. Open `Workspace settings > Git integration` and select GitHub.
-2. Add your GitHub account using the fine-grained PAT.
-3. Select the fork, branch `dev`, and folder `data/fabric`.
-4. Select `Connect and sync`. Because the workspace is empty, update it from
-   Git.
-5. Open `PatternsLakehouse` and copy the two GUIDs from the browser URL:
-   `https://app.fabric.microsoft.com/groups/<workspace-id>/lakehouses/<lakehouse-id>`.
-   The GUID after `/groups/` is the Dev workspace ID, and the GUID after
-   `/lakehouses/` is the Lakehouse item ID. If your URL does not expose the
-   Lakehouse ID, list the workspace's Lakehouses with the
-   [Fabric REST API](https://learn.microsoft.com/rest/api/fabric/lakehouse/items/list-lakehouses)
-   and use the `id` of the item whose `displayName` is `PatternsLakehouse`.
-
-The initial import preserves the reference repository's definitions and makes
-the Variable Library's `Default` value set (the base variables stored in
-`variables.json`) active. The next step replaces the reference environment with
-your Dev baseline.
-
-## 4. Replace the Reference Environment
-
-> The committed IDs belong to the reference environment. Every independent
-> fork must replace them before running notebooks or deploying.
-
-Create one baseline commit with these changes:
-
-1. Open `Patterns_Variables` and make the following changes:
-
-   | Value set | Variable | Value |
-   |---|---|---|
-   | `Default` | `target_workspace_id` | Dev workspace ID |
-   | `Default` | `target_workspace_name` | Dev workspace name |
-   | `Default` | `target_lakehouse_id` | Dev `PatternsLakehouse` item ID |
-   | `Default` | `target_lakehouse_name` | `PatternsLakehouse` |
-   | `Test` | `target_workspace_id` | Test workspace ID |
-   | `Prod` | `target_workspace_id` | Production workspace ID |
-
-   Keep `Default` active in the Dev workspace. The other sample variables can
-   retain their existing values or be customized for your organization.
-2. Open `Import_Patterns_Data`, select `Lakehouse` in the notebook toolbar, and
-   set the default Lakehouse to the Dev `PatternsLakehouse`.
-3. Open `Patterns_Semantic_Model`, edit its Direct Lake connection, and select
-   the Dev `PatternsLakehouse`.
-
-Save the Fabric items, then use the Dev workspace `Source control` pane to
-commit them to `dev`. Do not change any `.platform` `logicalId` values.
-
-Pull that commit locally. In `data/fabric/parameter.yml`, replace every
-reference-environment `find_value` with the corresponding Dev ID you recorded:
-use the Dev Lakehouse ID for Lakehouse rules and the Dev workspace ID for
-workspace rules. If you intend to evaluate the raw Bulk API path, make the
-equivalent changes in `data/fabric/bulk-parameter.yml`.
-
-Commit and push the parameter-file changes to `dev`. Search `data/fabric` for
-the original IDs from the current `find_value` entries and confirm that no
-unintended references remain. Do not replace `.platform` `logicalId` values;
-they are portable item references, not environment IDs.
-
-The Test and Production value sets do not define Lakehouse IDs. They inherit the
-Dev Lakehouse ID from the base variables as a placeholder. During deployment,
-`parameter.yml` replaces it with the ID of the `PatternsLakehouse` created in
-the target workspace.
-
-After the Dev bindings are correct, run the existing `Import_Patterns_Data`
-notebook, wait for success, then use the workspace **Refresh** icon for
-`Patterns_Semantic_Model`. Reload an already-open model/report UI and verify
-the results. This remains a manual Dev step; the notebook is an independent
-loader, not a model-refresh wrapper.
-
-## 5. Configure GitHub
+## 3. Configure GitHub
 
 ### Environment Secrets
 
-In **Settings > Environments**, create environments named exactly `Test` and
-`Prod`. Add these environment-scoped secrets to both; these are not repository
-variables:
+Create GitHub Environments `Dev`, `Test`, and `Prod`, restricted to `dev`,
+`test`, and `main` respectively. Require a reviewer for Prod. Add to **each**:
 
 | Secret | Value |
 |---|---|
 | `AZURE_TENANT_ID` | Entra tenant ID |
-| `AZURE_CLIENT_ID` | Service-principal application/client ID |
-| `AZURE_CLIENT_SECRET` | Service-principal client secret |
-| `FABRIC_WORKSPACE_ID` | Test ID in `Test`; Production ID in `Prod` |
+| `AZURE_CLIENT_ID` | Deployment application's client ID |
+| `AZURE_CLIENT_SECRET` | Deployment application's secret |
+| `FABRIC_WORKSPACE_ID` | This environment's workspace GUID |
+| `GH_ENV_VARIABLES_TOKEN` | PAT with Environments write, used only by provisioning |
 
-For `Prod`, require a deployment reviewer and restrict deployments to `main`.
+The built-in `GITHUB_TOKEN` cannot acquire environment-administration rights
+through `permissions: actions: write`. The PAT is deliberately confined to
+the standalone provisioning workflow, not ordinary publishers or PR jobs.
+Never copy Azure/GitHub secret values to developer configuration.
 
-These workflows use client-secret authentication. OIDC is a recommended
-production option to evaluate, not the authentication implemented by this
-setup; see [Governance](fabric-cicd-governance-considerations.md).
+### Environment Variables
 
-### Shared ETL Follow-up
+Set **one repository variable** manually:
 
-Both shipped ETL callers already pass
-`semantic_model_name: Patterns_Semantic_Model` to the reusable template.
-This optional workflow input defaults to empty for notebook-only callers; it
-is not a repository variable or a secret. The template passes it as
-`SEMANTIC_MODEL_NAME` to
-[refresh_semantic_model.py](scripts/refresh_semantic_model.py) on the Actions
-runner, using the existing `FABRIC_WORKSPACE_ID` for the target.
-All four deployment methods share this
-[post-ETL contract](fabric-hybrid-cicd-guide.md#post-etl-semantic-model-refresh).
+| Variable | Value |
+|---|---|
+| `FABRIC_CONNECTION_ADMINS_GROUP_ID` | Your trusted security group's Object ID |
+
+One common group is a sample simplification. Real deployments should generally
+use environment-specific administration groups; an Environment variable with
+the same name can supply that stage's group. Do not use the sample tenant's ID.
+
+Provisioning automatically creates these **two variables per environment**:
+
+| Variable | Value |
+|---|---|
+| `NOTEBOOK_CONNECTION_ID` | Target workspace's Notebook connection GUID |
+| `SEMANTIC_MODEL_REFRESH_CONNECTION_ID` | Target workspace's refresh connection GUID |
+
+Existing values must match validated resources. Missing referents, incorrect
+authentication, or mismatches fail explicitly; no silent overwrite or replacement.
+Publishers consume the pair with `existing`/`WorkspaceIdentity`, validate it
+read-only, and substitute the GUIDs through the existing parameter rules.
+Neither connection names nor the SP's identity select IDs automatically.
 
 ### Deployment Method Variables
 
-In **Settings > Secrets and variables > Actions > Variables**, use **New
-repository variable** for the nonsecret settings below. Choose one method:
+Choose one repository-level selector; leave the default until Test works:
 
 | Method | `DEPLOY_METHOD` | `DEPLOYMENT_PLAN_PATH` |
 |---|---|---|
-| fabric-cicd non-bulk — default and recommended starting point | `fabric-cicd`, or leave unset | Not used |
-| fabric-cicd non-bulk + client-read plan | `fabric-cicd-plan` | `data/fabric/DeploymentPlan.DeploymentPlan/plan.yml` |
-| fabric-cicd bulk + client-read plan | `fabric-cicd-bulk` | `data/fabric/DeploymentPlan.DeploymentPlan/plan.yml` |
-| Raw REST bulk — custom Python caller | `bulk` | Not used |
-
-Both plan routes use the committed [sample plan](data/fabric/DeploymentPlan.DeploymentPlan/plan.yml)
-unless you configure another checkout-relative plan path. Their adapters read
-it client-side; they do not pass it to fabric-cicd or the REST API. See the
-[Deployment Plan guide](fabric-deployment-plan-guide.md) for supported ordering
-and experimental boundaries.
+| fabric-cicd non-bulk (recommended) | `fabric-cicd` or unset | Not used |
+| fabric-cicd non-bulk + plan | `fabric-cicd-plan` | `data/fabric/DeploymentPlan.DeploymentPlan/plan.yml` |
+| fabric-cicd bulk + plan | `fabric-cicd-bulk` | Same plan path |
+| Raw REST bulk | `bulk` | Not used |
 
 ### fabric-cicd-bulk Settings
 
-For **fabric-cicd bulk + client-read plan**, enter these two repository variables exactly:
-
-| Repository variable | Value |
-|---|---|
-| `DEPLOY_METHOD` | `fabric-cicd-bulk` |
-| `DEPLOYMENT_PLAN_PATH` | `data/fabric/DeploymentPlan.DeploymentPlan/plan.yml` |
-
-- Use the four [environment secrets above](#environment-secrets); `FABRIC_WORKSPACE_ID` must identify the corresponding Test or Prod target.
-- Use [parameter.yml](data/fabric/parameter.yml) for fabric-cicd replacements. `DEPLOY_METHOD=bulk` and [bulk-parameter.yml](data/fabric/bulk-parameter.yml) belong to the separate raw REST route.
-- No extra GitHub bulk-feature flag is needed: the runner enables the required fabric-cicd feature flags.
-- The shipped callers supply `ENVIRONMENT` (`Test`/`Prod`), `REPOSITORY_DIRECTORY` (`data/fabric`), and the seven-type `ITEM_TYPE_IN_SCOPE`. You do not create additional repository variables for these; customize the workflow inputs if needed.
-- For a credentials-free schedule check, use the [bulk preview instructions](fabric-deployment-plan-guide.md#enable-and-preview-bulk).
+The bulk SDK uses `parameter.yml`; raw REST uses `bulk-parameter.yml`. All four
+methods consume the same environment connection variables and native pipeline.
+No extra bulk feature-flag variable is needed. See the
+[plan/preview guide](fabric-deployment-plan-guide.md#enable-and-preview-bulk).
 
 ### Before Switching Methods
 
-Promote the selected workflows and their ETL listeners to the default branch
-before switching methods, and wait for in-flight deployments to finish.
-The selector applies to both Test and Prod; the routes are alternatives, not
-concurrent deployment jobs. Evaluate fabric-cicd bulk in an approved nonproduction
-target and configure Production protections before any Production promotion.
+Wait for in-flight deployments and promote shared workflow changes normally.
+The selector affects Test and Prod; methods are alternatives, not concurrent
+jobs. Client-secret deployment authentication remains the sample default;
+OIDC is a separate production enhancement.
+
+### Shared ETL Follow-up
+
+Each deployment's same-revision `needs` job starts the one native DataPipeline.
+Load must succeed before validation, then refresh. `run_label` is an independent
+String; the positive Integer patient threshold comes from the active Variable
+Library. There is no second ETL or external model-refresh owner.
+
+## 4. Provision Connections
+
+### First-Time Dev Bootstrap
+
+The historical file [bootstrap-dev.yml](.github/workflows/bootstrap-dev.yml)
+now appears as **Provision Fabric Connections** in Actions. It is manual,
+not a Dev-push listener and not part of routine deployment.
+
+1. Select **Run workflow**, branch `dev`, operation `provision`.
+2. It checks GitHub access/configuration, requires the preexisting target WI,
+   and creates/reuses Notebook and PowerBIDatasets WI connections. No model or
+   pipeline needs to exist.
+3. It grants your group **Owner on both**, verifies readback, and then writes/
+   verifies both environment variables with the PAT.
+4. Repeat using branch `test` for Test and `main` for Prod. Environment approvals
+   still apply. Fresh forks of the completed main revision contain this workflow.
+
+Names follow `Patterns-<Dev|Test|Prod|Feature>-<Purpose>-<full-workspace-GUID>`.
+The GUID avoids collisions between forks in one tenant. Explicit existing IDs
+can retain intentional names; names are labels, not workspace security scopes.
+
+Read-access preflight cannot prove every PAT write permission. A denied write
+fails visibly; created connections/confirmed grants may remain and are reused
+on retry. Partial variable saves are also reconciled without overwriting.
+Current-job steps use outputs, not an assumed refresh of the `vars` context.
+
+This action never loads data, runs a pipeline, modifies workspace roles/WI,
+publishes items, or changes capacity.
+
+<a id="3-initialize-the-dev-workspace"></a>
+<a id="4-replace-the-reference-environment"></a>
+
+## 5. Initialize Dev and Replace the Reference Environment
+
+The sample's physical workspace/model/connection IDs are not your fork's IDs.
+Ordinary Fabric **Update all** syncs the entire Git branch; do not rely on
+selecting the native pipeline out of the first import.
+
+1. Before first connecting empty Dev, stage its pipeline outside `data/fabric`:
+
+   ```powershell
+   python scripts\prepare_fabric_workspace.py --stage-initial-pipeline
+   ```
+
+   Review/commit/push the resulting `data/fabric-initialization` move on your
+   initial Dev revision. Logical item identities are preserved; this is not a
+   prototype pipeline or another recurring bootstrap PR.
+2. In Fabric **Workspace settings -> Git integration**, add your own GitHub
+   account/PAT, select your fork, branch `dev`, folder `data/fabric`, and connect/
+   sync the canonical base items. The pipeline is deliberately absent.
+3. Record the new `PatternsLakehouse` and `Patterns_Semantic_Model` physical IDs.
+   Configure `Patterns_Variables`: Default Dev workspace/Lakehouse IDs and names,
+   Test and Prod workspace IDs; keep the positive Integer threshold at its
+   agreed value (sample `5`). Keep Default active in Dev.
+4. Attach the loader to Dev's Lakehouse and set the model's Direct Lake source
+   to that Lakehouse. Validation uses explicit Library-based OneLake paths, not
+   an attached Lakehouse. Save/commit these canonical items through Fabric,
+   then pull locally. Do not change `.platform` logical IDs.
+5. Replace reference workspace/Lakehouse source GUIDs in **both** parameter
+   files with the actual Dev IDs. Keep their target expressions unchanged.
+6. Copy [.env.sample](.env.sample) to `.env`, then set `DEV_WORKSPACE_ID`,
+   `DEV_SEMANTIC_MODEL_ID`, `DEV_NOTEBOOK_CONNECTION_ID`, and
+   `DEV_REFRESH_CONNECTION_ID` using the real model and provisioned Dev pair.
+
+   ```powershell
+   python scripts\prepare_fabric_workspace.py --dev --replace-dev-bindings
+   python scripts\prepare_fabric_workspace.py --restore-initial-pipeline
+   python scripts\workspace_swap.py --check-ready
+   ```
+
+   The first command aligns both parameter files and the staged pipeline. It
+   is an explicit reviewed baseline cutover, not permission to accept malformed
+   or disagreeing rules. No cloud calls, artifacts, or extra binding JSON.
+7. Review/commit/push the full canonical revision, then Update all in Dev.
+   Run the native pipeline only after the real references are in place.
+
+Test/Prod Lakehouse and model GUIDs are resolved during deployment. `.env` is
+local input; Fabric does not read it, and CI reads committed parameter rules.
+An initialized ordinary `/swap-to-dev` needs no local Dev credentials/IDs and
+never dispatches provisioning.
+
+### Manual Dev Update and Validation
+
+After feature work: `/swap-to-dev`, review/commit/push, checked PR/merge, Fabric
+**Update all**, then run the native pipeline. Verify all three activities and
+the model's date fields/report. No automatic Dev Git sync, additional SP Git
+PAT, or recurring UI rebinding. Do not sync Dev-restored definitions into a
+private feature workspace.
 
 ### Branch Rules
 
-After the Dev baseline commits are complete, protect the branches with GitHub
-rulesets:
+After baseline setup, require reviewed PRs and block force pushes/deletions:
 
-| Branch | Required pull-request source | Required checks |
+| Target | Source | Required checks |
 |---|---|---|
-| `dev` | Feature branch | `Check for non-dev IDs in Fabric items`, `Run unit tests` |
+| `dev` | Feature | `Check for non-dev IDs in Fabric items`, `Run unit tests` |
 | `test` | `dev` | `Enforce promotion path`, `Run unit tests` |
 | `main` | `test` | `Enforce promotion path`, `Run unit tests` |
 
-Require pull requests and block force pushes and deletions. Keep merge commits
-as the only merge method only if that is your organization's preferred policy;
-the included promotion workflows do not require it. The detailed control
-rationale is in
-[CI/CD Governance Considerations](fabric-cicd-governance-considerations.md).
-
 ## 6. Deploy Test and Production
 
-1. Open a pull request from `dev` to `test` with a qualifying definition or
-   workflow change and merge it. The selected Test deployment runs, followed
-   by its ETL listener on successful completion.
-2. Wait for the Test ETL notebook and its subsequent model refresh to complete,
-   then verify Test before continuing. These completions are not a full release
-   validation suite; use the [Quality Gates guide](fabric-cicd-quality-gates-and-release-controls.md)
-   to define the evidence required for your workload.
-3. Open a pull request from `test` to `main` and merge it. The Production
-   workflow then waits for a `Prod` environment reviewer to approve the
-   deployment.
+Merge a qualifying Dev -> Test PR. The selected publisher validates/uses the
+Test WI pair, deploys items, then runs/polls the native pipeline. Verify Test
+before Test -> main promotion and the protected Prod deployment.
 
-Deployment path filters differ by method; documentation-only changes do not
-start these deployments. Only the non-bulk-plan Test caller supports a manual
-deployment run. Both ETL callers support manual runs. See the
-[workflow reference](fabric-hybrid-cicd-guide.md#github-actions-workflows) before
-trying to rerun a stage.
+Documentation-only changes need not trigger deployment; manual recovery runs
+must select the correct stage branch. Do not rerun an old revision to test new
+code. See [workflow details](fabric-hybrid-cicd-guide.md#github-actions-workflows).
 
-On the first deployment, open the Ontology in each target workspace and bind its
-Graph Model to the local Lakehouse tables. See
-[Initial Deployment to a Clean Workspace](fabric-hybrid-cicd-guide.md#initial-deployment-to-a-clean-workspace)
-for that one-time Fabric UI step and its current workaround.
+On initial target deployment, configure the Ontology Graph Model's local
+Lakehouse binding as described in
+[clean-workspace setup](fabric-hybrid-cicd-guide.md#initial-deployment-to-a-clean-workspace).
 
 ## 7. Verify the Setup
 
-- Dev Source control reports branch `dev` and no pending changes.
-- `Patterns_Variables` resolves the local values in each workspace.
-- `Import_Patterns_Data` is bound to the local `PatternsLakehouse`.
-- Test and Production are not Git-connected.
-- Test and Production contain the `doctors`, `patients`, and `appointments`
-  Lakehouse tables after ETL.
-- The Test and Production ETL runs show notebook success followed by successful
-  refresh of `Patterns_Semantic_Model`, not just an accepted refresh request.
-- The Semantic Model, report, Ontology, and Data Agent load in each environment.
-- Pull requests can promote only through `dev -> test -> main`.
-
-After these checks pass, the platform is ready for feature development. Continue
-with the
-[Development Process](fabric-development-process.md) for Branch Out,
-`workspace_swap.py`, and pull-request readiness checks.
+- Humans in the admin group can see/manage both connections for each stage.
+- Each stage has its own WI; both connection types report WI authentication.
+- Saved connection GUIDs match the stage; no publisher credential/role writes.
+- Dev Git is synced, Library/Notebook/model targets are local, and all native
+  activities complete before reporting success.
+- Normal Branch Out/feature work uses its own manually prepared WI/pair and
+  restores the committed Dev baseline before the PR.
 
 ## Troubleshooting Post-ETL Refresh
 
-| Symptom | What to check |
+| Symptom | Check |
 |---|---|
-| Notebook or pipeline job fails | Inspect that job's failure details and target bindings. Model refresh starts only after job success. |
-| Model is missing or the name is ambiguous | Check `FABRIC_WORKSPACE_ID` and the configured name. The Power BI dataset list must contain exactly one `Patterns_Semantic_Model` in that target; do not copy a Dev model's physical ID. |
-| Authentication or `401`/`403` failure | Check the existing secret's validity, Power BI token scope, tenant allow-list, effective workspace/model permissions, model-owner source access, and connection identity. Manual user refresh success is not service-principal authorization evidence. |
-| Refresh fails or times out | Use the safe request ID/status in the Actions logs to inspect that refresh's service details and history. Check active capacity and owner/source access; request acceptance, an older successful refresh, or a browser reload is not completion of this request. |
+| Update all says no connection access | Exact incoming GUIDs and connection sharing, not just workspace Admin or a similarly named connection |
+| Cannot see an SP-created connection | Group Owner must be granted/read back. Membership/visibility can require a fresh sign-in |
+| No WI or cannot obtain WI token | Human WI setup, WI resource rights, invoking SP workspace Contributor, tenant API/Conditional Access policies |
+| Provisioning stops before ID save | Mandatory group GUID, supported WI connector type, actual Owner readback, PAT repository/Environments scope |
+| Existing ID/authentication mismatch | Deliberate reviewed migration; no credential conversion or silent variable overwrite |
+| Source-baseline disagreement | Align both parameter files and Library, then run local preparation/readiness |
+| Native validation/refresh fails | Inspect the failed activity, Library parameters, source/model permissions, capacity, and actual completed refresh history |
 
-A polling timeout stops the runner's wait and fails the workflow; it does not
-cancel the server-side refresh. Inspect the **specific request's** current
-status/history before retriggering to avoid overlapping operations.
+For an existing repository's obsolete SP-runtime Dev pair, the same provisioning
+workflow has **share-existing**, restricted to `dev` with two explicit legacy
+IDs. It only grants group Owner; it does not convert credentials, overwrite
+variables, or delete resources. Keep the feature WI pair where it belongs,
+cut over source references to the intended Dev WI pair, and retire obsolete
+IDs only after acceptance/reference review and explicit deletion approval.
 
-If data is present but fields such as `appointment_date` or `date_of_birth`
-show errors, check that model refresh completed **after** the loader. In a
-controlled empty-Prod recovery of this sample, rerunning all jobs and reloading
-the browser left those errors in place; refreshing the semantic model from the
-workspace and then reloading the UI resolved them. This supports the explicit
-post-ETL refresh step, not a guaranteed diagnosis of every date-field error.
-Still verify the model's required fields, calculations, and report behavior.
-
-For this Direct Lake on OneLake model, refresh frames Delta references; do not
-add another ETL, convert storage mode, or wait for a SQL analytics endpoint as
-a refresh workaround. Offline tests can validate orchestration, but live
-end-to-end validation of the automated refresh and date-field usability remains
-pending while the reference capacity is paused.
+If an affected Environment's two ID variables still name legacy SP-runtime
+connections, provisioning correctly rejects them instead of converting those
+connections. During an approved cutover, first record the old GUIDs for rollback,
+pause deployments, and remove only those stale **variable entries** in GitHub.
+Then provision the WI successors and save their IDs. Retain the actual old
+connections until the later approved cleanup; deleting a variable is not
+permission to delete its Fabric resource. Run only the reviewed WI-consuming
+publisher revision after the cutover.

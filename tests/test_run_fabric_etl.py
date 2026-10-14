@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from run_fabric_etl import find_item_id_by_name, interpret_poll_response
+from run_fabric_etl import find_item_id_by_name, interpret_poll_response, pipeline_job_body
 
 
 # ---------- find_item_id_by_name ----------
@@ -38,13 +38,13 @@ def test_find_item_id_by_name_empty_list_exits() -> None:
         find_item_id_by_name([], "Any")
 
 
-def test_find_item_id_by_name_returns_first_when_duplicates() -> None:
-    """Documented behavior: if Fabric returns multiple matches, take the first."""
+def test_find_item_id_by_name_rejects_duplicates() -> None:
     items = [
         {"id": "first", "displayName": "Same"},
         {"id": "second", "displayName": "Same"},
     ]
-    assert find_item_id_by_name(items, "Same") == "first"
+    with pytest.raises(SystemExit, match="Multiple items"):
+        find_item_id_by_name(items, "Same")
 
 
 # ---------- interpret_poll_response ----------
@@ -103,3 +103,31 @@ def test_interpret_poll_response_202_default_retry_after() -> None:
 
 def test_interpret_poll_response_unexpected_status() -> None:
     assert interpret_poll_response(500, {}, {}) == ("unexpected", 500)
+
+
+def test_pipeline_parameters_use_verified_execution_data_shape() -> None:
+    assert pipeline_job_body("DataPipeline", "Pipeline", "Test-123") == {
+        "executionData": {"parameters": {"run_label": "Test-123"}}
+    }
+
+
+def test_no_parameter_notebook_and_pipeline_calls_remain_unchanged() -> None:
+    assert pipeline_job_body("Notebook", "RunNotebook", "") is None
+    assert pipeline_job_body("DataPipeline", "Pipeline", "") is None
+
+
+@pytest.mark.parametrize("label", ["a" * 65, "invalid label", "label\n", " label", "quote'"])
+def test_invalid_pipeline_run_labels_fail(label: str) -> None:
+    with pytest.raises(ValueError, match="RUN_LABEL"):
+        pipeline_job_body("DataPipeline", "Pipeline", label)
+
+
+def test_wrong_job_type_and_notebook_parameter_fail() -> None:
+    with pytest.raises(ValueError, match="JOB_TYPE"):
+        pipeline_job_body("DataPipeline", "RunNotebook", "valid")
+    with pytest.raises(ValueError, match="RUN_LABEL"):
+        pipeline_job_body("Notebook", "RunNotebook", "valid")
+
+
+def test_unknown_job_status_fails_instead_of_successful_polling() -> None:
+    assert interpret_poll_response(200, {"status": "Unknown"}, {}) == ("unexpected", 200)

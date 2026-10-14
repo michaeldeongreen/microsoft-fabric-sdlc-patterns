@@ -1,39 +1,27 @@
-# Triggers ETL jobs in the Test workspace after a successful deployment.
-#
-# Uses workflow_run to decouple deploy and ETL as separate workflow concerns.
-# The `if` condition ensures ETL only runs when the deploy workflow succeeded —
-# if the deploy workflow fails, this workflow skips execution.
-#
-# ETL_ITEM_ID is no longer needed — the notebook is resolved by name at runtime.
+# Manual recovery only. Deploy callers invoke ETL through needs in the same
+# revision, avoiding workflow_run's default-branch coupling and duplicate runs.
 
 name: ETL - Test
 
 on:
-  workflow_run:
-    # Triggered by any of the deployment workflows. The DEPLOY_METHOD repository
-    # variable ensures only one of them actually runs per push, so ETL fires once.
-    # The success conclusion gate below skips ETL when a deploy was skipped.
-    workflows: ["Deploy to Test (fabric-cicd)", "Deploy to Test (Bulk API)", "Deploy to Test (fabric-cicd Bulk)", "Deploy to Test (fabric-cicd Plan)"]
-    types: [completed]
-  # Manual trigger so operators can re-run the ETL without having to fake a
-  # deploy. Useful when a workflow_run-triggered run fails because of a
-  # transient issue or a workflow file fix that landed on main after the run
-  # was already created (workflow_run reruns use the workflow file frozen at
-  # original trigger time, not the current default branch).
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.ref == 'refs/heads/test' && 'fabric-deploy-test' || format('fabric-skipped-{0}-{1}', github.workflow, github.run_id) }}
+  cancel-in-progress: false
+
 jobs:
   run-etl:
     name: Run ETL
-    # Run when triggered manually, OR when the upstream deploy workflow succeeded.
-    # workflow_run-triggered runs whose deploy was skipped/failed should not run.
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: github.ref == 'refs/heads/test'
     uses: ./.github/workflows/reusable-fabric-etl.yml
     with:
       environment: Test
-      item_name: Import_Patterns_Data
-      semantic_model_name: Patterns_Semantic_Model
+      item_name: Patterns_Load_Validate_And_Refresh
+      item_type: DataPipeline
+      job_type: Pipeline
+      run_label: Test-${{ github.run_id }}
     secrets: inherit

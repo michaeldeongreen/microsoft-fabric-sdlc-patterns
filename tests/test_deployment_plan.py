@@ -43,12 +43,11 @@ def test_real_repository_plan_and_remaining_inventory() -> None:
         REPO_ROOT / "data" / "fabric" / "DeploymentPlan.DeploymentPlan" / "plan.yml",
     )
     assert [group.name for group in schedule.groups] == [
-        "Lakehouse_Group", "Ontology_Group", "SemanticModel_Group", "DataAgent_Group"
+        "Lakehouse_Group", "Import_Group", "Ontology_Group", "SemanticModel_Group",
+        "Validation_Group", "Variables_Group", "DataAgent_Group", "Pipeline_Group",
     ]
     assert {item.selector for item in schedule.remaining_items} == {
         "Patterns_Report.Report",
-        "Patterns_Variables.VariableLibrary",
-        "Import_Patterns_Data.Notebook",
         "Patterns_Demo.Notebook",
         "Patterns_Patients_Data.Notebook",
     }

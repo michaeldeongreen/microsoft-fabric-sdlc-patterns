@@ -7,6 +7,8 @@ from unittest.mock import patch
 
 import pytest
 
+import pipeline_bindings as pb
+
 
 # ── Fixtures ───────────────────────────────────────────────────────────────
 
@@ -14,6 +16,11 @@ DEV_WS_ID = "d7270f11-feba-4990-baa6-d45e47f23737"
 DEV_LH_ID = "c185283c-9dd9-4e40-a17c-aa6303e3a2e9"
 FEAT_WS_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 FEAT_LH_ID = "11111111-2222-3333-4444-555555555555"
+DEV_PIPELINE_VALUES = {
+    "Semantic model": pb.SEMANTIC_MODEL_BASELINE_ID,
+    "Notebook connection": "33333333-1111-4333-8333-333333333333",
+    "Refresh connection": "44444444-2222-4444-8444-444444444444",
+}
 
 
 @pytest.fixture()
@@ -103,6 +110,22 @@ def fabric_dir(tmp_path: Path) -> Path:
     )
     (vs_dir / "Test.json").write_text("{}", encoding="utf-8")
     (vs_dir / "Prod.json").write_text("{}", encoding="utf-8")
+    (fabric / "Test.SemanticModel" / ".platform").write_text("{}", encoding="utf-8")
+    baseline = {**DEV_PIPELINE_VALUES, "Refresh workspace": DEV_WS_ID}
+    expressions = {
+        "Semantic model": "$items.SemanticModel.Test.$id",
+        "Notebook connection": "$ENV:NOTEBOOK_CONNECTION_ID",
+        "Refresh connection": "$ENV:SEMANTIC_MODEL_REFRESH_CONNECTION_ID",
+        "Refresh workspace": "$workspace.$id",
+    }
+    (fabric / "parameter.yml").write_text(json.dumps({"find_replace": [
+        {"find_value": value, "replace_value": {"_ALL_": expressions[label]}, "item_type": "DataPipeline"}
+        for label, value in baseline.items()
+    ]}), encoding="utf-8")
+    (fabric / "bulk-parameter.yml").write_text(json.dumps({"substitutions": [
+        {"find": value, "replace_with": expressions[label], "item_types": ["DataPipeline"]}
+        for label, value in baseline.items()
+    ]}), encoding="utf-8")
 
     return fabric
 
@@ -996,3 +1019,538 @@ class TestEnvSampleFile:
             f"{self.REQUIRED_KEYS - parsed.keys()}"
         )
 
+
+# ── DataPipeline bindings (native refresh pipeline) ──────────────────────────
+
+FEAT_MODEL_ID = "bbbbbbbb-1111-4111-8111-bbbbbbbbbbbb"
+FEAT_NOTEBOOK_CONN_ID = "cccccccc-2222-4222-8222-cccccccccccc"
+FEAT_REFRESH_CONN_ID = "dddddddd-3333-4333-8333-dddddddddddd"
+FEAT_PIPELINE_VALUES = {
+    "Semantic model": FEAT_MODEL_ID,
+    "Notebook connection": FEAT_NOTEBOOK_CONN_ID,
+    "Refresh connection": FEAT_REFRESH_CONN_ID,
+}
+NOTEBOOK_LOGICAL_IDS = (
+    "3f21b546-f49f-9fef-4881-99b654a6701e",
+    "decdcb11-8770-4216-8a28-eadf505d2679",
+)
+PIPELINE_RELPATH = Path("Patterns_Load.DataPipeline") / "pipeline-content.json"
+
+
+def _pipeline_text(*, workspace: str = DEV_WS_ID, values: dict[str, str] | None = None,
+                   refreshes: int = 1) -> str:
+    """A pipeline in Fabric's git shape: portable notebook refs, literal refresh targets."""
+    values = values or DEV_PIPELINE_VALUES
+
+    def notebook(name: str, logical_id: str) -> dict:
+        return {
+            "name": name,
+            "type": pb.NOTEBOOK_ACTIVITY_TYPE,
+            "dependsOn": [],
+            "typeProperties": {"notebookId": logical_id, "workspaceId": pb.ZERO_GUID},
+            "externalReferences": {"connection": values["Notebook connection"]},
+        }
+
+    def refresh(name: str) -> dict:
+        return {
+            "name": name,
+            "type": pb.REFRESH_ACTIVITY_TYPE,
+            "dependsOn": [],
+            "typeProperties": {
+                "method": "post",
+                "groupId": workspace,
+                "datasetId": values["Semantic model"],
+                "commitMode": "Transactional",
+                "waitOnCompletion": True,
+                "operationType": "SemanticModelRefresh",
+            },
+            "externalReferences": {"connection": values["Refresh connection"]},
+        }
+
+    activities = [
+        notebook("Import_Patterns_Data", NOTEBOOK_LOGICAL_IDS[0]),
+        notebook("Validate_Patterns_Data", NOTEBOOK_LOGICAL_IDS[1]),
+    ]
+    activities += [
+        refresh("Refresh_Patterns_Semantic_Model" if refreshes == 1 else f"Refresh_{n}")
+        for n in range(refreshes)
+    ]
+    return json.dumps({"properties": {"activities": activities}}, indent=2) + "\n"
+
+
+def _write_pipeline(fabric_dir: Path, **kwargs) -> Path:
+    path = fabric_dir / PIPELINE_RELPATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_pipeline_text(**kwargs), encoding="utf-8")
+    return path
+
+
+def _write_env(fabric_dir: Path, *, pipeline: dict[str, str] | None = None,
+               ws_id: str = FEAT_WS_ID, lh_id: str = FEAT_LH_ID) -> Path:
+    """Write .env with the workspace/lakehouse keys plus any pipeline keys given."""
+    lines = [f"FEATURE_WORKSPACE_ID={ws_id}", f"FEATURE_LAKEHOUSE_ID={lh_id}"]
+    for binding in pb.PIPELINE_BINDINGS:
+        if pipeline and binding["name"] in pipeline:
+            lines.append(f"{binding['feature_env_key']}={pipeline[binding['name']]}")
+    env_path = fabric_dir.parent.parent / ".env"
+    env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return env_path
+
+
+def _value_set(fabric_dir: Path, label: str = "feat") -> Path:
+    return fabric_dir / "Patterns_Variables.VariableLibrary" / "valueSets" / f"{label}.json"
+
+
+def _bound(path: Path) -> dict[str, set[str]]:
+    found: dict[str, set[str]] = {}
+    for located in pb.locate_fields(path.read_text(encoding="utf-8")):
+        found.setdefault(located.binding, set()).add(located.value)
+    return found
+
+
+def _group_id(path: Path) -> str:
+    activities = json.loads(path.read_text(encoding="utf-8"))["properties"]["activities"]
+    refresh = next(a for a in activities if a["type"] == pb.REFRESH_ACTIVITY_TYPE)
+    return refresh["typeProperties"]["groupId"]
+
+
+@pytest.mark.usefixtures("_patch_paths")
+class TestDataPipelineRegistry:
+    """The registry entry only moves the refresh activity's literal workspace ID."""
+
+    def test_entry_is_registered_for_workspace_rewrites(self):
+        from workspace_swap import ITEM_TYPES
+        entry = next(t for t in ITEM_TYPES if t["name"] == "DataPipeline")
+        assert entry["needs_rewrite"] is True
+        assert entry["id_keys"] == ["workspace"]
+        assert entry["file_patterns"] == [pb.PIPELINE_FILE_PATTERN]
+
+    def test_repoint_swaps_the_group_workspace_and_keeps_notebook_refs_portable(self, fabric_dir: Path):
+        from workspace_swap import repoint_items
+        path = _write_pipeline(fabric_dir)
+        changed = repoint_items(DEV_WS_ID, DEV_LH_ID, FEAT_WS_ID, FEAT_LH_ID, dry_run=False)
+        assert any("Patterns_Load.DataPipeline" in c for c in changed)
+        assert _group_id(path) == FEAT_WS_ID
+        activities = json.loads(path.read_text(encoding="utf-8"))["properties"]["activities"]
+        for notebook in activities[:2]:
+            assert notebook["typeProperties"]["workspaceId"] == pb.ZERO_GUID
+            assert notebook["typeProperties"]["notebookId"] in NOTEBOOK_LOGICAL_IDS
+
+    def test_repoint_leaves_model_and_connections_to_the_binding_rewrite(self, fabric_dir: Path):
+        from workspace_swap import repoint_items
+        path = _write_pipeline(fabric_dir)
+        repoint_items(DEV_WS_ID, DEV_LH_ID, FEAT_WS_ID, FEAT_LH_ID, dry_run=False)
+        assert _bound(path) == {name: {value} for name, value in DEV_PIPELINE_VALUES.items()}
+
+    def test_repoint_skips_a_pipeline_without_a_native_refresh(self, fabric_dir: Path):
+        from workspace_swap import repoint_items
+        other = fabric_dir / "Other.DataPipeline" / "pipeline-content.json"
+        other.parent.mkdir(parents=True)
+        text = json.dumps({"properties": {"activities": [
+            {"name": "Run", "type": "TridentNotebook", "typeProperties": {"workspaceId": DEV_WS_ID}},
+        ]}})
+        other.write_text(text, encoding="utf-8")
+        repoint_items(DEV_WS_ID, DEV_LH_ID, FEAT_WS_ID, FEAT_LH_ID, dry_run=False)
+        assert other.read_text(encoding="utf-8") == text
+
+    def test_check_ignores_a_pipeline_without_a_native_refresh(self, fabric_dir: Path):
+        from workspace_swap import validate_dev_ids_present
+        other = fabric_dir / "Other.DataPipeline" / "pipeline-content.json"
+        other.parent.mkdir(parents=True)
+        other.write_text('{"properties": {"activities": []}}', encoding="utf-8")
+        assert validate_dev_ids_present(DEV_WS_ID, DEV_LH_ID) == []
+
+    def test_check_requires_the_dev_group_workspace(self, fabric_dir: Path):
+        from workspace_swap import repoint_items, validate_dev_ids_present
+        _write_pipeline(fabric_dir)
+        assert validate_dev_ids_present(DEV_WS_ID, DEV_LH_ID) == []
+        repoint_items(DEV_WS_ID, DEV_LH_ID, FEAT_WS_ID, FEAT_LH_ID, dry_run=False)
+        errors = validate_dev_ids_present(DEV_WS_ID, DEV_LH_ID)
+        assert any("DataPipeline" in e and "workspace" in e for e in errors)
+
+    def test_validate_no_ids_flags_a_leftover_dev_workspace(self, fabric_dir: Path):
+        from workspace_swap import validate_no_ids
+        _write_pipeline(fabric_dir)
+        warnings = validate_no_ids(DEV_WS_ID, DEV_LH_ID)
+        assert any("Patterns_Load.DataPipeline" in w and "workspace" in w for w in warnings)
+
+
+@pytest.mark.usefixtures("_patch_paths")
+class TestResolvePipelineFeatureValues:
+    """.env supplies the feature model and connections, but only when a native refresh pipeline exists."""
+
+    def test_returns_nothing_without_a_pipeline(self, fabric_dir: Path):
+        from workspace_swap import resolve_pipeline_feature_values
+        # No .env at all: nothing to resolve, so nothing may be read or required.
+        assert resolve_pipeline_feature_values() == {}
+
+    def test_ignores_a_pipeline_without_a_native_refresh(self, fabric_dir: Path):
+        from workspace_swap import resolve_pipeline_feature_values
+        other = fabric_dir / "Other.DataPipeline" / "pipeline-content.json"
+        other.parent.mkdir(parents=True)
+        other.write_text('{"properties": {"activities": []}}', encoding="utf-8")
+        assert resolve_pipeline_feature_values() == {}
+
+    def test_reads_the_three_feature_keys(self, fabric_dir: Path):
+        from workspace_swap import resolve_pipeline_feature_values
+        _write_pipeline(fabric_dir)
+        _write_env(fabric_dir, pipeline=FEAT_PIPELINE_VALUES)
+        assert resolve_pipeline_feature_values() == FEAT_PIPELINE_VALUES
+
+    @pytest.mark.parametrize("binding", pb.PIPELINE_BINDINGS, ids=lambda b: b["feature_env_key"])
+    def test_missing_key_exits_naming_it(self, fabric_dir: Path, binding):
+        from workspace_swap import resolve_pipeline_feature_values
+        _write_pipeline(fabric_dir)
+        values = {k: v for k, v in FEAT_PIPELINE_VALUES.items() if k != binding["name"]}
+        _write_env(fabric_dir, pipeline=values)
+        with pytest.raises(SystemExit) as exc:
+            resolve_pipeline_feature_values()
+        assert binding["feature_env_key"] in str(exc.value)
+
+    def test_without_a_env_file_every_key_is_reported(self, fabric_dir: Path):
+        from workspace_swap import resolve_pipeline_feature_values
+        _write_pipeline(fabric_dir)
+        with pytest.raises(SystemExit) as exc:
+            resolve_pipeline_feature_values()
+        message = str(exc.value)
+        assert all(b["feature_env_key"] in message for b in pb.PIPELINE_BINDINGS)
+
+    def test_the_all_zero_sample_value_exits(self, fabric_dir: Path):
+        from workspace_swap import resolve_pipeline_feature_values
+        _write_pipeline(fabric_dir)
+        _write_env(fabric_dir, pipeline={**FEAT_PIPELINE_VALUES, "Semantic model": pb.ZERO_GUID})
+        with pytest.raises(SystemExit) as exc:
+            resolve_pipeline_feature_values()
+        assert "FEATURE_SEMANTIC_MODEL_ID" in str(exc.value)
+        assert "all-zero" in str(exc.value)
+
+    @pytest.mark.parametrize("binding", pb.PIPELINE_BINDINGS, ids=lambda b: b["name"])
+    def test_a_committed_baseline_exits(self, fabric_dir: Path, binding):
+        from workspace_swap import resolve_pipeline_feature_values
+        _write_pipeline(fabric_dir)
+        _write_env(fabric_dir, pipeline={**FEAT_PIPELINE_VALUES, binding["name"]: binding["baseline"]})
+        with pytest.raises(SystemExit) as exc:
+            resolve_pipeline_feature_values()
+        assert binding["feature_env_key"] in str(exc.value)
+        assert "baseline" in str(exc.value)
+
+    def test_a_malformed_guid_exits(self, fabric_dir: Path):
+        from workspace_swap import resolve_pipeline_feature_values
+        _write_pipeline(fabric_dir)
+        _write_env(fabric_dir, pipeline={**FEAT_PIPELINE_VALUES, "Refresh connection": "not-a-guid"})
+        with pytest.raises(SystemExit) as exc:
+            resolve_pipeline_feature_values()
+        assert "FEATURE_REFRESH_CONNECTION_ID" in str(exc.value)
+
+    def test_every_problem_is_reported_at_once(self, fabric_dir: Path):
+        from workspace_swap import resolve_pipeline_feature_values
+        _write_pipeline(fabric_dir)
+        _write_env(fabric_dir, pipeline={"Semantic model": pb.ZERO_GUID, "Notebook connection": "nope"})
+        with pytest.raises(SystemExit) as exc:
+            resolve_pipeline_feature_values()
+        message = str(exc.value)
+        assert all(b["feature_env_key"] in message for b in pb.PIPELINE_BINDINGS)
+
+
+@pytest.mark.usefixtures("_patch_paths")
+class TestRepointPipelineBindings:
+    def test_sets_every_binding_and_nothing_else(self, fabric_dir: Path):
+        from workspace_swap import repoint_pipeline_bindings
+        path = _write_pipeline(fabric_dir)
+        original = path.read_text(encoding="utf-8")
+        changed = repoint_pipeline_bindings(FEAT_PIPELINE_VALUES, dry_run=False)
+        assert len(changed) == 1
+        expected = original
+        for name, baseline in DEV_PIPELINE_VALUES.items():
+            expected = expected.replace(baseline, FEAT_PIPELINE_VALUES[name])
+        assert path.read_text(encoding="utf-8") == expected
+
+    def test_preserves_line_endings_byte_for_byte(self, fabric_dir: Path):
+        from workspace_swap import repoint_pipeline_bindings
+        path = fabric_dir / PIPELINE_RELPATH
+        path.parent.mkdir(parents=True)
+        original = _pipeline_text().replace("\n", "\r\n").encode("utf-8")
+        path.write_bytes(original)
+        repoint_pipeline_bindings(FEAT_PIPELINE_VALUES, dry_run=False)
+        expected = original
+        for name, baseline in DEV_PIPELINE_VALUES.items():
+            expected = expected.replace(baseline.encode(), FEAT_PIPELINE_VALUES[name].encode())
+        assert path.read_bytes() == expected
+
+    def test_replaces_whatever_value_is_there(self, fabric_dir: Path):
+        from workspace_swap import repoint_pipeline_bindings
+        stale = {"Semantic model": pb.ZERO_GUID, "Notebook connection": FEAT_REFRESH_CONN_ID,
+                 "Refresh connection": FEAT_MODEL_ID}
+        path = _write_pipeline(fabric_dir, values=stale)
+        repoint_pipeline_bindings(FEAT_PIPELINE_VALUES, dry_run=False)
+        assert _bound(path) == {name: {value} for name, value in FEAT_PIPELINE_VALUES.items()}
+
+    def test_dry_run_reports_without_writing(self, fabric_dir: Path):
+        from workspace_swap import repoint_pipeline_bindings
+        path = _write_pipeline(fabric_dir)
+        original = path.read_bytes()
+        changed = repoint_pipeline_bindings(FEAT_PIPELINE_VALUES, dry_run=True)
+        assert len(changed) == 1
+        assert path.read_bytes() == original
+
+    def test_reports_nothing_when_already_set(self, fabric_dir: Path):
+        from workspace_swap import repoint_pipeline_bindings
+        _write_pipeline(fabric_dir, values=FEAT_PIPELINE_VALUES)
+        assert repoint_pipeline_bindings(FEAT_PIPELINE_VALUES, dry_run=False) == []
+
+    def test_unsupported_shape_exits(self, fabric_dir: Path):
+        from workspace_swap import repoint_pipeline_bindings
+        _write_pipeline(fabric_dir, refreshes=2)
+        with pytest.raises(SystemExit) as exc:
+            repoint_pipeline_bindings(FEAT_PIPELINE_VALUES, dry_run=False)
+        assert "exactly one" in str(exc.value)
+
+
+@pytest.mark.usefixtures("_patch_paths")
+class TestValidatePipelineBindings:
+    def test_clean_when_every_binding_holds_its_expected_value(self, fabric_dir: Path):
+        from workspace_swap import validate_pipeline_bindings
+        _write_pipeline(fabric_dir)
+        assert validate_pipeline_bindings(DEV_PIPELINE_VALUES) == []
+
+    def test_reports_each_mismatch_with_its_file(self, fabric_dir: Path):
+        from workspace_swap import validate_pipeline_bindings
+        _write_pipeline(fabric_dir, values=FEAT_PIPELINE_VALUES)
+        problems = validate_pipeline_bindings(DEV_PIPELINE_VALUES)
+        text = "\n".join(problems)
+        assert "Patterns_Load.DataPipeline" in text
+        for name in DEV_PIPELINE_VALUES:
+            assert name in text
+
+    def test_reports_an_unsupported_shape(self, fabric_dir: Path):
+        from workspace_swap import validate_pipeline_bindings
+        _write_pipeline(fabric_dir, refreshes=2)
+        problems = validate_pipeline_bindings(DEV_PIPELINE_VALUES)
+        assert len(problems) == 1
+        assert "exactly one" in problems[0]
+
+    def test_nothing_to_report_without_a_pipeline(self, fabric_dir: Path):
+        from workspace_swap import validate_pipeline_bindings
+        assert validate_pipeline_bindings(DEV_PIPELINE_VALUES) == []
+
+
+@pytest.mark.usefixtures("_patch_paths")
+class TestSwapFlowsWithPipeline:
+    def _swap_to_feature(self, fabric_dir: Path, *, dry_run: bool = False) -> None:
+        from workspace_swap import _run_swap_to_feature
+        with patch("builtins.input", return_value="YES"):
+            _run_swap_to_feature("feat", "feat", _value_set(fabric_dir), DEV_WS_ID, DEV_LH_ID, dry_run=dry_run)
+
+    def _swap_to_dev(self, fabric_dir: Path, *, dry_run: bool = False) -> None:
+        from workspace_swap import _run_swap_to_dev
+        _run_swap_to_dev("feat", "feat", _value_set(fabric_dir), DEV_WS_ID, DEV_LH_ID, dry_run=dry_run)
+
+    def test_swap_to_feature_rewrites_group_model_and_connections(self, fabric_dir: Path):
+        path = _write_pipeline(fabric_dir)
+        _write_env(fabric_dir, pipeline=FEAT_PIPELINE_VALUES)
+        self._swap_to_feature(fabric_dir)
+
+        assert _group_id(path) == FEAT_WS_ID
+        assert _bound(path) == {name: {value} for name, value in FEAT_PIPELINE_VALUES.items()}
+        activities = json.loads(path.read_text(encoding="utf-8"))["properties"]["activities"]
+        for notebook in activities[:2]:
+            assert notebook["typeProperties"]["workspaceId"] == pb.ZERO_GUID
+            assert notebook["typeProperties"]["notebookId"] in NOTEBOOK_LOGICAL_IDS
+
+    def test_value_set_still_holds_only_workspace_and_lakehouse(self, fabric_dir: Path):
+        _write_pipeline(fabric_dir)
+        _write_env(fabric_dir, pipeline=FEAT_PIPELINE_VALUES)
+        self._swap_to_feature(fabric_dir)
+        data = json.loads(_value_set(fabric_dir).read_text(encoding="utf-8"))
+        assert {o["name"] for o in data["variableOverrides"]} == {"target_workspace_id", "target_lakehouse_id"}
+
+    def test_repos_without_a_pipeline_need_no_pipeline_keys(self, fabric_dir: Path):
+        _write_env(fabric_dir)
+        self._swap_to_feature(fabric_dir)
+        assert _value_set(fabric_dir).exists()
+
+    def test_a_pipeline_without_a_native_refresh_needs_no_pipeline_keys(self, fabric_dir: Path):
+        other = fabric_dir / "Other.DataPipeline" / "pipeline-content.json"
+        other.parent.mkdir(parents=True)
+        text = '{"properties": {"activities": []}}'
+        other.write_text(text, encoding="utf-8")
+        _write_env(fabric_dir)
+        self._swap_to_feature(fabric_dir)
+        assert other.read_text(encoding="utf-8") == text
+
+    def test_missing_pipeline_key_exits_before_any_write(self, fabric_dir: Path):
+        from workspace_swap import _run_swap_to_feature
+        path = _write_pipeline(fabric_dir)
+        sm_file = fabric_dir / "Test.SemanticModel" / "definition" / "expressions.tmdl"
+        before = (path.read_text(encoding="utf-8"), sm_file.read_text(encoding="utf-8"))
+        _write_env(fabric_dir, pipeline={k: v for k, v in FEAT_PIPELINE_VALUES.items() if k != "Refresh connection"})
+        # No input() patch: reaching the confirmation prompt would fail the test.
+        with pytest.raises(SystemExit) as exc:
+            _run_swap_to_feature("feat", "feat", _value_set(fabric_dir), DEV_WS_ID, DEV_LH_ID, dry_run=False)
+        assert "FEATURE_REFRESH_CONNECTION_ID" in str(exc.value)
+        assert not _value_set(fabric_dir).exists()
+        assert (path.read_text(encoding="utf-8"), sm_file.read_text(encoding="utf-8")) == before
+
+    def test_unsupported_pipeline_exits_before_any_write(self, fabric_dir: Path):
+        from workspace_swap import _run_swap_to_feature
+        _write_pipeline(fabric_dir, refreshes=2)
+        sm_file = fabric_dir / "Test.SemanticModel" / "definition" / "expressions.tmdl"
+        original_sm = sm_file.read_text(encoding="utf-8")
+        _write_env(fabric_dir, pipeline=FEAT_PIPELINE_VALUES)
+        with pytest.raises(SystemExit) as exc:
+            _run_swap_to_feature("feat", "feat", _value_set(fabric_dir), DEV_WS_ID, DEV_LH_ID, dry_run=False)
+        assert "exactly one" in str(exc.value)
+        assert not _value_set(fabric_dir).exists()
+        assert sm_file.read_text(encoding="utf-8") == original_sm
+
+    def test_dry_run_changes_nothing_but_still_validates_env(self, fabric_dir: Path):
+        from workspace_swap import _run_swap_to_feature
+        path = _write_pipeline(fabric_dir)
+        original = path.read_bytes()
+        _write_env(fabric_dir, pipeline=FEAT_PIPELINE_VALUES)
+        _run_swap_to_feature("feat", "feat", _value_set(fabric_dir), DEV_WS_ID, DEV_LH_ID, dry_run=True)
+        assert path.read_bytes() == original
+        assert not _value_set(fabric_dir).exists()
+
+        _write_env(fabric_dir)  # pipeline keys gone
+        with pytest.raises(SystemExit):
+            _run_swap_to_feature("feat", "feat", _value_set(fabric_dir), DEV_WS_ID, DEV_LH_ID, dry_run=True)
+
+    def test_declined_confirmation_leaves_the_pipeline_untouched(self, fabric_dir: Path):
+        from workspace_swap import _run_swap_to_feature
+        path = _write_pipeline(fabric_dir)
+        original = path.read_bytes()
+        _write_env(fabric_dir, pipeline=FEAT_PIPELINE_VALUES)
+        with patch("builtins.input", return_value="no"):
+            with pytest.raises(SystemExit):
+                _run_swap_to_feature("feat", "feat", _value_set(fabric_dir), DEV_WS_ID, DEV_LH_ID, dry_run=False)
+        assert path.read_bytes() == original
+
+    def test_confirmation_and_summary_list_the_pipeline_values(self, fabric_dir: Path, capsys: pytest.CaptureFixture):
+        _write_pipeline(fabric_dir)
+        _write_env(fabric_dir, pipeline=FEAT_PIPELINE_VALUES)
+        self._swap_to_feature(fabric_dir)
+        out = capsys.readouterr().out
+        for name, baseline in DEV_PIPELINE_VALUES.items():
+            assert f"{name} : {baseline} → {FEAT_PIPELINE_VALUES[name]}" in out
+            assert f"{name}: {baseline} → {FEAT_PIPELINE_VALUES[name]}" in out
+
+    def test_swap_to_dev_restores_baselines_without_reading_env(self, fabric_dir: Path):
+        path = _write_pipeline(fabric_dir)
+        _write_env(fabric_dir, pipeline=FEAT_PIPELINE_VALUES)
+        self._swap_to_feature(fabric_dir)
+        (fabric_dir.parent.parent / ".env").unlink()
+
+        self._swap_to_dev(fabric_dir)
+
+        assert _group_id(path) == DEV_WS_ID
+        assert _bound(path) == {name: {value} for name, value in DEV_PIPELINE_VALUES.items()}
+
+    def test_swap_to_dev_restores_baselines_from_any_stale_value(self, fabric_dir: Path):
+        path = _write_pipeline(fabric_dir)
+        _write_env(fabric_dir, pipeline=FEAT_PIPELINE_VALUES)
+        self._swap_to_feature(fabric_dir)
+        stale = {"Semantic model": pb.ZERO_GUID, "Notebook connection": FEAT_MODEL_ID,
+                 "Refresh connection": FEAT_NOTEBOOK_CONN_ID}
+        path.write_text(pb.rewrite(path.read_text(encoding="utf-8"), stale), encoding="utf-8")
+
+        self._swap_to_dev(fabric_dir)
+
+        assert _bound(path) == {name: {value} for name, value in DEV_PIPELINE_VALUES.items()}
+
+    def test_round_trip_restores_the_original_pipeline(self, fabric_dir: Path):
+        path = _write_pipeline(fabric_dir)
+        original = path.read_text(encoding="utf-8")
+        _write_env(fabric_dir, pipeline=FEAT_PIPELINE_VALUES)
+        self._swap_to_feature(fabric_dir)
+        assert path.read_text(encoding="utf-8") != original
+        self._swap_to_dev(fabric_dir)
+        assert path.read_text(encoding="utf-8") == original
+
+    def test_swap_to_dev_dry_run_changes_nothing(self, fabric_dir: Path):
+        path = _write_pipeline(fabric_dir)
+        _write_env(fabric_dir, pipeline=FEAT_PIPELINE_VALUES)
+        self._swap_to_feature(fabric_dir)
+        swapped = path.read_bytes()
+        self._swap_to_dev(fabric_dir, dry_run=True)
+        assert path.read_bytes() == swapped
+        assert _value_set(fabric_dir).exists()
+
+    def test_swap_to_dev_exits_before_reverting_when_the_pipeline_is_unsupported(self, fabric_dir: Path):
+        path = _write_pipeline(fabric_dir)
+        _write_env(fabric_dir, pipeline=FEAT_PIPELINE_VALUES)
+        self._swap_to_feature(fabric_dir)
+        path.write_text('{"properties": {"activities": [{"type": "PBISemanticModelRefresh"', encoding="utf-8")
+        sm_file = fabric_dir / "Test.SemanticModel" / "definition" / "expressions.tmdl"
+        swapped_sm = sm_file.read_text(encoding="utf-8")
+
+        with pytest.raises(SystemExit) as exc:
+            self._swap_to_dev(fabric_dir)
+
+        assert "not valid JSON" in str(exc.value)
+        assert sm_file.read_text(encoding="utf-8") == swapped_sm
+        assert _value_set(fabric_dir).exists()
+
+
+@pytest.mark.usefixtures("_patch_paths")
+class TestCheckReadyWithPipeline:
+    def _check(self, capsys: pytest.CaptureFixture) -> str:
+        from workspace_swap import _run_check_ready
+        _run_check_ready()
+        return capsys.readouterr().out
+
+    def _failing_check(self, capsys: pytest.CaptureFixture) -> str:
+        from workspace_swap import _run_check_ready
+        with pytest.raises(SystemExit) as exc:
+            _run_check_ready()
+        assert exc.value.code == 1
+        return capsys.readouterr().out
+
+    def test_passes_without_a_pipeline(self, fabric_dir: Path, capsys: pytest.CaptureFixture):
+        out = self._check(capsys)
+        assert "no pipeline with a native refresh activity" in out
+        assert "CHECK PASSED" in out
+
+    def test_passes_with_baseline_values(self, fabric_dir: Path, capsys: pytest.CaptureFixture):
+        _write_pipeline(fabric_dir)
+        out = self._check(capsys)
+        assert "semantic model and connections use baseline values" in out
+        assert "CHECK PASSED" in out
+
+    def test_fails_when_feature_values_remain(self, fabric_dir: Path, capsys: pytest.CaptureFixture):
+        _write_pipeline(fabric_dir, values=FEAT_PIPELINE_VALUES)
+        out = self._failing_check(capsys)
+        for name in DEV_PIPELINE_VALUES:
+            assert name in out
+        assert "CHECK FAILED" in out
+
+    def test_fails_when_only_one_binding_differs(self, fabric_dir: Path, capsys: pytest.CaptureFixture):
+        _write_pipeline(fabric_dir, values={**DEV_PIPELINE_VALUES, "Refresh connection": FEAT_REFRESH_CONN_ID})
+        out = self._failing_check(capsys)
+        assert "Refresh connection" in out
+        assert "Semantic model (" not in out
+
+    def test_fails_when_the_group_workspace_is_not_dev(self, fabric_dir: Path, capsys: pytest.CaptureFixture):
+        _write_pipeline(fabric_dir, workspace=FEAT_WS_ID)
+        out = self._failing_check(capsys)
+        assert "DataPipeline" in out
+
+    def test_fails_without_exactly_one_native_activity(self, fabric_dir: Path, capsys: pytest.CaptureFixture):
+        _write_pipeline(fabric_dir, refreshes=2)
+        out = self._failing_check(capsys)
+        assert "expected exactly one PBISemanticModelRefresh activity, found 2" in out
+
+    def test_fails_when_a_notebook_activity_has_no_connection(self, fabric_dir: Path, capsys: pytest.CaptureFixture):
+        path = _write_pipeline(fabric_dir)
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        del doc["properties"]["activities"][1]["externalReferences"]
+        path.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+        out = self._failing_check(capsys)
+        assert "Validate_Patterns_Data" in out
+
+    def test_fails_when_a_binding_is_an_expression(self, fabric_dir: Path, capsys: pytest.CaptureFixture):
+        path = _write_pipeline(fabric_dir)
+        text = path.read_text(encoding="utf-8").replace(pb.SEMANTIC_MODEL_BASELINE_ID, "@pipeline().parameters.model")
+        path.write_text(text, encoding="utf-8")
+        out = self._failing_check(capsys)
+        assert "not a GUID" in out

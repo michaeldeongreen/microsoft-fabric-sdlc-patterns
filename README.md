@@ -10,16 +10,42 @@ A reference implementation for Microsoft Fabric development and CI/CD using GitH
 
 ## Who is this for?
 
-Engineers and platform teams responsible for getting Microsoft Fabric workloads from a developer's laptop to production safely and repeatably — covering the developer workflow, the deployment pipeline itself, and the governance layered on top.
+This repository serves four common tasks:
 
-Architects and decision-makers evaluating Fabric will also find the [CI/CD Release Options](fabric-cicd-release-options.md) and [Governance Considerations](fabric-cicd-governance-considerations.md) useful for understanding the operating model before committing.
+| If you need to... | Start with... |
+|---|---|
+| Set up a fork and its Fabric environments | [Setup](SETUP.md) |
+| Develop in an isolated Branch Out workspace | [Development Process](fabric-development-process.md) |
+| Promote Dev to Test and Test to `main`/Prod | [Release Process](fabric-release-process.md) |
+| Choose an architecture or define production controls | [Release Options](fabric-cicd-release-options.md), [Governance](fabric-cicd-governance-considerations.md), and [Quality Gates](fabric-cicd-quality-gates-and-release-controls.md) |
 
 ## Start Here
 
-- **Run your own fork:** follow [Setup](SETUP.md), starting with **fabric-cicd non-bulk**, the repository default.
-- **Choose an architecture:** read [Release Options](fabric-cicd-release-options.md), then compare the implementations below.
-- **Understand the automation:** use the [shared workflow reference](fabric-hybrid-cicd-guide.md#github-actions-workflows) for triggers, callers, templates, and runners.
-- **Work and release safely:** use [Development Process](fabric-development-process.md), [Governance](fabric-cicd-governance-considerations.md), and [Quality Gates](fabric-cicd-quality-gates-and-release-controls.md).
+Start with fabric-cicd non-bulk, the repository default. Prove that path in
+your own Test workspace before evaluating another publisher.
+
+### Lifecycle in one minute
+
+1. A GitHub repository administrator configures the fork and GitHub
+   Environments; Entra/Fabric administrators configure identities, tenant
+   settings, workspaces, and permissions.
+2. The repository administrator manually provisions Dev's Workspace Identity
+   connection pair. A named Dev workspace operator initializes the Git-connected
+   workspace and records canonical Dev IDs.
+3. A developer Branches Out from Dev. A feature workspace administrator creates
+   its Workspace Identity and connections; the developer swaps references and
+   tests.
+4. Before the feature PR, the developer restores Dev references. After merge,
+   the Dev workspace operator selects **Update all** and runs the Fabric
+   DataPipeline.
+5. A reviewed `dev` to `test` merge starts the selected release job. It ensures
+   Test connections, publishes definitions, and runs the same-revision
+   DataPipeline.
+6. After Test acceptance, a reviewed `test` to `main` merge applies the same
+   contract to Prod under configured Prod protection.
+
+See [Release Process](fabric-release-process.md) for the workflow and identity
+boundaries behind steps 5 and 6.
 
 ## Choose a Deployment Method
 
@@ -33,12 +59,12 @@ Find the exact values and GitHub UI locations in
 For fabric-cicd bulk specifically, use the
 [fabric-cicd-bulk settings](SETUP.md#fabric-cicd-bulk-settings).
 
-| `DEPLOY_METHOD` | Publisher | Bulk definitions | Ordering / plan handling | Replacement file |
-|---|---|---|---|---|
-| [`fabric-cicd`](fabric-hybrid-cicd-guide.md) — non-bulk default | fabric-cicd | No | Custom Python phases + fabric-cicd order | [parameter.yml](data/fabric/parameter.yml) |
-| [`fabric-cicd-plan`](fabric-deployment-plan-guide.md#how-it-works) | fabric-cicd | No | Deployment Plan (client-read) | [parameter.yml](data/fabric/parameter.yml) |
-| [`fabric-cicd-bulk`](fabric-deployment-plan-guide.md#isolated-bulk-adapter-14x) | fabric-cicd | Yes | Deployment Plan (client-read) | [parameter.yml](data/fabric/parameter.yml) |
-| [`bulk`](fabric-bulk-cicd-guide.md) | Direct REST — custom Python | Yes | Custom Python phases | [bulk-parameter.yml](data/fabric/bulk-parameter.yml) |
+| `DEPLOY_METHOD` | Publisher | Bulk definitions | Ordering / plan handling | Replacement file | Live evidence for this revision |
+|---|---|---|---|---|---|
+| [`fabric-cicd`](fabric-hybrid-cicd-guide.md) - non-bulk default | fabric-cicd | No | Custom Python phases + fabric-cicd order | [parameter.yml](data/fabric/parameter.yml) | Default Test verified |
+| [`fabric-cicd-plan`](fabric-deployment-plan-guide.md#how-it-works) | fabric-cicd | No | Deployment Plan (client-read) | [parameter.yml](data/fabric/parameter.yml) | Not yet live-verified |
+| [`fabric-cicd-bulk`](fabric-deployment-plan-guide.md#isolated-bulk-adapter-14x) | fabric-cicd | Yes | Deployment Plan (client-read) | [parameter.yml](data/fabric/parameter.yml) | Not yet live-verified |
+| [`bulk`](fabric-bulk-cicd-guide.md) | Direct REST - custom Python | Yes | Custom Python phases | [bulk-parameter.yml](data/fabric/bulk-parameter.yml) | Not yet live-verified |
 
 Ordering labels:
 
@@ -49,9 +75,14 @@ Ordering labels:
 - The fabric-cicd Python library also calls REST APIs. "Direct REST" means the repository owns publishing and substitutions without fabric-cicd.
 - None of these routes uses native **Fabric Deployment Pipelines**, a workspace-promotion service distinct from Deployment Plans and the **DataPipeline** that runs this sample's workload.
 - **Hybrid** describes an optional architecture that combines publishers for a workload's needs; it is not another `DEPLOY_METHOD` value or the default recommendation.
-- fabric-cicd non-bulk is this repository's recommended starting point. Both plan adapters use experimental selective deployment; fabric-cicd bulk and the raw Bulk API have additional experimental/preview boundaries. Read the [plan support warning](fabric-deployment-plan-guide.md) before choosing either adapter.
+- fabric-cicd non-bulk is this repository's recommended starting point. Both
+  plan adapters use experimental selective deployment. Current Microsoft
+  documentation shows the raw Bulk Import v1 endpoint without `?beta=true`,
+  while this repository's raw caller still sends that legacy query and is not
+  live-verified. Reconcile it before use.
 - The fabric-cicd workflows use `fabric-cicd>=1.4.0,<1.5.0` and Python 3.12. fabric-cicd bulk supports the filtered dynamic replacements in this repository; the raw REST route owns a separate replacement engine.
-- Both plan routes require `DEPLOYMENT_PLAN_PATH`. A route change alone does not start a run; see [workflow triggers](fabric-hybrid-cicd-guide.md#github-actions-workflows).
+- Both plan routes require `DEPLOYMENT_PLAN_PATH`. A route change alone does
+  not start a run; see [workflow triggers](fabric-release-process.md#what-triggers-what).
 
 ### Implemented Examples versus Production Guidance
 
@@ -66,13 +97,14 @@ Dedicated [approval](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-p
 [Azure DevOps](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns/issues/85)
 examples are tracked as future work.
 
-An earlier feature prototype completed all three activities using Workspace
-Identity connections and demonstrated a `run_label` API override under a user
-invoker. The current explicit-OneLake-path validation revision is only
-offline-validated. Git sync/Branch Out binding resolution, CI service-principal
-publication/start, and Test/Prod end-to-end execution are **not yet
-live-verified**. Activity credentials, deployment credentials, model ownership,
-and consumer permissions are separate checks, not interchangeable evidence.
+On 2026-10-14, the default fabric-cicd Test release completed GitHub preflight,
+Workspace Identity connection ensure, connections-admin Owner verification,
+ID persistence, publication, and the same-revision Fabric DataPipeline in
+[run 38581072000](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns/actions/runs/38581072000).
+That result does not certify Prod, the three alternative methods, a complete
+current-revision Branch Out cycle, cold-versus-reuse behavior, model ownership,
+DAX/report results, or consumer permissions. See the
+[verification matrix](fabric-release-process.md#verification-status).
 
 ---
 
@@ -100,20 +132,22 @@ Git repo (dev branch)
   ▼
 ┌─────────────────────────────────────────────────────┐
 │  deploy-test.yml                                    │
-│    └─ fabric-cicd: publish_all_items()              │
-│                    ↓ needs: deploy                  │
+│    ├─ ensure Test WI connections + persist IDs      │
+│    ├─ fabric-cicd: publish_all_items()              │
+│    └─ needs: deploy                                 │
 │  run-etl (same workflow revision)                   │
-│    └─ Fabric REST API: run DataPipeline + wait      │
+│       └─ Fabric REST API: run DataPipeline + wait   │
 └─────────────────────────────────────────────────────┘
   │
   │  PR merge → main branch (source must be test)
   ▼
 ┌─────────────────────────────────────────────────────┐
 │  deploy-prod.yml                                    │
-│    └─ fabric-cicd: publish_all_items()              │
-│                    ↓ needs: deploy                  │
+│    ├─ ensure Prod WI connections + persist IDs      │
+│    ├─ fabric-cicd: publish_all_items()              │
+│    └─ needs: deploy                                 │
 │  run-etl (same workflow revision)                   │
-│    └─ Fabric REST API: run DataPipeline + wait      │
+│       └─ Fabric REST API: run DataPipeline + wait   │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -141,7 +175,7 @@ For this sample's **Direct Lake on OneLake** model, refresh performs framing of
 the Delta table references after ETL; it is not another data load or a storage
 mode conversion. Source validation and refresh completion do not prove model
 date-field queries, DAX results, or consumer access.
-See the [shared follow-up contract](fabric-hybrid-cicd-guide.md#post-etl-semantic-model-refresh)
+See the [shared follow-up contract](fabric-release-process.md#post-etl-semantic-model-refresh)
 and [refresh permissions](SETUP.md#post-etl-refresh-permissions).
 
 Each deployment workflow runs the shared pipeline job through `needs` after
@@ -173,15 +207,16 @@ methods invokes it.
 
 | Document | Description |
 |---|---|
-| [Setup Guide](SETUP.md) | **Start here to run your own fork.** Covers required access, Fabric workspaces, reference-ID replacement, GitHub configuration, and first deployment. |
-| [CI/CD Release Options](fabric-cicd-release-options.md) | Compares Fabric deployment architectures and recommends fabric-cicd non-bulk as the starting point. Covers optional hybrid extensions and a [comparison of fabric-cicd vs Bulk Import / Export APIs](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) (Preview) within Option 3. **Start here** if you're deciding on a strategy. |
-| [fabric-cicd Non-Bulk CI/CD Guide](fabric-hybrid-cicd-guide.md) | Default implementation and shared workflow reference: configuration, deployment flow, post-ETL refresh, and gotchas. |
+| [Setup Guide](SETUP.md) | Start here to run your own fork. Covers actors, prerequisites, Fabric workspaces, GitHub configuration, Dev initialization, and the first promotion. |
+| [Development Process](fabric-development-process.md) | Branch Out, feature connections and reference swaps, return to Dev, and the manual Dev update/run. |
+| [Release Process](fabric-release-process.md) | Shared Dev-to-Test and Test-to-`main`/Prod flow, automatic connection ensure, workflow callers, DataPipeline handoff, recovery, and verification status. |
+| [CI/CD Release Options](fabric-cicd-release-options.md) | Compares Fabric deployment architectures and explains why this repository starts with fabric-cicd non-bulk. |
+| [fabric-cicd Non-Bulk CI/CD Guide](fabric-hybrid-cicd-guide.md) | Default publisher mechanics: three publication phases, parameterization, clean-target behavior, and route-specific limitations. |
 | [Raw REST Bulk CI/CD Guide](fabric-bulk-cicd-guide.md) | Direct Bulk Import API comparison: custom substitutions, value-set activation, caller phases, and limitations. Not the fabric-cicd bulk route. |
 | [Deployment Plan CI/CD Guide](fabric-deployment-plan-guide.md) | Independent non-bulk and grouped bulk ordering adapters, remaining-item discovery, configuration, and validation boundaries. |
-| [Shared Workflow Reference](fabric-hybrid-cicd-guide.md#github-actions-workflows) | All workflow files, their triggers, route selectors, reusable templates, runners, and ETL handoffs. |
-| [Development Process](fabric-development-process.md) | How developers work day-to-day: branch-out workflow, the workspace swap script, and PR readiness check. |
 | [CI/CD Governance Considerations](fabric-cicd-governance-considerations.md) | Considerations on identities, RBAC, branch protection, and approval gates for the CI/CD pipeline. Includes pointers to adjacent controls owned outside the pipeline (security/compliance topics). |
 | [CI/CD Quality Gates and Release Controls](fabric-cicd-quality-gates-and-release-controls.md) | Practical automated artifact validation, test evidence, staged approvals, release tags, support checks, and rollback examples. Complements the governance controls. |
+| [Maintained Presentation](presentations/fabric-sdlc-cd.md) | A presentation-ready summary derived from the canonical guides. |
 
 ---
 
@@ -227,11 +262,15 @@ When designing your development and CI/CD processes, identify which items in you
 
 ### Prerequisites
 
-1. **Fabric Capacity** — A Fabric or Power BI Premium capacity for all workspaces
-2. **Three Fabric Workspaces** — Dev (Git-connected), Test, and Prod
-3. **Service Principal and Workspace Identities** — SP Contributor for provisioning/deployment/job submission; each workspace's WI authenticates its activities. Humans create WIs and grant their access; see [permissions](SETUP.md#post-etl-refresh-permissions)
-4. **GitHub Environments and Admins Group** — `Dev`, `Test`, and `Prod` secrets, a trusted connection-Owner group, and a repository-scoped provisioning PAT; see [Setup](SETUP.md)
-5. **Fabric Admin Settings** — Authorize public APIs and connection creation for the approved principal; GitHub Git integration must also be enabled (see [developer tenant settings](https://learn.microsoft.com/en-us/fabric/admin/service-admin-portal-developer))
+1. A Fabric capacity appropriate for the item types and API route. Raw bulk
+   import of Fabric item types requires an F SKU or Fabric Trial.
+2. Dev, Test, and Prod Fabric workspaces; only Dev is Git-connected.
+3. A deployment service principal with Contributor in each workspace and one
+   Workspace Identity per workspace with its required resource access.
+4. `Dev`, `Test`, and `Prod` GitHub Environments, a trusted connections-admin
+   group, and a repository-scoped Environment-variable PAT.
+5. Fabric tenant settings that authorize the approved users and service
+   principal for Git integration, public APIs, and connection creation.
 
 ### Setup
 
@@ -239,22 +278,30 @@ Fork owners should follow the [Setup Guide](SETUP.md). It provides one ordered
 path through required access, workspace creation, Git initialization, reference
 ID replacement, GitHub configuration, and first deployment.
 
-After setup, use the [Development Process](fabric-development-process.md) for
-day-to-day feature work and the [Governance Considerations](fabric-cicd-governance-considerations.md)
-for production control decisions.
+After setup, use [Development Process](fabric-development-process.md) for
+feature work and [Release Process](fabric-release-process.md) for promotion.
 
 The explicit **Provision Fabric Connections** action creates/reuses two WI
-connections per workspace, verifies the trusted group's **Owner** access, and
-saves their IDs in GitHub Environment variables. Ordinary deployments only
-validate/use those connections; the provisioning PAT is not on the release path.
+connections for Dev, verifies the trusted group's Owner access, and saves
+their IDs in GitHub Environment variables. Feature connections are created by
+a human. Selected Test and Prod releases run the same connection ensure and
+create-only persistence before publication.
+
+The PAT is on the Test/Prod release path, restricted to GitHub preflight and
+variable-persistence steps. The deployment service principal performs Fabric
+connection, connection-role, publication, and job-submission operations.
+The publisher subprocess then validates and consumes the resolved pair
+read-only.
+
 Local Dev IDs are recorded in the existing parameter rules, not an extra JSON
 manifest or downloaded artifact. Later swaps/readiness stay offline.
-See [facilitator setup](SETUP.md#first-time-dev-bootstrap). Participants never
-need deployment SP secrets. Shared administration across stages and PAT reuse/
-non-expiration are sample compromises, not production recommendations.
+See [Provision Dev connections](SETUP.md#4-provision-dev-connections).
+Developers never need deployment-SP secrets. Shared administration across
+stages and PAT reuse/non-expiration are sample compromises, not production
+recommendations.
 
 Use the [method matrix](#choose-a-deployment-method) when evaluating an
 alternative after the default non-bulk route works. The [plan guide](fabric-deployment-plan-guide.md)
-documents fabric-cicd bulk's known fallback checks, post-publish mode detection, and
-remaining live-binding validation. Do not infer Production readiness from
-offline transport tests.
+documents fabric-cicd bulk's fallback checks and validation boundaries. Do not
+infer Production readiness from source tests or from the verified default Test
+route.

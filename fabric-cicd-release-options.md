@@ -1,10 +1,11 @@
-# Best Practices with Fabric CI/CD Overview
+# Choose a Fabric CI/CD Release Architecture
 
 This strategy guide compares Fabric platform options and possible extensions.
 For the four GitHub implementations actually shipped in this repository, use
 the [README method matrix](README.md#choose-a-deployment-method); for exact
-triggers and runners, use the [shared workflow reference](fabric-hybrid-cicd-guide.md#github-actions-workflows).
-The recommendation is to start with **fabric-cicd non-bulk**. The native-pipeline
+triggers and runners, use the
+[shared workflow reference](fabric-release-process.md#github-actions-workflows).
+The recommendation is to start with fabric-cicd non-bulk. The native-pipeline
 hybrid described below is an optional extension, not a fifth implemented
 deployment route or a prerequisite for the default method.
 
@@ -68,17 +69,20 @@ The development process is the same regardless of which deployment option you ch
 
 In Fabric, the recommended approach for most developers is to **branch out to a separate workspace**:
 
-1. The shared **Dev workspace** is connected to a shared branch (e.g., `main`) in the Git repository.
+1. The shared Dev workspace is connected to the team's integration branch.
 2. A developer uses the **Branch out** feature in the Fabric UI to create a new feature branch and a new isolated workspace from the Dev workspace.
 3. The developer makes changes in their **feature workspace**, which is synced to their feature branch.
 4. When changes are ready, the developer **commits** them to the feature branch.
-5. The developer creates a **Pull Request (PR)** in the Git provider (Azure DevOps or GitHub) to merge the feature branch back into the `main` branch.
+5. The developer creates a Pull Request in the Git provider to merge the
+   feature branch back into the integration branch.
 6. The PR goes through the team's **review and approval process**.
 7. Once approved and merged, the Dev workspace is prompted to **update** with the new commit. How that update happens depends on the release option chosen (discussed in later sections).
 
 Alternatively, developers working on items available in client tools (e.g., Power BI Desktop, VS Code) can **clone the repo locally**, make changes, commit, push, and create a PR — without needing a separate Fabric workspace.
 
-> **Key takeaway:** The Fabric workspace is a shared, live environment. Any changes made directly in it affect all users. Always work in an isolated feature workspace or local environment and merge changes through PRs.
+This repository uses `dev` as the integration branch, not `main`. See
+[Development Process](fabric-development-process.md) for its Branch Out and
+feature-to-Dev contract.
 
 
 ---
@@ -208,11 +212,19 @@ With this option, all deployments originate from the **Git repository**, with ea
 
 ![Git-based with Build Environments Flow](assets/git-build-deployments-flow.svg)
 
+This is the generic Option 3 architecture. This repository adapts it: Dev stays
+Git-connected and is updated/run manually; only Test and Prod use API
+publication from GitHub Actions. See the implemented
+[Release Process](fabric-release-process.md).
+
 **How it works:**
 - The Git repo is the **single source of truth** for all stages. Each stage (Dev, Test, Prod) has its own dedicated primary branch (e.g., `dev`, `test`, `main`).
 - When a PR is merged into a stage's branch, that stage's build pipeline is triggered.
 - The build environment runs **unit tests** and applies **environment-specific configuration changes** before deploying to the target workspace. With **fabric-cicd**, this is handled declaratively via a `parameter.yml` file — not custom scripts. The file defines find-and-replace rules, JSONPath key replacements, spark pool mappings, and semantic model bindings per environment.
-- The modified content is then uploaded to the workspace using one of two main implementations — the fabric-cicd Python library (GA, recommended) or the Bulk Import / Export APIs (Preview). See [Tooling within Option 3](#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the comparison.
+- The modified content is then uploaded using fabric-cicd or a direct API
+  caller. Current Microsoft documentation shows the Bulk Import v1 endpoint
+  without the former Preview/`?beta=true` contract; export APIs are separate
+  surfaces whose maturity must be checked independently.
 - **fabric-cicd performs a full deployment every time** — it does not calculate diffs or deltas between commits. Every item in scope is published on each run.
 - After Dev deployment validation, content is promoted by creating a PR `dev` → `test`, which triggers the Test pipeline. The same pattern promotes to Prod via a PR `test` → `main`.
 
@@ -234,14 +246,18 @@ With this option, all deployments originate from the **Git repository**, with ea
 | Deploy to Test | PR merged `dev` → `test` branch | Git: `test` branch → Build Env | Fabric: Test workspace | Same |
 | Deploy to Prod | PR merged `test` → `main` branch | Git: `main` branch → Build Env | Fabric: Prod workspace | Same |
 
-> Alternative: the [Bulk Import Item Definitions API](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions) (Preview) can be used directly instead of fabric-cicd. See [Tooling within Option 3](#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the trade-offs.
+> Alternative: the [Bulk Import Item Definitions API](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions)
+> can be used directly instead of fabric-cicd. The checked-in caller still uses
+> the legacy `?beta=true` query and must be reconciled and live-verified.
 
 ---
 
 **What makes this different from Option 2:**
 - **Build environment with parameterization** — Option 2 deploys files as-is from each branch via Fabric Git integration. Option 3 transforms item definitions in a build environment before deploying (e.g., rewriting connection strings, lakehouse IDs). With fabric-cicd, this is done declaratively via `parameter.yml`.
 - **No Fabric Git integration required on Test/Prod** — Option 2 requires every workspace to be connected to its branch via Fabric Git integration. Option 3 deploys via REST APIs from the build environment and doesn't require Test or Prod workspaces to be Git-connected — useful for teams uncomfortable putting Fabric Git integration on the production deployment path.
-- **Different APIs** — Option 2 uses the Update from Git API (Fabric Git integration). Option 3 uses fabric-cicd or the Bulk Import / Export APIs (Preview); see [Tooling within Option 3](#tooling-within-option-3-fabric-cicd-vs-bulk-apis).
+- **Different APIs** — Option 2 uses the Update from Git API. Option 3 uses
+  fabric-cicd or direct item-definition APIs; verify the current contract for
+  each import/export surface.
 
 ---
 
@@ -258,7 +274,11 @@ Option 3 has two viable tooling implementations today. Both deploy from a build 
   - `$ENV:` variables — Pulls values from CI/CD pipeline environment variables
   - Template files — Split large parameter files into smaller templates via `extend`
   - See the [fabric-cicd and Azure DevOps tutorial](https://learn.microsoft.com/en-us/fabric/cicd/tutorial-fabric-cicd-azure-devops) for an end-to-end example.
-- **[Bulk Import / Export APIs](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions)** *(Preview)* — Native Fabric REST APIs that move whole-workspace payloads in a single call, with built-in dependency resolution. See the [Bulk Import tutorial](https://learn.microsoft.com/en-us/fabric/cicd/tutorial-bulkapi-cicd) and the [comparison subsection below](#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for trade-offs vs fabric-cicd.
+- **[Bulk Import Item Definitions API](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions)** —
+  A workspace-level definition import request. Current documentation shows the
+  v1 endpoint without `?beta=true`. Bulk export is a separate API surface;
+  verify its current status independently. See the
+  [Bulk Import tutorial](https://learn.microsoft.com/en-us/fabric/cicd/tutorial-bulkapi-cicd).
 - **[Update Item Definition API](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/update-item-definition)** — A lower-level building block for updating a single item's definition. Both fabric-cicd and the Bulk APIs ultimately wrap this and related item APIs; you would use it directly only when neither higher-level option fits.
 
 ---
@@ -267,9 +287,9 @@ Option 3 has two viable tooling implementations today. Both deploy from a build 
 
 Both implementations sit inside Option 3 — branch per stage, build environment per stage, deploy from Git. The decision between them comes down to whether you want a library that solves the common CI/CD problems for you, or a lower-level API surface that you wrap yourself.
 
-| Dimension | fabric-cicd non-bulk | Bulk Import / Export APIs |
+| Dimension | fabric-cicd non-bulk | Direct Bulk Import caller |
 |---|---|---|
-| **Maturity** | GA | Preview (`?beta=true` query parameter required) |
+| **Maturity** | GA | Current service docs show v1 without `?beta=true`; this repository's legacy-query caller remains unverified |
 | **Environment-specific config** | `parameter.yml` (declarative `find_replace`, `key_value_replace`, `$items` resolution) | None at the API level — caller must preprocess files or rely entirely on Variable Libraries + logical IDs. *This repo demonstrates one way to bridge the gap in caller code (see note below the table).* |
 | **Orphan cleanup** | `unpublish_all_orphan_items()` built in | None — API only supports Create / Update; deletes are caller's responsibility |
 | **Dependency ordering** | Library order plus this repo's caller phases, or its optional non-bulk plan adapter | Service resolves supported logical-ID relationships; explicit ordering and physical-ID substitutions can still require caller work |
@@ -300,7 +320,11 @@ Both implementations sit inside Option 3 — branch per stage, build environment
 - You're moving large numbers of items and want fewer round trips
 - You need a workspace-level export (e.g., for disaster-recovery snapshots) that the Bulk Export API provides
 
-Recommendation today: fabric-cicd. The Bulk APIs are still in Preview and have no parameterization or orphan-cleanup story at the API level — the caller must implement substitution, value-set activation, and any delete logic themselves. fabric-cicd already provides these capabilities, maintained by Microsoft. This repo's bulk path shows that bridging is feasible and what it costs (~600 lines of Python + a config file), but choosing bulk means you own that bridging code. Re-evaluate when (a) the APIs exit Preview and (b) Microsoft adds parameterization and orphan-cleanup at the API level, or when your repo's shape doesn't need those capabilities to begin with.
+Recommendation today: fabric-cicd. Direct Bulk Import has no
+`parameter.yml` compatibility or orphan-cleanup story at the API level, so the
+caller must implement substitution, value-set activation, and delete logic.
+This repository demonstrates that cost, but its checked-in legacy-query caller
+is not live-verified against the current v1 documentation.
 
 > This repository demonstrates both. fabric-cicd non-bulk is the recommended starting point; raw
 > REST bulk and fabric-cicd bulk workflows are included for evaluation. `DEPLOY_METHOD`
@@ -401,7 +425,7 @@ Technically, the Terraform provider can *create* items like notebooks in a targe
 |---|---|---|---|
 | **Source of truth** | Git (Dev only) + workspaces | Git (all stages) | Git (all stages) |
 | **Branching strategy** | Any (Git only for Dev) | Gitflow (branch per stage) | Branch per stage with build envs |
-| **Deployment mechanism** | Fabric Deployment Pipelines (UI or API) | Update from Git API | fabric-cicd non-bulk (recommended starting point) or Bulk Import / Export APIs (Preview) — see [Tooling within Option 3](#tooling-within-option-3-fabric-cicd-vs-bulk-apis) |
+| **Deployment mechanism** | Fabric Deployment Pipelines (UI or API) | Update from Git API | fabric-cicd non-bulk (recommended) or a separately verified direct API caller |
 | **Config management** | Deployment rules + autobinding | Post-deployment API calls or parameterization | Declarative `parameter.yml` (fabric-cicd) or custom scripts before deploy |
 | **Visual comparison** | Yes (Fabric-native UI) | No (Git diffs only) | No (Git diffs only) |
 | **Deployment history** | Yes (built into Fabric) | No | No |
@@ -448,50 +472,36 @@ the default execution flow. Its prerequisites are described
 
 ### Git Branches & Workspaces
 
-- **Three branches:** `dev`, `test`, `main` (production)
-- **Three workspaces:** Dev, Test, Prod
-- **Dev workspace** is connected to the `dev` branch via Fabric Git integration — this is the shared development workspace
-- **Test and Prod workspaces** are NOT Git-connected — the default route deploys their workload definitions through fabric-cicd
-- No native Fabric Deployment Pipeline is required or created by the default workflows
+- `dev` maps to the Git-connected Dev workspace.
+- `test` maps to the API-published Test workspace.
+- `main` maps to the API-published Prod workspace.
+- Native Fabric Deployment Pipelines are not required or created by the
+  shipped methods.
 
 ---
 
 ### Development Flow
 
-1. Developers use **Branch out** in the Fabric UI to create a **feature workspace** and feature branch from the Dev workspace.
-2. Developers make changes in their isolated feature workspace/branch.
-3. When done, developers **commit** changes and create a **PR** to merge back into the `dev` branch.
-4. The PR goes through review and approval, then changes are merged into `dev`.
+The implemented Branch Out, feature connection, swap, validation, and
+feature-to-Dev procedure belongs in
+[Development Process](fabric-development-process.md).
 
 ---
 
 ### Deployment Flow
 
-#### Dev Stage (Trigger: PR merged → `dev` branch)
-1. The shared Dev workspace owner uses **Update from Git** after merge. An API-based sync can be automated separately, but this repository does not ship that workflow.
-2. For this sample, verify Dev connections/model bindings after Git sync, then
-   manually run `Patterns_Load_Validate_And_Refresh`. Source connection markers
-   must be bound to real Dev runtime connections before execution; see
-   [Setup](SETUP.md#4-replace-the-reference-environment).
-3. Validate and test in the Dev workspace. If your workload includes items outside the selected publisher's scope, assess the [optional extensions](#optional-extensions-for-unsupported-items) separately; fabric-cicd support does not determine Git integration or export support.
+The route-neutral `dev` to `test` and `test` to `main`/Prod procedure belongs
+in [Release Process](fabric-release-process.md). In summary:
 
-#### Test Stage (Trigger: PR merged → `test` branch)
-1. **fabric-cicd** publishes Lakehouse + Ontology, then non-pipeline dependents,
-   then DataPipeline in a third call with fresh notebook/model discovery.
-   SDK state caching makes this boundary necessary even with internal item ordering.
-2. GitHub starts/polls `Patterns_Load_Validate_And_Refresh`. Fabric runs the
-   unchanged loader, read-only validation, and native refresh with
-   success dependencies and wait-on-completion. It is the only refresh owner.
-3. Perform automated and manual testing.
+1. Dev is updated from Git and run manually.
+2. The selected Test/Prod job automatically validates GitHub access, ensures
+   the target Workspace Identity connection pair, verifies the connections-admin
+   group as Owner, persists missing IDs, publishes, and runs the same-revision
+   Fabric DataPipeline.
+3. The publisher changes with `DEPLOY_METHOD`; the shared connection and
+   DataPipeline contract does not.
 
-> Additional publishers are not part of this default flow. Introduce an [optional extension](#optional-extensions-for-unsupported-items) only after verifying its support and orchestration requirements.
-
-#### Prod Stage (Trigger: PR merged → `main` branch)
-Same pattern as Test:
-1. **fabric-cicd** deploys all supported items to the Prod workspace.
-2. Run the same pipeline under the approved target configuration and require
-   load, validation, and native refresh completion.
-3. Production validation.
+Method-specific mechanics remain in the non-bulk, plan, and raw bulk guides.
 
 ---
 
@@ -510,10 +520,12 @@ Two complementary mechanisms handle environment-specific configuration:
 This sample separates environment policy (`minimum_patient_count`, positive
 Integer, baseline `5`) from per-run input (`run_label`, String, default `manual`,
 CI override). Workspace Identity Notebook/Power BI connections are created
-outside Git and shared with the CI principal. Their GUIDs are the two
-[GitHub Environment variables](SETUP.md#environment-variables), not secrets.
-Connection use, model-owner source access, and consumer access must be verified
-separately from the deployer's permissions.
+outside Git. Dev is provisioned manually, feature connections are created by a
+human, and selected Test/Prod jobs ensure their pairs automatically. Their GUIDs
+are two GitHub Environment variables, not secrets. The deployment service
+principal manages the Test/Prod connection ACL before the publisher consumes
+the pair read-only. Connection use, model-owner source access, and consumer
+access must be verified separately from the deployer's permissions.
 
 ---
 
@@ -526,12 +538,10 @@ separately from the deployer's permissions.
 - **Explicit follow-up** starts one Fabric pipeline; load and read-only validation
   must succeed before native refresh completes. GitHub does not refresh twice.
 
-An earlier user-started feature prototype completed all three activities and
-API run-label forwarding with Workspace Identity activity credentials. The
-current explicit-OneLake-path validation revision is only offline-validated.
-Git sync/Branch Out binding resolution, CI service-principal publication/start,
-and Test/Prod end-to-end routes remain live-verification boundaries, not
-production-readiness claims.
+The default fabric-cicd Test route is live-verified through connection ensure,
+publication, and the same-revision DataPipeline. Prod, the three alternative
+methods, and a complete current-revision Branch Out cycle remain unverified.
+See [Verification status](fabric-release-process.md#verification-status).
 
 ---
 
@@ -578,63 +588,37 @@ job can still make several publishing calls; publication is not complete
 release validation.
 
 All four shipped methods share the
-[post-ETL follow-up](fabric-hybrid-cicd-guide.md#post-etl-semantic-model-refresh).
+[post-ETL follow-up](fabric-release-process.md#post-etl-semantic-model-refresh).
 For this Direct Lake on OneLake model, refresh frames the Delta references
 after the loader's writes; it is not another ETL or a change to deployment
 ordering. A green ETL workflow requires the pipeline's terminal success after
 native refresh, not a guarantee of model date queries, DAX results, or consumer access.
 
-GitHub's `workflow_run` listener still comes from the default branch. During
-rollout, manually dispatch Test ETL from `test` after old automatic runs finish;
-rerunning an old main run does not select changed Test code. A same-stage `needs`
-chain is a separate follow-up, not a problem solved by the Fabric DataPipeline.
+Automatic publication and ETL use one same-revision `needs` chain. The manual
+ETL workflows are recovery tools, not default-branch listeners. Rerunning an
+old workflow run still uses its original revision.
 
 ---
 
 ### Hotfix & Rollback
 
-#### Hotfix Flow (Supported Items via fabric-cicd)
+Architecture does not remove recovery obligations:
 
-1. Reproduce and fix in an isolated feature workspace/branch, then open a reviewed PR into `dev`.
-2. Promote `dev -> test` and validate the candidate before `test -> main`.
-3. Obtain the configured Production approval; the selected method deploys its defined scope, not necessarily only the changed item.
-4. Verify configuration, execution, and required smoke results before marking the release successful.
+- The shipped path has no direct feature/hotfix-to-`main` bypass. A correction
+  follows feature -> `dev` -> `test` -> `main` unless the organization designs,
+  approves, and implements a separate emergency path.
+- API publication is not a workspace-wide transaction. Retain the exact
+  known-good definitions, configuration, tool version, and target evidence.
+- A definition rollback does not restore data, reverse schema changes, or undo
+  external side effects.
+- A native Deployment Pipelines extension needs its own retained source and
+  recovery method; the previous stage is not automatically the last accepted
+  Prod release.
 
-A feature/hotfix PR directly into `main` fails this repository's promotion-path
-check. An organization-specific emergency override needs a separately approved
-policy and implementation; it is not a bypass provided here.
-
-#### Hotfix Flow (Optional Native-Pipeline Extension)
-
-- If your workload uses a verified [native Deployment Pipelines publisher extension](#optional-extensions-for-unsupported-items), promote its selected items from the authorized previous stage (e.g., Test → Prod).
-- Automate with the [Deploy Stage Content](https://learn.microsoft.com/en-us/rest/api/fabric/core/deployment-pipelines/deploy-stage-content) API; selective deploy requires explicitly listing items (no "select related" in API).
-
-> **Note:** This is an optional extension, not a shipped workflow. Retain the known-good content and configuration using the item's supported recovery method; today's earlier-stage contents and operation history are not a definition backup.
-
-#### Rollback Playbook
-
-**Supported items (fabric-cicd):**
-1. Identify the last fully validated release and retain its definitions, tool version, and reviewed target configuration.
-2. Create a reviewed corrective/revert commit in the development flow; preserve protected history and promote through `dev -> test -> main`.
-3. Validate compatibility, selected scope, and deletion behavior before redeployment; rerun the required post-recovery checks.
-
-**Items using the optional native Deployment Pipelines publisher extension:**
-1. Restore retained known-good content/configuration to a suitable source stage using a supported recovery method.
-2. Authorize selective forward deployment and verify the actual result. Do not assume the current previous-stage version is the last successful Production release.
-
-**Data considerations:**
-- Definition rollback does not restore data or reverse schema/external-system changes. Data recovery needs retained restore points/history, source watermarks, explicit authorization for destructive work, and verified replay/reconciliation. Do not reseed Production tables as a rollback shortcut.
-
-Use the [Quality Gates recovery guidance](fabric-cicd-quality-gates-and-release-controls.md#6-failure-handling-and-recovery)
-for these boundaries. A dedicated rollback demonstration is tracked in
-[#81](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns/issues/81),
-not implemented by the current deploy workflows.
-
-#### Validation Checklist (Prod)
-
-- **Smoke tests:** Key reports open and refresh; pipelines/notebooks run successfully.
-- **Connections/configs** match Prod targets (Variable Libraries and deploy-time parameters applied correctly).
-- **Deployment history and pairing** look correct in the pipeline (for any items promoted via Deployment Pipelines).
+Operational steps belong in
+[Release Process](fabric-release-process.md#failure-and-retry-boundaries) and
+[Quality Gates: Failure handling and recovery](fabric-cicd-quality-gates-and-release-controls.md#6-failure-handling-and-recovery).
+A dedicated rollback demonstration remains future work in #81.
 
 
 ---

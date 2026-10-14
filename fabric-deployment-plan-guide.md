@@ -14,7 +14,8 @@ execution. Deployment Plans are in preview, and the fabric-cicd item-inclusion
 API used here is experimental. Validate the method in Test before production.
 Native Fabric Deployment Pipelines are a separate service and are not invoked
 by either adapter. Use the [README comparison](README.md#choose-a-deployment-method)
-to choose a route and the [shared workflow reference](fabric-hybrid-cicd-guide.md#github-actions-workflows)
+to choose a route and the
+[shared workflow reference](fabric-release-process.md#github-actions-workflows)
 to locate its caller and runner.
 
 > Support boundary: fabric-cicd maintainers describe selective deployment as
@@ -35,6 +36,7 @@ begin at [Isolated Bulk Adapter](#isolated-bulk-adapter-14x).
 <pre>
 <a href=".github/workflows/deploy-test-fabric-cicd-plan.yml">deploy-test-fabric-cicd-plan.yml</a> / <a href=".github/workflows/deploy-prod-fabric-cicd-plan.yml">deploy-prod-fabric-cicd-plan.yml</a>
   (orchestrator workflows)
+  -&gt; shared connection preflight, ensure, Owner verification, and ID persistence
   -&gt; <a href=".github/workflows/reusable-deploy-fabric-cicd-plan.yml">reusable-deploy-fabric-cicd-plan.yml</a> (reusable workflow)
      -&gt; <a href="scripts/deploy_fabric_cicd_non_bulk_plan.py">deploy_fabric_cicd_non_bulk_plan.py</a> (deployment adapter)
         -&gt; <a href="scripts/deployment_plan.py">deployment_plan.py</a> (plan reader and scheduler)
@@ -264,12 +266,12 @@ and [bulk limitations](https://microsoft.github.io/fabric-cicd/1.4.0/how_to/opti
 
 The files below implement the **non-bulk plan route**. For the bulk counterpart
 and all other workflow families, use the
-[shared workflow reference](fabric-hybrid-cicd-guide.md#github-actions-workflows).
+[shared workflow reference](fabric-release-process.md#github-actions-workflows).
 
 | File | Role |
 |---|---|
 | [deploy-test-fabric-cicd-plan.yml](.github/workflows/deploy-test-fabric-cicd-plan.yml) | Deploys on qualifying pushes to `test`; also supports manual runs on `test` |
-| [deploy-prod-fabric-cicd-plan.yml](.github/workflows/deploy-prod-fabric-cicd-plan.yml) | Deploys on qualifying pushes to `main`, using the protected `Prod` environment |
+| [deploy-prod-fabric-cicd-plan.yml](.github/workflows/deploy-prod-fabric-cicd-plan.yml) | Deploys on qualifying pushes to `main`, using the `Prod` Environment and any configured protection |
 | [reusable-deploy-fabric-cicd-plan.yml](.github/workflows/reusable-deploy-fabric-cicd-plan.yml) | Installs dependencies, previews the schedule, and runs [deploy_fabric_cicd_non_bulk_plan.py](scripts/deploy_fabric_cicd_non_bulk_plan.py) |
 | [deploy_fabric_cicd_non_bulk_plan.py](scripts/deploy_fabric_cicd_non_bulk_plan.py) | Authenticates with `ClientSecretCredential` and orchestrates public fabric-cicd calls |
 | [deployment_plan.py](scripts/deployment_plan.py) | Validates the supported plan format and calculates the declared order and remainder |
@@ -277,11 +279,13 @@ and all other workflow families, use the
 [deploy-test-fabric-cicd-plan.yml](.github/workflows/deploy-test-fabric-cicd-plan.yml)
 and [deploy-prod-fabric-cicd-plan.yml](.github/workflows/deploy-prod-fabric-cicd-plan.yml)
 use the same environment-scoped secrets, existing WI connection preflight, and
-eight-type scope as the standard method. No additional source-workspace
+eight-type scope as the standard method. Before the publisher starts, each
+selected job creates or reuses the stage WI pair, verifies the connections-admin
+group as Owner, and persists missing IDs. No additional source-workspace
 credential is needed. Their dependent ETL jobs use the same revision;
 [deploy_fabric_cicd_non_bulk_plan.py](scripts/deploy_fabric_cicd_non_bulk_plan.py)
 does not run ETL or model refresh itself. Both plan methods use the same
-[post-ETL follow-up](fabric-hybrid-cicd-guide.md#post-etl-semantic-model-refresh)
+[post-ETL follow-up](fabric-release-process.md#post-etl-semantic-model-refresh)
 as the default non-bulk and raw REST routes: GitHub starts and polls one pipeline;
 Fabric runs load → read-only validation → native refresh, waiting for completion.
 CI is not a second refresh owner.
@@ -314,15 +318,16 @@ Then:
 2. In Actions, choose `Deploy to Test (fabric-cicd Plan)` and run it with branch
    `test`, or merge a qualifying change into `test`.
 3. Review the schedule, deployment, and ETL results using the checks below.
-4. Promote to `main` after Test passes. The existing `Prod` approval gate applies.
+4. Promote to `main` after Test passes. Any configured Prod Environment
+   protection applies; the repository does not create that protection.
 
 A manual [deploy-test-fabric-cicd-plan.yml](.github/workflows/deploy-test-fabric-cicd-plan.yml)
 run on another branch is skipped.
 [deploy-test-fabric-cicd-plan.yml](.github/workflows/deploy-test-fabric-cicd-plan.yml)
 and [deploy-prod-fabric-cicd-plan.yml](.github/workflows/deploy-prod-fabric-cicd-plan.yml)
-do not cancel an already-running plan deployment; concurrency is controlled
-separately for Test and Prod. This does not coordinate a run from another
-deployment method.
+do not cancel an already-running plan deployment. Selected routes share one
+stage concurrency group, so Test releases serialize with other selected Test
+methods and Prod releases serialize with other selected Prod methods.
 
 [deploy-test-fabric-cicd-plan.yml](.github/workflows/deploy-test-fabric-cicd-plan.yml)
 and [deploy-prod-fabric-cicd-plan.yml](.github/workflows/deploy-prod-fabric-cicd-plan.yml)
@@ -386,11 +391,13 @@ physical IDs, and selects the Variable Library value set for `Test` or `Prod`.
 Keep source IDs and replacement rules aligned, and restore Dev bindings before
 promotion as described in the [Development Process](fabric-development-process.md).
 Reading a plan does not replace parameterization.
-The explicit provisioning workflow creates/shares each target's Notebook and Power BI
-datasets connections and persists their GUIDs. Publishers use existing Workspace
-Identity alternatives are described in [Setup](SETUP.md#environment-variables).
-A portable DeploymentPlan logical ID does not
-make the pipeline's physical model/connection GUIDs portable.
+The selected Test/Prod job automatically ensures the target Notebook and
+Power BI datasets Workspace Identity connections before the publisher runs.
+It verifies Owner for the configured group and persists missing GUIDs. The
+publisher then uses those connections read-only. See
+[Release Process](fabric-release-process.md#dev-to-test).
+A portable DeploymentPlan logical ID does not make the pipeline's physical
+model/connection GUIDs portable.
 Environment/value-set names must match exactly. fabric-cicd warns and falls
 back to the default value set if no name matches; keep the committed `Test`
 and `Prod` sets and verify the active set after deployment.
@@ -448,13 +455,11 @@ does not populate tables; publishing `SemanticModel_Group` does not refresh it
 after the loader's writes. Ordering alone does not replace pipeline execution,
 Direct Lake framing, or connection setup. The follow-up does not attach a native plan
 or change either adapter's publishing order.
-Offline tests cover scheduling and fabric-cicd parameterization with a mocked transport;
-they are not evidence of a successful live deployment in your tenant.
-The earlier user-started feature prototype exercised all three activities and
-the label override. It does not live-verify the current explicit-OneLake-path
-validation revision, Git sync/Branch Out binding resolution, CI
-service-principal publication/start, or Test/Prod route parity.
-See the [shared verification boundary](fabric-hybrid-cicd-guide.md#post-etl-semantic-model-refresh).
+Offline tests cover scheduling and fabric-cicd parameterization with a mocked
+transport; they are not evidence of a successful plan-route deployment in your
+tenant. The default non-bulk Test route is live-verified, but neither plan
+adapter has current live evidence. See the
+[shared verification matrix](fabric-release-process.md#verification-status).
 
 ## Relationship to Native Deployment Plans
 

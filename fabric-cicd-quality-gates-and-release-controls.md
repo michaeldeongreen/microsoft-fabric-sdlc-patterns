@@ -67,12 +67,12 @@ At PR, inspect source definitions/code. After publication, inspect effective tar
 
 - Validate definition structure, connections, parameters, and dependency references against the target configuration.
 - Run critical paths on controlled Test input; check terminal execution, failure handling, and expected outputs. Verify the runtime source/destination identity, not just the deployer's access. [Connections](https://learn.microsoft.com/en-us/fabric/data-factory/data-source-management).
-- For this sample, verify both automatically resolved connections (default SP,
-  optional Workspace Identity), physical
-  model/workspace substitutions, the active Library's positive Integer minimum,
-  and the independent String run label. User-authored/user-started feature
-  activity success does not prove CI service-principal publication/start or
-  the ownership compatibility of its deployed model.
+- For this sample, both activities require Workspace Identity-authenticated
+  connections. Verify connector type, Workspace Identity authentication,
+  target workspace, connections-admin Owner, physical model/workspace
+  substitutions, the active Library's positive Integer minimum, and the
+  independent String run label. The deployment service principal publishes
+  and starts the DataPipeline but is not the activity runtime identity.
 
 ### Notebooks and Spark environments
 
@@ -134,7 +134,13 @@ Source-only tests run at PR. Integration, data, and consumer tests run after Tes
 
 ### Execution and completion
 
-- In this repository's [shared Test/Prod follow-up](fabric-hybrid-cicd-guide.md#post-etl-semantic-model-refresh), GitHub starts and polls `Patterns_Load_Validate_And_Refresh` only. Fabric owns load → read-only validation → native refresh; failed validation skips refresh, and refresh failure fails the pipeline. No external refresh fallback or second ETL is wired. The schema/key/reference/source-date/minimum checks are not the full model/business-result or consumer-validation suite.
+- In this repository's
+  [shared Test/Prod follow-up](fabric-release-process.md#post-etl-semantic-model-refresh),
+  GitHub starts and polls `Patterns_Load_Validate_And_Refresh` only. Fabric owns
+  load -> read-only validation -> native refresh; failed validation skips
+  refresh, and refresh failure fails the pipeline. No external refresh fallback
+  or second ETL is wired. The schema/key/reference/source-date/minimum checks
+  are not the full model/business-result or consumer-validation suite.
 - The pipeline job wait is bounded at 60 minutes; load, validation, and refresh
   activity limits are 20, 10, and 10 minutes, respectively. A GitHub polling
   timeout is not server-side cancellation. Check the specific pipeline/activity
@@ -158,12 +164,12 @@ data, not Production: this pipeline's loader writes the sample tables.
    refresh completion, then separately query the model's date fields and check
    consumer results.
 
-This demonstrates an environment policy versus per-run input, not a complete
-workshop or enterprise certification. The earlier feature prototype completed
-all three activities and an API parameter override. The current
-explicit-OneLake-path validation revision is only offline-validated; Git
-sync/Branch Out binding resolution, CI service-principal execution, and Test/Prod
-end-to-end evidence remain separate pending gates.
+This demonstrates an environment policy versus per-run input, not enterprise
+certification. The default fabric-cicd Test release is live-verified through
+connection ensure, publication, and the same-revision DataPipeline. Prod, the
+three alternative publishers, current-revision Branch Out, model/report
+business results, and consumer access remain separate gates. See the
+[verification matrix](fabric-release-process.md#verification-status).
 
 ## 5. Support inventory and exceptions
 

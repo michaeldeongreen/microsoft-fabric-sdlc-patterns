@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+from collections.abc import Mapping
 from io import BytesIO
 from pathlib import Path
 from unittest.mock import Mock
@@ -79,7 +81,7 @@ def test_concurrent_create_is_read_back_and_compared(status: int) -> None:
 @pytest.fixture()
 def actions(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     for key, value in {
-        "GITHUB_ACTIONS": "true", "GITHUB_REF": "refs/heads/test",
+        "GITHUB_ACTIONS": "true", "GITHUB_REF": "refs/heads/test", "ENVIRONMENT": "Test",
         "GITHUB_REPOSITORY": "owner/sample", "FABRIC_WORKSPACE_ID": WORKSPACE,
         bootstrap.GROUP_ENV: GROUP,
     }.items():
@@ -132,6 +134,55 @@ def test_legacy_recovery_restricted_to_dev(actions: Path, monkeypatch: pytest.Mo
     auth.assert_not_called()
 
 
+@pytest.mark.parametrize("ref,environment", [
+    ("refs/heads/test", "Prod"), ("refs/heads/main", "Test"),
+    ("refs/heads/dev", "Test"), ("refs/heads/test", ""),
+])
+def test_selected_environment_mismatch_stops_before_api_access(
+    actions: Path, monkeypatch: pytest.MonkeyPatch, ref: str, environment: str,
+) -> None:
+    monkeypatch.setenv("GITHUB_REF", ref)
+    monkeypatch.setenv("ENVIRONMENT", environment)
+    github = Mock()
+    auth = Mock()
+    monkeypatch.setattr(bootstrap, "GitHubVariables", github)
+    monkeypatch.setattr(bootstrap, "actions_client", auth)
+    with pytest.raises(SystemExit):
+        bootstrap.main(["--operation", "preflight"])
+    github.assert_not_called()
+    auth.assert_not_called()
+    assert not actions.exists()
+
+
+@pytest.mark.parametrize("ref,environment", [
+    ("refs/heads/test", "Test"), ("refs/heads/main", "Prod"),
+])
+def test_release_targets_the_selected_stage(
+    actions: Path, monkeypatch: pytest.MonkeyPatch, ref: str, environment: str,
+) -> None:
+    monkeypatch.setenv("GITHUB_REF", ref)
+    monkeypatch.setenv("ENVIRONMENT", environment)
+    monkeypatch.setenv(bootstrap.TOKEN_ENV, "unit-test-token-never-log")
+    github = Mock()
+    github.preflight.return_value = {}
+    factory = Mock(return_value=github)
+    monkeypatch.setattr(bootstrap, "GitHubVariables", factory)
+    bootstrap.main(["--operation", "preflight"])
+    factory.assert_called_once_with("owner/sample", environment, "unit-test-token-never-log")
+
+
+def test_standalone_setup_derives_environment_only_when_key_is_absent(
+    actions: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("ENVIRONMENT")
+    github = Mock()
+    github.preflight.return_value = {}
+    factory = Mock(return_value=github)
+    monkeypatch.setattr(bootstrap, "GitHubVariables", factory)
+    bootstrap.main(["--operation", "preflight"])
+    assert factory.call_args.args[1] == "Test"
+
+
 def test_persistence_stage_never_authenticates_to_fabric(actions: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     github = FakeGitHub()
     monkeypatch.setattr(bootstrap, "GitHubVariables", Mock(return_value=github))
@@ -153,6 +204,77 @@ def test_preflight_permission_failure_prevents_fabric_stage(actions: Path, monke
     with pytest.raises(SystemExit):
         bootstrap.main(["--operation", "preflight"])
     auth.assert_not_called()
+
+
+def run_release_setup(
+    output_root: Path, monkeypatch: pytest.MonkeyPatch,
+) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for operation in ("preflight", "provision", "persist"):
+        output = output_root.with_name(f"{output_root.name}-{operation}")
+        with monkeypatch.context() as step:
+            step.setenv("GITHUB_OUTPUT", str(output))
+            for key in bootstrap.CONNECTION_KEYS:
+                step.delenv(key, raising=False)
+            for key, value in values.items():
+                step.setenv(key, value)
+            step.delenv("AZURE_CLIENT_SECRET", raising=False)
+            step.delenv(bootstrap.TOKEN_ENV, raising=False)
+            if operation == "provision":
+                step.setenv("AZURE_CLIENT_SECRET", "unit-test-sp-secret")
+            else:
+                step.setenv(bootstrap.TOKEN_ENV, "unit-test-token-never-log")
+            bootstrap.main(["--operation", operation])
+        if operation != "persist":
+            values = dict(line.split("=", 1) for line in output.read_text(encoding="utf-8").splitlines())
+    return values
+
+
+def test_cold_first_release_and_repeat_resolve_and_persist_in_same_run(
+    actions: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    github = FakeGitHub()
+    client = fake_client()
+
+    def fabric_factory(environ: Mapping[str, str]) -> Mock:
+        assert bootstrap.TOKEN_ENV not in environ
+        return client
+
+    def github_factory(repository: str, environment: str, token: str) -> FakeGitHub:
+        assert "AZURE_CLIENT_SECRET" not in os.environ
+        assert environment == "Test"
+        return github
+
+    monkeypatch.setattr(bootstrap, "actions_client", fabric_factory)
+    monkeypatch.setattr(bootstrap, "GitHubVariables", github_factory)
+    assert github.values == {} and client.connections == {}
+    resolved = run_release_setup(actions, monkeypatch)
+    assert resolved == VALUES
+    assert github.values == VALUES
+    assert all(client.roles[identifier][0]["role"] == "Owner" for identifier in VALUES.values())
+    client.request.reset_mock()
+    github.calls.clear()
+    assert run_release_setup(actions.with_name("repeat"), monkeypatch) == resolved
+    assert all(call.args[0] == "GET" for call in client.request.call_args_list)
+    assert all(method == "GET" for method, _, _ in github.calls)
+
+
+@pytest.mark.parametrize("failure", ["owner", "persistence"])
+def test_failed_release_setup_prevents_publication(
+    actions: Path, monkeypatch: pytest.MonkeyPatch, failure: str,
+) -> None:
+    github = FakeGitHub()
+    monkeypatch.setattr(bootstrap, "GitHubVariables", Mock(return_value=github))
+    monkeypatch.setattr(bootstrap, "actions_client", Mock(return_value=fake_client()))
+    if failure == "owner":
+        monkeypatch.setattr(bootstrap, "grant_connection_group_owner", Mock(side_effect=ValueError("Owner grant denied")))
+    else:
+        github.persist = Mock(side_effect=bootstrap.GitHubVariableError("Variable write denied", 403))
+    publish = Mock()
+    with pytest.raises(SystemExit):
+        resolved = run_release_setup(actions, monkeypatch)
+        publish(resolved)
+    publish.assert_not_called()
 
 
 def test_http_client_uses_fixed_host_and_never_logs_token(capsys: pytest.CaptureFixture[str]) -> None:

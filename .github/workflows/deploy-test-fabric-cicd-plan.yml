@@ -10,6 +10,7 @@ on:
       - "scripts/deployment_plan.py"
       - "scripts/deploy_fabric_cicd_non_bulk_plan.py"
       - "scripts/fabric_connections.py"
+      - "scripts/bootstrap_dev_connections.py"
       - "scripts/prepare_fabric_workspace.py"
       - "scripts/pipeline_bindings.py"
       - "scripts/run_fabric_etl.py"

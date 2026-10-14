@@ -425,7 +425,12 @@ def test_reusable_workflows_reference_existing_runner(
     steps = _workflow(workflow_name)["jobs"]["deploy"]["steps"]
     invocations = [step["run"] for step in steps if step.get("run", "").startswith("python scripts/")]
     assert invocations
-    assert all(command.split()[1] == f"scripts/{runner_name}" for command in invocations)
+    assert {command.split()[1] for command in invocations} == {
+        f"scripts/{runner_name}", "scripts/bootstrap_dev_connections.py",
+    }
+    assert [command.rsplit(" ", 1)[1] for command in invocations if "bootstrap_dev_connections.py" in command] == [
+        "preflight", "provision", "persist",
+    ]
     assert (REPO_ROOT / "scripts" / runner_name).is_file()
 
 
@@ -470,7 +475,12 @@ def test_reusable_workflow_validates_before_loading_azure_secrets() -> None:
     execute = next(i for i, step in enumerate(steps) if "AZURE_CLIENT_SECRET" in step.get("env", {}))
     assert preview < execute
     assert all("AZURE_CLIENT_SECRET" not in step.get("env", {}) for step in steps[:execute])
-    assert steps[execute]["run"] == "python scripts/deploy_fabric_cicd_non_bulk_plan.py"
+    assert steps[execute]["run"] == "python scripts/bootstrap_dev_connections.py --operation provision"
+    publish = next(i for i, step in enumerate(steps)
+                   if step.get("run") == "python scripts/deploy_fabric_cicd_non_bulk_plan.py")
+    persist = next(i for i, step in enumerate(steps)
+                   if step.get("run") == "python scripts/bootstrap_dev_connections.py --operation persist")
+    assert execute < persist < publish
     for step in steps:
         if "uses" in step:
             sha = step["uses"].split("@")[1]

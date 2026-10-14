@@ -1,4 +1,4 @@
-"""Provision WI connections and persist their IDs in a trusted Actions job.
+"""Ensure WI connections before release publication or explicit Dev setup.
 
 The workflow uses the deployment SP only for Fabric management and a GitHub
 PAT only for environment-variable writes. No model/pipeline prerequisite,
@@ -191,6 +191,8 @@ def main(argv: list[str] | None = None) -> None:
         environment = ENVIRONMENTS.get(os.environ.get("GITHUB_REF", ""))
         if environment is None:
             raise BootstrapError("Provision only from the reviewed dev, test, or main branch.")
+        if "ENVIRONMENT" in os.environ and os.environ["ENVIRONMENT"] != environment:
+            raise BootstrapError("The selected Environment must match the reviewed branch's target.")
         workspace = validate_guid(os.environ.get("FABRIC_WORKSPACE_ID"), "FABRIC_WORKSPACE_ID")
         group = validate_guid(os.environ.get(GROUP_ENV), GROUP_ENV)
         if group == workspace:

@@ -8,7 +8,8 @@
 #
 # Prerequisites:
 #   - GitHub Environment secrets: AZURE_TENANT_ID, AZURE_CLIENT_ID,
-#     AZURE_CLIENT_SECRET, FABRIC_WORKSPACE_ID
+#     AZURE_CLIENT_SECRET, FABRIC_WORKSPACE_ID, GH_ENV_VARIABLES_TOKEN
+#   - FABRIC_CONNECTION_ADMINS_GROUP_ID and an existing target Workspace Identity
 #   - Service principal must have Contributor (or higher) role on the target workspace
 #   - Fabric Admin must enable "Service principals can use Fabric APIs"
 #   - parameter.yml in repository_directory for environment-specific replacements
@@ -42,9 +43,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: ${{ inputs.environment }}
+    env:
+      FABRIC_CONNECTION_MODE: existing
+      FABRIC_RUNTIME_AUTHENTICATION: WorkspaceIdentity
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
@@ -52,13 +58,49 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install "fabric-cicd>=1.2.0,<2.0.0" azure-identity
+        run: pip install "fabric-cicd>=1.4.0,<1.5.0" azure-identity
+
+      - name: Validate saved connection IDs and GitHub access
+        id: existing
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          FABRIC_WORKSPACE_ID: ${{ secrets.FABRIC_WORKSPACE_ID }}
+          FABRIC_CONNECTION_ADMINS_GROUP_ID: ${{ vars.FABRIC_CONNECTION_ADMINS_GROUP_ID }}
+          GH_ENV_VARIABLES_TOKEN: ${{ secrets.GH_ENV_VARIABLES_TOKEN }}
+        run: python scripts/bootstrap_dev_connections.py --operation preflight
+
+      # Repeat releases intentionally validate and reuse the saved WI pair
+      # before publication instead of assuming first-run connection state.
+      - name: Ensure WI connections and verify admin-group Owner
+        id: connections
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          FABRIC_WORKSPACE_ID: ${{ secrets.FABRIC_WORKSPACE_ID }}
+          FABRIC_CONNECTION_ADMINS_GROUP_ID: ${{ vars.FABRIC_CONNECTION_ADMINS_GROUP_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          NOTEBOOK_CONNECTION_ID: ${{ steps.existing.outputs.NOTEBOOK_CONNECTION_ID }}
+          SEMANTIC_MODEL_REFRESH_CONNECTION_ID: ${{ steps.existing.outputs.SEMANTIC_MODEL_REFRESH_CONNECTION_ID }}
+        run: python scripts/bootstrap_dev_connections.py --operation provision
+
+      - name: Save and verify connection IDs for future releases
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          FABRIC_WORKSPACE_ID: ${{ secrets.FABRIC_WORKSPACE_ID }}
+          FABRIC_CONNECTION_ADMINS_GROUP_ID: ${{ vars.FABRIC_CONNECTION_ADMINS_GROUP_ID }}
+          GH_ENV_VARIABLES_TOKEN: ${{ secrets.GH_ENV_VARIABLES_TOKEN }}
+          NOTEBOOK_CONNECTION_ID: ${{ steps.connections.outputs.NOTEBOOK_CONNECTION_ID }}
+          SEMANTIC_MODEL_REFRESH_CONNECTION_ID: ${{ steps.connections.outputs.SEMANTIC_MODEL_REFRESH_CONNECTION_ID }}
+        run: python scripts/bootstrap_dev_connections.py --operation persist
 
       # fabric-cicd reads parameter.yml from the repository_directory root
       # and applies environment-specific find_replace / key_value_replace rules
       # before uploading item definitions to the target workspace.
       - name: Deploy with fabric-cicd
         env:
+          NOTEBOOK_CONNECTION_ID: ${{ steps.connections.outputs.NOTEBOOK_CONNECTION_ID }}
+          SEMANTIC_MODEL_REFRESH_CONNECTION_ID: ${{ steps.connections.outputs.SEMANTIC_MODEL_REFRESH_CONNECTION_ID }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
@@ -66,4 +108,4 @@ jobs:
           REPOSITORY_DIRECTORY: ${{ inputs.repository_directory }}
           ENVIRONMENT: ${{ inputs.environment }}
           ITEM_TYPE_IN_SCOPE: ${{ inputs.item_type_in_scope }}
-        run: python scripts/deploy_fabric_cicd.py
+        run: python scripts/deploy_fabric_cicd_non_bulk.py

@@ -1,0 +1,92 @@
+name: Provision Fabric Connections
+run-name: Provision Fabric Connections (${{ github.ref_name }}, ${{ inputs.operation }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "Provision WI connections, or recover group ownership of an explicit legacy Dev pair"
+        required: true
+        default: provision
+        type: choice
+        options:
+          - provision
+          - share-existing
+      legacy_notebook_connection_id:
+        description: "Only for share-existing: exact legacy Dev Notebook connection ID"
+        required: false
+        type: string
+      legacy_refresh_connection_id:
+        description: "Only for share-existing: exact legacy Dev refresh connection ID"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fabric-connections-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  provision:
+    name: Provision and share existing-workspace WI connections
+    if: contains(fromJSON('["refs/heads/dev","refs/heads/test","refs/heads/main"]'), github.ref)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: ${{ github.ref == 'refs/heads/dev' && 'Dev' || github.ref == 'refs/heads/test' && 'Test' || 'Prod' }}
+    env:
+      FABRIC_WORKSPACE_ID: ${{ secrets.FABRIC_WORKSPACE_ID }}
+    steps:
+      - name: Checkout reviewed setup code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Validate GitHub access and existing variable values
+        if: inputs.operation == 'provision'
+        id: existing
+        env:
+          FABRIC_CONNECTION_ADMINS_GROUP_ID: ${{ vars.FABRIC_CONNECTION_ADMINS_GROUP_ID }}
+          GH_ENV_VARIABLES_TOKEN: ${{ secrets.GH_ENV_VARIABLES_TOKEN }}
+        run: python scripts/bootstrap_dev_connections.py --operation preflight
+
+      - name: Install Fabric authentication dependency
+        run: pip install "azure-identity>=1.15"
+
+      - name: Provision WI connections and verify group Owner
+        if: inputs.operation == 'provision'
+        id: connections
+        env:
+          FABRIC_CONNECTION_ADMINS_GROUP_ID: ${{ vars.FABRIC_CONNECTION_ADMINS_GROUP_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          NOTEBOOK_CONNECTION_ID: ${{ steps.existing.outputs.NOTEBOOK_CONNECTION_ID }}
+          SEMANTIC_MODEL_REFRESH_CONNECTION_ID: ${{ steps.existing.outputs.SEMANTIC_MODEL_REFRESH_CONNECTION_ID }}
+        run: python scripts/bootstrap_dev_connections.py --operation provision
+
+      - name: Save connection IDs without overwriting existing values
+        if: inputs.operation == 'provision'
+        env:
+          FABRIC_CONNECTION_ADMINS_GROUP_ID: ${{ vars.FABRIC_CONNECTION_ADMINS_GROUP_ID }}
+          GH_ENV_VARIABLES_TOKEN: ${{ secrets.GH_ENV_VARIABLES_TOKEN }}
+          NOTEBOOK_CONNECTION_ID: ${{ steps.connections.outputs.NOTEBOOK_CONNECTION_ID }}
+          SEMANTIC_MODEL_REFRESH_CONNECTION_ID: ${{ steps.connections.outputs.SEMANTIC_MODEL_REFRESH_CONNECTION_ID }}
+        run: python scripts/bootstrap_dev_connections.py --operation persist
+
+      - name: Recover admin-group ownership of explicit legacy Dev connections
+        if: inputs.operation == 'share-existing'
+        env:
+          FABRIC_CONNECTION_ADMINS_GROUP_ID: ${{ vars.FABRIC_CONNECTION_ADMINS_GROUP_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          LEGACY_NOTEBOOK_CONNECTION_ID: ${{ inputs.legacy_notebook_connection_id }}
+          LEGACY_REFRESH_CONNECTION_ID: ${{ inputs.legacy_refresh_connection_id }}
+        run: python scripts/bootstrap_dev_connections.py --operation share-existing

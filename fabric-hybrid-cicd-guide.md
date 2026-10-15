@@ -1,10 +1,21 @@
 **English** | [Español](translations/es/fabric-hybrid-cicd-guide.md)
 
-# Hybrid CI/CD Implementation Guide
+<a id="hybrid-cicd-implementation-guide"></a>
 
-This repository implements the **Hybrid CI/CD recommendation** for Microsoft Fabric using **fabric-cicd**. It demonstrates how to deploy Fabric workspace items (Notebooks, Lakehouses, Variable Libraries, Semantic Models, Reports, Ontologies, Data Agents) across environments using GitHub Actions.
+# fabric-cicd Non-Bulk CI/CD Guide
 
-For the full CI/CD strategy, release option comparison, and recommendation rationale, see [fabric-cicd-release-options.md](fabric-cicd-release-options.md).
+This guide describes fabric-cicd non-bulk, this repository's default deployment
+method and recommended starting point. It owns the publisher-specific mechanics:
+three publication phases, `parameter.yml`, eligible orphan cleanup, and
+clean-target behavior.
+
+[Release Process](fabric-release-process.md) owns behavior shared by all four
+methods: promotion, connection ensure, workflow selection, the same-revision
+Fabric DataPipeline handoff, recovery, and verification status.
+
+For the release option comparison and [optional extensions for unsupported items](fabric-cicd-release-options.md#optional-extensions-for-unsupported-items), see [CI/CD Release Options](fabric-cicd-release-options.md).
+
+The existing filename is retained to preserve links to this guide.
 
 ---
 
@@ -32,35 +43,57 @@ Git repo (dev branch)
 ┌─────────────────────────────────────────────────────┐
 │  deploy-test.yml (orchestrator)                     │
 │                                                     │
+│  selected release prelude                           │
+│    └─ ensure WI connections + persist IDs           │
 │  deploy-fabric-cicd                                 │
 │    └─ reusable-deploy-fabric-cicd.yml               │
 │       └─ fabric-cicd: publish_all_items()           │
 │          (Phase 1: Lakehouse + Ontology)            │
-│          (Phase 2: all remaining items)             │
+│          (Phase 2: non-pipeline dependents)         │
+│          (Phase 3: DataPipeline; fresh state)       │
 └─────────────────────────────────────────────────────┘
-                     │ workflow_run (on success)
+                     │ needs: deploy-fabric-cicd
                      ▼
 ┌─────────────────────────────────────────────────────┐
-│  etl-test.yml                                       │
+│  deploy-test.yml: run-etl (same revision)            │
 │    └─ reusable-fabric-etl.yml                       │
-│       └─ Fabric REST API: run notebook by name      │
+│       └─ Fabric REST API: run DataPipeline + wait   │
 └─────────────────────────────────────────────────────┘
+                     │ Fabric activity dependencies
+                     ▼
+    Import_Patterns_Data → Validate_Patterns_Data
+       → native refresh of Patterns_Semantic_Model
 ```
 
-The same pattern applies to Prod (`deploy-prod.yml` → `etl-prod.yml`), triggered on push to `main`.
+The same publication mechanics apply to Prod. See the
+[shared Test/Prod contract](fabric-release-process.md#dev-to-test) for the
+complete job sequence and branch mapping.
 
-> Alternative deploy paths exist alongside this standard fabric-cicd path — a raw Bulk Import API path and a `fabric-cicd-bulk` variant that runs fabric-cicd with bulk publish enabled — all selected by the `DEPLOY_METHOD` repo variable. The standard fabric-cicd path shown here is the recommended one — see [fabric-cicd vs Bulk APIs](fabric-cicd-release-options.md#tooling-within-option-3-fabric-cicd-vs-bulk-apis) for the comparison and [Bulk CI/CD Implementation Guide](fabric-bulk-cicd-guide.md) for the bulk path's implementation walkthrough.
+GitHub publishes definitions and starts/polls one
+`Patterns_Load_Validate_And_Refresh` job. Fabric owns validation and the only
+refresh; no GitHub Power BI refresh step or runtime fallback remains. This
+Fabric DataPipeline orchestrates work, whereas native Fabric Deployment
+Pipelines promote content and DeploymentPlan orders publication.
+
+> Alternative deploy paths exist alongside this default fabric-cicd non-bulk route — raw REST bulk and two fabric-cicd routes with client-read plans — all selected by `DEPLOY_METHOD`. This repository recommends the default non-bulk route as the starting point; see the [method matrix](README.md#choose-a-deployment-method) and the [raw REST guide](fabric-bulk-cicd-guide.md).
+
+For configurable ordering without changing this default path, see the
+[Deployment Plan CI/CD Guide](fabric-deployment-plan-guide.md). The independent
+`fabric-cicd-plan` and `fabric-cicd-bulk` adapters use the committed plan instead
+of fixed phases: sequential standard calls or grouped strict bulk calls,
+respectively. Neither executes a native Deployment Plan.
 
 ### Branches & Workspaces
 
 | Branch | Workspace | Deployment Method |
 |---|---|---|
 | `dev` | Dev (microsoft-fabric-sdlc-patterns-dev) | Git-connected via Fabric Git integration |
-| `test` | Test (microsoft-fabric-sdlc-patterns-test) | fabric-cicd via GitHub Actions |
-| `main` | Prod (microsoft-fabric-sdlc-patterns-prod) | fabric-cicd via GitHub Actions |
+| `test` | Test (microsoft-fabric-sdlc-patterns-test) | Selected API publisher; this guide covers fabric-cicd |
+| `main` | Prod (microsoft-fabric-sdlc-patterns-prod) | Selected API publisher; this guide covers fabric-cicd |
 
-- **Dev** workspace is the only Git-connected workspace. Developers branch out from Dev for isolated feature work.
-- **Test** and **Prod** workspaces are NOT Git-connected. They receive deployments exclusively through fabric-cicd.
+- Dev is the only Git-connected shared workspace. Developers Branch Out from
+  Dev for isolated feature work.
+- Test and Prod are not Git-connected. They receive API-based publication.
 
 ---
 
@@ -68,52 +101,28 @@ The same pattern applies to Prod (`deploy-prod.yml` → `etl-prod.yml`), trigger
 
 ```
 microsoft-fabric-sdlc-patterns/
-├── .github/
-│   ├── instructions/
-│   │   ├── actions.instructions.md          # Copilot instructions for workflow authoring
-│   │   └── python.instructions.md           # Copilot instructions for Python scripts
-│   └── workflows/
-│       ├── deploy-test.yml                       # Orchestrator: push to test → fabric-cicd deploy
-│       ├── deploy-prod.yml                       # Orchestrator: push to main → fabric-cicd deploy
-│       ├── deploy-test-bulk.yml                  # Alternative orchestrator: bulk API deploy on push to test
-│       ├── deploy-prod-bulk.yml                  # Alternative orchestrator: bulk API deploy on push to main
-│       ├── etl-test.yml                          # Triggers after any deploy-test* workflow succeeds
-│       ├── etl-prod.yml                          # Triggers after any deploy-prod* workflow succeeds
-│       ├── reusable-deploy-fabric-cicd.yml       # Template: fabric-cicd deployment
-│       ├── reusable-deploy-bulk.yml              # Template: Bulk Import API deployment (Preview)
-│       ├── reusable-fabric-etl.yml               # Template: run Notebook via Fabric REST API
-│       ├── check-pr-ready.yml                    # PR check: blocks feature IDs from merging to dev
-│       ├── run-tests.yml                         # PR check: runs pytest when scripts/tests change
-│       └── enforce-promotion-path.yml            # PR check: enforces dev→test→main source-branch promotion
-├── data/
-│   └── fabric/                              # Fabric item definitions (repository_directory)
-│       ├── parameter.yml                    # fabric-cicd deploy-time parameterization
-│       ├── bulk-parameter.yml               # Bulk path's parameterization (independent format)
-│       ├── PatternsLakehouse.Lakehouse/
-│       ├── Patterns_Ontology.Ontology/
-│       ├── Patterns_Variables.VariableLibrary/
-│       │   ├── variables.json
-│       │   ├── settings.json
-│       │   └── valueSets/
-│       │       ├── Test.json
-│       │       └── Prod.json
-│       ├── Import_Patterns_Data.Notebook/   # ETL notebook (creates Delta tables)
-│       ├── Patterns_Patients_Data.Notebook/
-│       ├── Patterns_Demo.Notebook/
-│       ├── Patterns_Semantic_Model.SemanticModel/
-│       ├── Patterns_Report.Report/
-│       └── Patterns_Data_Agent.DataAgent/
+├── .github/workflows/
+│   ├── deploy-test.yml
+│   ├── deploy-prod.yml
+│   └── reusable-deploy-fabric-cicd.yml
+├── data/fabric/
+│   ├── parameter.yml
+│   ├── PatternsLakehouse.Lakehouse/
+│   ├── Patterns_Ontology.Ontology/
+│   ├── Patterns_Variables.VariableLibrary/
+│   ├── *.Notebook/
+│   ├── *.SemanticModel/
+│   ├── *.Report/
+│   ├── *.DataAgent/
+│   └── *.DataPipeline/
 ├── scripts/
-│   ├── workspace_swap.py                    # Bootstrap/reset feature branch workspace bindings
-│   ├── deploy_fabric_cicd.py                # fabric-cicd deploy (invoked by reusable-deploy-fabric-cicd.yml)
-│   ├── deploy_bulk.py                       # Bulk Import API deploy (invoked by reusable-deploy-bulk.yml)
-│   └── run_fabric_etl.py                    # Run a Fabric Notebook job (invoked by reusable-fabric-etl.yml)
-├── assets/                                  # Architecture diagrams (SVG)
-├── fabric-cicd-release-options.md           # CI/CD strategy and release option comparison
-├── fabric-hybrid-cicd-guide.md               # This file
-├── fabric-development-process.md             # Development process
-└── README.md                                # Repository landing page
+│   └── deploy_fabric_cicd_non_bulk.py
+├── fabric-release-process.md
+└── fabric-hybrid-cicd-guide.md
 ```
+
+The complete workflow inventory is in
+[Release Process](fabric-release-process.md#github-actions-workflows).
 
 ---
 
@@ -121,38 +130,72 @@ microsoft-fabric-sdlc-patterns/
 
 ### What Triggers What
 
-| Event | Workflow Triggered | What It Does |
-|---|---|---|
-| Push to `test` branch (changes in `data/fabric/**`) | `deploy-test.yml` | Deploys all supported items to the Test workspace |
-| `deploy-test.yml` completes successfully | `etl-test.yml` | Runs the `Import_Patterns_Data` notebook in the Test workspace |
-| Push to `main` branch (changes in `data/fabric/**`) | `deploy-prod.yml` | Deploys all supported items to the Prod workspace |
-| `deploy-prod.yml` completes successfully | `etl-prod.yml` | Runs the `Import_Patterns_Data` notebook in the Prod workspace |
+This shared section moved to
+[Release Process: What triggers what](fabric-release-process.md#what-triggers-what).
+The heading remains here so existing links continue to resolve.
 
 ### Deploy Job
 
-Each deploy workflow calls `reusable-deploy-fabric-cicd.yml`, which publishes all supported items from Git to the target workspace using fabric-cicd. It uses a two-phase approach: Phase 1 deploys Lakehouse + Ontology, Phase 2 deploys all remaining items (Variable Library, Notebooks, Semantic Model, Report, Data Agent). Item types are explicitly scoped via `item_type_in_scope`.
+After the shared
+[connection prelude](fabric-release-process.md#dev-to-test), the selected
+workflow calls `reusable-deploy-fabric-cicd.yml`. With a DataPipeline in scope,
+the standard runner makes three publish calls: Lakehouse +
+Ontology; non-pipeline dependents (Variable Library, Notebooks, Semantic Model,
+Report, Data Agent); then DataPipeline. fabric-cicd caches workspace state
+within a call, so item order alone does not make newly created notebook/model
+IDs available to pipeline references. The third call uses fresh discovery.
+Without a DataPipeline, the runner retains its two-phase behavior.
+Item types remain explicitly scoped via `item_type_in_scope`.
 
-The ETL workflow triggers automatically after the deploy workflow completes successfully. If the deploy fails, ETL does not run.
+The dependent ETL job starts after publication succeeds. The shared handoff is
+documented in
+[Release Process](fabric-release-process.md#etl-callers-and-handoff).
 
-> **Note:** If your workspace includes item types not yet supported by fabric-cicd, you can extend this to a multi-job "sandwich" pattern: (1) deploy supported items, (2) promote unsupported items via the [Fabric Deployment Pipelines REST API](https://learn.microsoft.com/en-us/rest/api/fabric/core/deployment-pipelines/deploy-stage-content), (3) deploy supported items that depend on the unsupported items. See [fabric-cicd-release-options.md](fabric-cicd-release-options.md) for details.
+<a id="strict-plan-driven-sdk-bulk-14x"></a>
+
+### fabric-cicd Bulk with a Client-Read Plan (1.4.x)
+
+This guide no longer owns the plan adapters. See
+[Deployment Plan CI/CD Guide](fabric-deployment-plan-guide.md#isolated-bulk-adapter-14x)
+for fabric-cicd bulk behavior and its validation boundary. This anchor remains
+for compatibility with existing links.
 
 ---
 
 ## GitHub Actions Workflows
 
+The shared workflow reference moved to
+[Release Process: GitHub Actions workflows](fabric-release-process.md#github-actions-workflows).
+The compatibility headings below preserve existing deep links without
+maintaining a second copy of the release contract.
+
+### Pull-Request Checks
+
+See [Release Process: Pull-request checks](fabric-release-process.md#pull-request-checks).
+
+### Deployment Callers
+
+See [Release Process: Deployment callers](fabric-release-process.md#deployment-callers).
+
 ### Reusable Templates (called via `workflow_call`)
 
-| Template | Purpose |
-|---|---|
-| `reusable-deploy-fabric-cicd.yml` | Two-phase fabric-cicd deployment: Phase 1 deploys Lakehouse + Ontology, Phase 2 deploys all remaining items via `publish_all_items()` and `unpublish_all_orphan_items()`. Accepts `environment`, `repository_directory`, and optional `item_type_in_scope` inputs. |
-| `reusable-fabric-etl.yml` | Resolves a Fabric item by **name** (not ID) via the List Items API, then starts a job (RunNotebook) and polls until completion. No item IDs need to be known ahead of time. |
+See
+[Release Process: Reusable templates](fabric-release-process.md#reusable-templates-called-via-workflow_call).
+
+### ETL Callers and Handoff
+
+See
+[Release Process: ETL callers and handoff](fabric-release-process.md#etl-callers-and-handoff).
+
+#### Post-ETL Semantic Model Refresh
+
+See
+[Release Process: Post-ETL semantic model refresh](fabric-release-process.md#post-etl-semantic-model-refresh).
 
 ### Why Reusable Workflows (Not Composite Actions)
 
-Reusable workflows support the `environment:` keyword at the job level, which enables:
-- **GitHub Environment protection rules** (required reviewers, branch restrictions on Prod)
-- **Environment-scoped secrets** (each environment has its own `FABRIC_WORKSPACE_ID`)
-- `secrets: inherit` forwards all environment secrets without enumeration
+See
+[Release Process: Why reusable workflows](fabric-release-process.md#why-reusable-workflows-not-composite-actions).
 
 ---
 
@@ -162,7 +205,10 @@ Two complementary mechanisms handle environment-specific configuration:
 
 ### 1. Variable Libraries (Runtime)
 
-Notebooks call `notebookutils.variableLibrary.getLibrary("Patterns_Variables")` at execution time to resolve workspace IDs, lakehouse names, and other values. The Variable Library has **value sets** per environment:
+The loader and validation notebook call `notebookutils.variableLibrary.getLibrary("Patterns_Variables")`
+at execution time for workspace/lakehouse configuration. The pipeline also
+binds the active Library's patient minimum to validation's base parameter.
+The Variable Library has **value sets** per environment:
 
 | Variable | Default (Dev) | Test | Prod |
 |---|---|---|---|
@@ -170,8 +216,9 @@ Notebooks call `notebookutils.variableLibrary.getLibrary("Patterns_Variables")` 
 | `target_workspace_name` | `microsoft-fabric-sdlc-patterns-dev` | `microsoft-fabric-sdlc-patterns-test` | `microsoft-fabric-sdlc-patterns-prod` |
 | `target_lakehouse_name` | `PatternsLakehouse` | *(default)* | *(default)* |
 | `target_lakehouse_id` | Dev lakehouse ID | Dev lakehouse ID* | Dev lakehouse ID* |
+| `minimum_patient_count` (Integer) | `5` | `5` | `5` |
 
-\* The `target_lakehouse_id` uses the Dev GUID as a placeholder in the value set files. At deploy time, `parameter.yml` replaces it with the actual lakehouse ID in the target workspace (see below).
+\* Test/Prod inherit `target_lakehouse_id` from the base [variables.json](data/fabric/Patterns_Variables.VariableLibrary/variables.json); their value-set files do not override it. At deploy time, [parameter.yml](data/fabric/parameter.yml) replaces that base placeholder with the target Lakehouse ID. fabric-cicd bulk keeps settings/value-set control files literal; see its [replacement safety boundary](fabric-deployment-plan-guide.md#fabric-cicd-replacements-and-strict-success).
 
 **Active value set binding:** fabric-cicd automatically sets the active value set based on the `environment` parameter passed to `FabricWorkspace`. When `environment="Test"`, the `Test` value set becomes active. This happens on every deployment — no manual intervention needed.
 
@@ -183,7 +230,7 @@ The `parameter.yml` file in `data/fabric/` uses fabric-cicd's `find_replace` wit
 
 ```yaml
 find_replace:
-    - find_value: "7694ebac-deb9-4a40-a846-0782b36b3bda"  # Dev lakehouse ID
+    - find_value: "<DEV_LAKEHOUSE_ID>"
       replace_value:
           _ALL_: "$items.Lakehouse.PatternsLakehouse.$id"  # Resolved at deploy time
       item_type: "VariableLibrary"
@@ -191,81 +238,57 @@ find_replace:
 
 **How it works:** fabric-cicd deploys items in dependency order — the Lakehouse is created before the Variable Library. When processing Variable Library files, `$items.Lakehouse.PatternsLakehouse.$id` resolves to the actual lakehouse GUID in the target workspace. The `_ALL_` key means this applies to every environment.
 
+DataPipeline rules also replace physical workspace/model IDs and source
+canonical Dev connections. Target model replacement uses
+`$items.SemanticModel.Patterns_Semantic_Model.$id`; connection replacement uses
+the exact `$ENV:NOTEBOOK_CONNECTION_ID` and
+`$ENV:SEMANTIC_MODEL_REFRESH_CONNECTION_ID` names. The runners enable
+environment-variable replacement and validate both connection GUIDs before
+definition publication. The `>=1.4.0,<1.5.0` library range is required.
+The selected release's connection prelude, not the publisher subprocess or
+parameter replacement, owns Test/Prod connection creation and sharing. Source
+preflight checks actual fields and parameter baselines so stale feature IDs
+cannot silently miss a literal replacement.
+
 ---
 
 ## Prerequisites & Setup
 
-### 1. Fabric Capacity
-
-A Fabric or Power BI Premium capacity is required for all workspaces.
-
-### 2. Fabric Workspaces
-
-Three workspaces are needed:
-- **microsoft-fabric-sdlc-patterns-dev** — connected to the `dev` branch via Fabric Git integration
-- **microsoft-fabric-sdlc-patterns-test** — not Git-connected, receives deployments via fabric-cicd
-- **microsoft-fabric-sdlc-patterns-prod** — not Git-connected, receives deployments via fabric-cicd
-
-### 3. Service Principal
-
-Create a Service Principal for CI/CD automation:
-
-```bash
-az ad sp create-for-rbac --name "SPN-Microsoft-Fabric-SDLC-Patterns" \
-  --query "{tenantId:tenant, clientId:appId, clientSecret:password}" -o json
-```
-
-- Add the SPN as **Contributor** on both Test and Prod workspaces (Workspace → Manage access → Add people or groups)
-- Contributor is the minimum required role per the [Fabric Create Item API](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/create-item) documentation
-
-> **Important:** A Fabric Admin must enable service principal access to Fabric APIs in the Fabric Admin portal under Developer settings, scoped to a security group containing only your CI/CD SPs. See [developer tenant settings](https://learn.microsoft.com/en-us/fabric/admin/service-admin-portal-developer) and the [Governance Considerations](fabric-cicd-governance-considerations.md) for details.
-
-### 4. GitHub Environments
-
-Create two GitHub Environments in the repository settings (Settings → Environments):
-
-| Environment | Protection Rules |
-|---|---|
-| `Test` | None (deploy flows automatically on merge) |
-| `Prod` | Required reviewers, deployment branch restriction to `main` only |
-
-> **Note:** GitHub Environment names are case-insensitive, but the names must match the Variable Library value set names (`Test`, `Prod`) because fabric-cicd uses the `environment` value to set the active value set.
-
-### 5. GitHub Environment Secrets
-
-Add these secrets to **both** `Test` and `Prod` environments:
-
-| Secret | Description |
-|---|---|
-| `AZURE_TENANT_ID` | Entra ID tenant ID |
-| `AZURE_CLIENT_ID` | Service Principal client/app ID |
-| `AZURE_CLIENT_SECRET` | Service Principal client secret |
-| `FABRIC_WORKSPACE_ID` | Target workspace ID (different per environment) |
-
-The first three secrets are identical across environments (single SPN). `FABRIC_WORKSPACE_ID` differs:
-- Test: the Test workspace ID
-- Prod: the Prod workspace ID
-
-### 6. Copilot Instructions
-
-The `.github/instructions/actions.instructions.md` file provides path-specific Copilot instructions for authoring GitHub Actions workflows. It applies automatically when editing any `.yml` file under `.github/workflows/` and covers security (pin actions to SHA, minimal permissions), performance (`timeout-minutes`), and fabric-cicd best practices.
+Follow the [Setup Guide](SETUP.md) to configure a fork, create the Fabric
+workspaces, replace the reference environment IDs, configure GitHub, and perform
+the first promotion. This implementation guide assumes that setup is complete.
 
 ---
 
 ## Initial Deployment to a Clean Workspace
 
-When deploying to a workspace for the first time (e.g., a newly created Test or Prod workspace), follow these steps in order. Subsequent deployments are fully automated — only the first deployment requires manual intervention.
+This walkthrough uses the standard `fabric-cicd` route. Follow these steps for
+the first deployment to a clean target. Subsequent publication, ETL, and model
+refresh are automated, subject to configured approvals; required release
+validation and any changed prerequisite configuration remain separate.
 
 ### Step 1: Trigger the Deployment
 
-Push to the target branch (`test` or `main`). The deploy workflow triggers automatically and executes two phases:
+With `DEPLOY_METHOD=fabric-cicd` or unset, merge a qualifying `dev -> test` or
+`test -> main` PR containing Fabric definition or workflow changes. Configured
+deployment approvals apply. For this sample, the standard deploy job executes
+three publication phases:
 
 - **Phase 1:** Deploys Lakehouse (empty shell) and Ontology definition
-- **Phase 2:** Deploys all remaining items (Variable Library, Notebooks, Semantic Model, Report, Data Agent) with parameterized lakehouse/workspace IDs
+- **Phase 2:** Deploys non-pipeline dependents (Variable Library, Notebooks,
+  Semantic Model, Report, Data Agent) with target substitutions.
+- **Phase 3:** Publishes the DataPipeline using fresh workspace state so its
+  notebook/model references can resolve IDs created in phase 2.
 
-### Step 2: ETL Populates the Lakehouse
+### Step 2: ETL Populates the Lakehouse, Then Refreshes the Model
 
-The ETL workflow (`etl-test.yml` or `etl-prod.yml`) triggers automatically after a successful deployment. It runs the `Import_Patterns_Data` notebook, which creates and populates the Delta tables (`doctors`, `patients`, `appointments`) in the Lakehouse.
+The deployment's dependent ETL job starts the DataPipeline
+after successful deployment. Its loader creates/populates `doctors`, `patients`,
+and `appointments`; validation must succeed before native model refresh.
+The selected deployment job ensures the target WI pair before the publisher
+validates and consumes it read-only. See the
+[pipeline contract](fabric-release-process.md#post-etl-semantic-model-refresh);
+the unchanged loader does not refresh the model itself.
 
 ### Step 3: Configure Graph Model Data Source (Manual)
 
@@ -284,13 +307,15 @@ After configuring the data source, the Ontology may remain stuck on *"Setting up
 
 Confirm all items are functional in the target workspace:
 
-- **Lakehouse** — tables populated with data
+- **Lakehouse** — tables populated and read-only source validation passed
+- **DataPipeline** — target connections/model bindings verified and all three
+  activities completed under the intended activity credentials
 - **Ontology** — overview loads, entity types and relationships visible
-- **Semantic Model** — connected to the lakehouse (may require manual connection config on first deploy; see [Gotchas](#gotchas--key-decisions))
+- **Semantic Model** — verify the deployed Direct Lake target, refresh completion, and required owner/connection/source permissions; configure a supported connection if the first deployment needs it, then check fields such as `appointment_date` and `date_of_birth` and the required calculations
 - **Report** — renders with data from the Semantic Model
 - **Data Agent** — references the Ontology and responds to queries
 
-> **Note:** On subsequent deployments, all steps are automated. The manual Ontology steps (3–4) are only required on the first deployment to a clean workspace.
+> **Note:** The Ontology steps above address initial clean-target setup. Subsequent publication/ETL/model-refresh automation does not replace the verification in step 5 or the workload-specific [release checks](fabric-cicd-quality-gates-and-release-controls.md).
 
 ---
 
@@ -298,21 +323,31 @@ Confirm all items are functional in the target workspace:
 
 ### Chicken-and-Egg: Lakehouse ID
 
-The Variable Library and Semantic Model need the lakehouse ID for each environment, but the lakehouse doesn't exist in Test/Prod until the first deployment creates it. fabric-cicd's `$items` dynamic variables (e.g., `$items.Lakehouse.PatternsLakehouse.$id`) resolve by querying the **live target workspace** during parameterization — before items are published. On the first deployment to an empty workspace, this query returns nothing and parameterization fails.
+For the default fabric-cicd non-bulk route, the Variable Library and Semantic Model need a Lakehouse ID that does not exist until the first deployment creates it. `$items` replacements resolve against the target inventory, so a dependent item cannot resolve an undeployed prerequisite. fabric-cicd bulk also has its own staged dependency handling; the caller behavior below describes the default non-bulk route.
 
-**Solution:** The `reusable-deploy-fabric-cicd.yml` workflow uses a **two-phase deployment** approach. Phase 1 calls `publish_all_items()` with `item_type_in_scope=["Lakehouse", "Ontology"]` to create the Lakehouse and Ontology first. The Lakehouse must exist so that `$items.Lakehouse.PatternsLakehouse.$id` resolves for parameter.yml rules. The Ontology must exist so that the Data Agent's logicalId reference resolves (fabric-cicd caches workspace state once per `publish_all_items()` call, so items deployed within the same call aren't visible to later items' logicalId resolution). Phase 2 calls `publish_all_items()` with the remaining item types. On subsequent deployments, both phases are idempotent.
+**Solution:** Phase 1 publishes Lakehouse + Ontology. A fresh phase 2 call can
+resolve their IDs for the library, notebooks, model, report, and Data Agent.
+The same state-cache boundary applies to the new pipeline: phase 3 publishes
+DataPipeline after fresh discovery of its phase 2 notebook/model dependencies.
+Each phase must succeed before the next starts; cleanup follows successful
+publication. These are publication calls, not three workload executions.
+If no DataPipeline exists, the third call is omitted.
 
 ### Item Type Scoping
 
 When `item_type_in_scope` is omitted, fabric-cicd attempts to deploy all item types and may count non-item files (e.g., Report theme resources) as separate items, leading to incorrect item counts.
 
-**Solution:** Explicitly set `item_type_in_scope` in the deploy workflows: `["Lakehouse", "Ontology", "VariableLibrary", "Notebook", "SemanticModel", "Report", "DataAgent"]`. This ensures only valid item types are deployed.
+**Solution:** Explicitly set `item_type_in_scope` in the deploy workflows: `["Lakehouse", "Ontology", "VariableLibrary", "Notebook", "SemanticModel", "Report", "DataAgent", "DataPipeline"]`. This keeps workload types in scope without publishing DeploymentPlan control items.
 
 ### Chicken-and-Egg: ETL Notebook ID
 
-The ETL workflow needs to run a notebook, but the notebook ID differs per workspace and isn't known until after deployment.
+The follow-up now starts a DataPipeline rather than a standalone notebook, but
+the runtime lookup problem is the same: physical item IDs differ by workspace.
 
-**Solution:** The ETL workflow resolves the notebook by **display name** at runtime via the [Fabric List Items API](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/list-items), not by ID. The notebook name (`Import_Patterns_Data`) is consistent across environments because it comes from the Git repo.
+**Solution:** Resolve `Patterns_Load_Validate_And_Refresh` by **display name**
+and item type using the [Fabric List Items API](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/list-items).
+That lookup does not repair activity bindings inside the definition; deployment
+substitutions and connection setup must already target the correct environment.
 
 ### Environment Names Must Match Value Set Names
 
@@ -331,7 +366,7 @@ Per [GitHub's official guidance](https://docs.github.com/en/copilot/tutorials/cu
 
 ### Full Deployment Every Time
 
-fabric-cicd does not calculate diffs between commits. Every item in scope is published on each run. This is by design — it ensures the workspace always matches the Git repo exactly.
+The default route publishes every item in its selected scope, not only files changed in the last commit. Definition publication does not by itself reconcile data, connections, permissions, or other external state.
 
 ### DefaultAzureCredential is Deprecated
 
@@ -339,19 +374,29 @@ fabric-cicd has deprecated `DefaultAzureCredential`. All workflows use `ClientSe
 
 ### Path Filter Prevents Unnecessary Runs
 
-Deploy workflows only trigger when files under `data/fabric/**` change. Documentation-only commits (e.g., editing this README) do not trigger a deployment.
+Standard deployment callers watch Fabric definitions and workflow files. Plan
+callers also watch their plan/code/dependency paths; see the
+[shared trigger reference](fabric-release-process.md#deployment-callers).
+Documentation-only commits do not trigger these deployments.
 
 ---
 
 ## References
 
-- [Fabric CI/CD Release Options](fabric-cicd-release-options.md) — Full strategy document with release option comparison and hybrid recommendation
+- [Release Process](fabric-release-process.md) — Shared promotion, connection, workflow, and DataPipeline contract
+- [Setup](SETUP.md) — Fresh-fork prerequisites and configuration
+- [Fabric CI/CD Release Options](fabric-cicd-release-options.md) — Release option comparison, recommended non-bulk starting point, and optional hybrid extensions
 - [fabric-cicd Python Library](https://microsoft.github.io/fabric-cicd) — Docs, getting started, supported item types
 - [fabric-cicd Parameterization](https://microsoft.github.io/fabric-cicd/latest/how_to/parameterization/) — `parameter.yml` reference with `find_replace`, `$items` dynamic replacement
 - [fabric-cicd Item Types](https://microsoft.github.io/fabric-cicd/latest/reference/item_types/) — Per-item-type notes including Variable Library active value set behavior
 - [fabric-cicd Authentication Examples](https://microsoft.github.io/fabric-cicd/latest/example/authentication/) — GitHub Actions credential patterns
 - [Fabric Create Item API — Permissions](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/create-item) — Contributor role requirement
 - [Fabric Permission Model](https://learn.microsoft.com/en-us/fabric/security/permission-model) — Workspace roles (Admin, Member, Contributor, Viewer)
+- [Power BI Refresh API](https://learn.microsoft.com/en-us/rest/api/power-bi/datasets/refresh-dataset-in-group) — Start an enhanced semantic model refresh
+- [Power BI Dataset Inventory](https://learn.microsoft.com/en-us/rest/api/power-bi/datasets/get-datasets-in-group) — Resolve the model in its target workspace
+- [Power BI Refresh Execution Details](https://learn.microsoft.com/en-us/rest/api/power-bi/datasets/get-refresh-execution-details-in-group) — Track the specific refresh request
+- [Direct Lake Framing](https://learn.microsoft.com/en-us/fabric/fundamentals/direct-lake-how-it-works#framing) — Refresh behavior for Direct Lake tables
+- [Direct Lake Owner Permissions](https://learn.microsoft.com/en-us/fabric/fundamentals/direct-lake-security-integration#direct-lake-owners) — Owner source authorization is checked regardless of who refreshes
 - [Variable Library CI/CD](https://learn.microsoft.com/en-us/fabric/cicd/variable-library/variable-library-cicd) — Value sets, active set behavior, Git integration
 - [GitHub Reusable Workflows](https://docs.github.com/en/actions/sharing-automations/reusing-workflows) — `workflow_call`, inputs, secrets
 - [GitHub Environment Protection Rules](https://docs.github.com/en/actions/managing-workflow-runs-and-deployments/managing-deployments/managing-environments-for-deployment) — Required reviewers, deployment branch restrictions

@@ -6,8 +6,9 @@
 # the need to know item IDs ahead of time (which differ per workspace).
 # The Fabric Jobs API is asynchronous — this workflow starts the job, then polls
 # the Location header URL until the job completes, fails, or times out.
+# The sample DataPipeline owns load, validation, and native model refresh.
 #
-# Called by: etl-test.yml, etl-prod.yml (triggered via workflow_run after deploy)
+# Called by: deployment jobs through needs, Dev sync, and manual ETL recovery.
 #
 # Prerequisites:
 #   - GitHub Environment secrets: AZURE_TENANT_ID, AZURE_CLIENT_ID,
@@ -40,6 +41,11 @@ on:
         required: false
         type: string
         default: "RunNotebook"
+      run_label:
+        description: "Optional per-run label forwarded to DataPipeline parameters"
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -60,9 +66,10 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install azure-identity requests
+        run: pip install "azure-identity>=1.15" "requests>=2.31"
 
       - name: Run Fabric item job
+        timeout-minutes: 60
         env:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -71,4 +78,5 @@ jobs:
           ITEM_NAME: ${{ inputs.item_name }}
           ITEM_TYPE: ${{ inputs.item_type }}
           JOB_TYPE: ${{ inputs.job_type }}
+          RUN_LABEL: ${{ inputs.run_label }}
         run: python scripts/run_fabric_etl.py

@@ -174,6 +174,9 @@ October 2026
 
 [Reference implementation](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns)
 
+Operational status: Dev `a417191`; verified Test release `e87f435` on
+2026-10-14.
+
 <!--
 Introduce yourself and position the session as the CD follow-on to the earlier CI presentation.
 Official Microsoft documentation is canonical; this repository is one opinionated GitHub implementation.
@@ -232,17 +235,18 @@ The point is not that teams cannot move; it is that migration is a strategic pro
 | Question | Decide |
 |---|---|
 | **What is part of the solution?** | Inventory the Fabric items and the surrounding configuration or state required to run. |
-| **What can each mechanism move?** | Classify items as Fabric Git-tracked, supported by another deployment/API path, or manual. |
+| **What can each mechanism move?** | Record Git, publisher/API, native pipeline, and identity support independently for each item/subtype. |
 | **How portable are the references?** | Distinguish runtime values, logical IDs, and physical IDs that require replacement. |
 | **What must be provisioned?** | Map capacities, workspaces, private links, shortcuts/connections, roles, and tenant settings; select Bicep, Terraform, or APIs by coverage. |
 | **What moves beyond definitions?** | Plan for data, credentials, permissions, connections, schedules, bindings, and target settings. |
 | **Who owns the target and outcome?** | Establish one writer, post-deploy ETL or refresh, validation, and release evidence. |
 
-> **Supported does not mean complete:** item definitions are only one part of a usable environment.
+> **Supported does not mean complete:** item definitions are only one part of a usable environment. Capture definitions where possible, even when the chosen publisher cannot deploy the item.
 
 <!--
-This checklist distills the README Key Concepts: Item Tracking Categories and Variable Libraries: Dynamic vs Static Metadata.
+This checklist distills the README Key Concepts on item tracking/deployment capabilities and dynamic versus static metadata.
 Supported-item lists evolve, so link to the official lists rather than freezing a detailed matrix in the deck.
+Git tracking and publisher support are independent: a publishing gap does not imply no Git/version history.
 Bicep/ARM primarily covers the Azure control plane, including Fabric capacity. The Microsoft Fabric Terraform provider has broader Fabric-plane coverage, but support evolves.
 Shortcuts, connections, and private networking may cross content, workspace, Fabric admin, and Azure networking surfaces; verify current provider/API coverage before selecting the IaC path.
 -->
@@ -257,18 +261,20 @@ From the broader CD problems, dependencies show why copying definitions is not e
 
 | Portable / logical references | Physical references requiring replacement |
 |---|---|
-| Report → Semantic Model via [`definition.pbir`](../data/fabric/Patterns_Report.Report/definition.pbir)<br><br>Ontology → Lakehouse logical ID via its [data binding](../data/fabric/Patterns_Ontology.Ontology/EntityTypes/2525121373138/DataBindings/6e4524f9-ea6d-4535-ab49-a72f73fc08a0.json)<br><br>Data Agent → Ontology logical ID via [`datasource.json`](../data/fabric/Patterns_Data_Agent.DataAgent/Files/Config/draft/ontology-Patterns_Ontology/datasource.json) | Direct Lake Semantic Model → physical OneLake path in [`expressions.tmdl`](../data/fabric/Patterns_Semantic_Model.SemanticModel/definition/expressions.tmdl)<br><br>Notebook → physical default workspace/lakehouse IDs in [`notebook-content.py`](../data/fabric/Import_Patterns_Data.Notebook/notebook-content.py) |
+| Report → Semantic Model via [`definition.pbir`](../data/fabric/Patterns_Report.Report/definition.pbir)<br><br>Ontology → Lakehouse logical ID via its [data binding](../data/fabric/Patterns_Ontology.Ontology/EntityTypes/2525121373138/DataBindings/6e4524f9-ea6d-4535-ab49-a72f73fc08a0.json)<br><br>Data Agent → Ontology logical ID via [`datasource.json`](../data/fabric/Patterns_Data_Agent.DataAgent/Files/Config/draft/ontology-Patterns_Ontology/datasource.json) | Direct Lake model → physical OneLake path in [`expressions.tmdl`](../data/fabric/Patterns_Semantic_Model.SemanticModel/definition/expressions.tmdl)<br><br>Notebook → workspace/lakehouse IDs in [`notebook-content.py`](../data/fabric/Import_Patterns_Data.Notebook/notebook-content.py)<br><br>DataPipeline → physical model/connection IDs |
 
 ```text
 Phase 1:  Lakehouse ──▶ Variable Library / Notebooks / Semantic Model
           Ontology  ──▶ Data Agent
 
-Phase 2:  Deploy dependent items after target IDs and logical items exist
+Phase 2:  Publish non-pipeline dependents
+Phase 3:  Fresh Notebook/Model discovery → publish DataPipeline
 ```
 
 <!--
 Open the linked files if useful. The Data Agent directly references the Ontology—not the Lakehouse.
 Lakehouse and Ontology are Phase 1 foundations for different dependency chains.
+SDK state is cached within a call; phase 3 discovers the phase 2 pipeline dependencies afresh.
 This is one concrete example of the broader challenges on the earlier slide, not a new topic.
 -->
 
@@ -350,7 +356,7 @@ some customers report semantically insignificant or platform-generated definitio
 
 # Option 3
 
-## Common hybrid pattern: Dev Fabric Git sync + APIs for Test and Prod
+## Git-based deployment: Dev Git sync + APIs for Test and Prod
 
 ![bg right:48% contain](../assets/fabric-git-actions-deployments-flow.svg)
 
@@ -372,8 +378,10 @@ some customers report semantically insignificant or platform-generated definitio
 **Best fit:** teams needing repeatability and configuration control.
 
 <!--
-Option 3 can use a build environment for every stage. This repository uses a common hybrid variant:
+Option 3 can use a build environment for every stage. This repository uses a Git-based development/release variant:
 Dev is Fabric Git-synced; Test and Prod are deployed through APIs.
+That separation is not a multi-publisher hybrid. The default publisher is fabric-cicd non-bulk.
+Another publisher is an optional architectural extension only with verified item/identity support and implemented coordination; native Deployment Pipelines are not shipped here.
 -->
 
 ---
@@ -410,22 +418,26 @@ Git history can support every Git-backed option; the evidence row highlights the
 
 # Inside Option 3: `fabric-cicd` vs Bulk APIs
 
-| Concern | Standard `fabric-cicd` | `fabric-cicd` bulk publish | Direct Bulk APIs |
+| Concern | `fabric-cicd` non-bulk | `fabric-cicd` bulk publish | Direct Bulk APIs |
 |---|---|---|---|
-| Transport | Ordered per-item API calls | Bulk Import when compatible; **per-item fallback here (v1.3.0)** | One or more caller-managed Bulk Import calls |
-| Environment binding / parameterization | Full `parameter.yml` feature set | Same `parameter.yml`; this repo's dynamic values trigger the v1.3.0 fallback | None built in; caller rewrites definitions and configures after import |
-| Dependency handling | Library order + caller phases | Bulk API graph when bulk runs; standard order after fallback | Bulk API resolves logical IDs in one request; caller preprocesses physical target IDs |
+| Transport | Ordered per-item API calls | **Strict bulk with filtered dynamic replacements (1.4.x)** | One or more caller-managed Bulk Import calls |
+| Environment binding / parameterization | Full `parameter.yml` feature set | fabric-cicd-owned `parameter.yml` replacements and value-set activation | None built in; caller rewrites definitions and configures after import |
+| Dependency handling | Library order + caller phases | fabric-cicd-supported dependencies + isolated authored-plan grouping | Supported logical-ID graph; caller handles physical target IDs and explicit ordering |
 | Orphan cleanup / deletion | `unpublish_all_orphan_items()` | Same separate cleanup; Bulk Import is publish-only | Separate Delete Item calls |
-| Repository behavior | Two caller phases, ordered per item | Two-phase per-item fallback here (v1.3.0) | Two Bulk calls here: foundations, then rewritten dependents |
+| Repository behavior | Three calls with DataPipeline; fresh state | Plan-derived groups; failure stops later calls | Three batches: foundations, dependents, DataPipeline |
 
-**Repository recommendation:** standard `fabric-cicd`.
+**Repository default and recommended starting point:** `fabric-cicd` non-bulk.
+
+The plan adapters are experimental. Current Bulk Import docs show v1 without
+`?beta=true`; the repository's legacy-query raw caller remains unverified.
 
 **Binding ≠ deletion:** binding fixes target references; orphan cleanup removes source-absent items.
 
 <!--
-The repository installs published fabric-cicd 1.3.0. In that version, contains_param_vars is true when parameter.yml contains dynamic $items/$workspace values, and bulk publish falls back to standard per-item calls.
-The unversioned latest documentation already describes dependency batches for supported dynamic values. Re-check this result after upgrading; do not present the 1.3.0 fallback as permanent behavior.
-The Repository behavior row is specific to this implementation. Its direct Bulk script uses two calls because bulk-parameter.yml needs the target Lakehouse ID before rewriting dependent definitions. The service itself handles logical-ID dependencies in one bulk request.
+The repository bounds fabric-cicd to >=1.4.0,<1.5.0. The pre-1.4 dynamic-variable fallback is historical; parameter-file presence alone is not a fallback condition in 1.4.0.
+Offline tests using actual fabric-cicd and mocked HTTP check substitutions, bulk outcomes, and zero standard definition POSTs. These are not live evidence for the bulk or plan routes.
+Bulk ordering is an independent repository adapter, not native plan attachment. Library, Import, Validation, and Model are explicit DataPipeline prerequisites. The current 11-item sample has declared batch sizes [1,5,2] plus remainder 3: four selections and an expected four bulk definition-import POSTs in the offline contract, not four total HTTP requests or live evidence. Preview after plan/inventory changes. Live Report byPath bindings still require validation.
+The raw script first captures Lakehouse/Ontology IDs, then the model ID, then publishes the DataPipeline. These three batches handle physical references; supported logical-ID dependencies are a separate service capability.
 -->
 
 ---
@@ -453,15 +465,17 @@ The Repository behavior row is specific to this implementation. Its direct Bulk 
 | `test` | Test | GitHub Actions |
 | `main` | Prod | GitHub Actions |
 
-**One writer per workspace**
+One definition writer per workspace
 
 - Dev is Fabric Git-managed.
-- Test and Prod are pipeline-managed.
-- Successful deployment is followed by ETL and validation.
+- Test and Prod definitions are API-managed.
+- Selected Test/Prod jobs ensure Workspace Identity connections before
+  publication.
+- GitHub starts one Fabric DataPipeline: load → validate → native refresh.
 
 ---
 
-<!-- _class: compact -->
+<!-- _class: dense -->
 
 # Fabric knowledge is encoded in the delivery contract
 
@@ -469,40 +483,49 @@ The Repository behavior row is specific to this implementation. Its direct Bulk 
 |---|---|---|
 | Applied | At runtime | Before upload |
 | Handles | Values workloads can resolve dynamically | Physical IDs and metadata that cannot be deferred |
-| Examples | Workspace/lakehouse values read by notebooks | Notebook META IDs and Direct Lake paths |
+| Examples | Loader values; Library patient-minimum binding | Notebook/Direct Lake IDs; pipeline model/connections |
 
 ```text
-Phase 1 foundations: Lakehouse + Ontology
-          ↓ target IDs and logical items now exist
-Phase 2 dependents: Variable Library + Notebooks + Semantic Model + Report + Data Agent
-          ↓ orphan cleanup
-Post-deploy: ETL + validation
+Publish 1: Lakehouse + Ontology
+Publish 2: Library + Notebooks + Model + Report + Agent
+Publish 3: DataPipeline (fresh Notebook/Model discovery)
+          ↓ eligible orphan cleanup
+Post-deploy: one DataPipeline — load → validate → native refresh
 ```
 
-**Also encoded:** explicit item scope, environment names, ETL notebook lookup, orphan reconciliation, and failure behavior.
+Also encoded: item scope, Workspace Identity connection ensure, Owner
+verification, create-only ID persistence, pipeline name lookup, success
+dependencies, and failure behavior. A DeploymentPlan orders publication, not
+the workload activities or connection setup.
 
 > The pipeline does not need tribal Fabric knowledge when that knowledge is made explicit and testable in the repository.
 
 ---
 
-<!-- _class: compact -->
+<!-- _class: dense -->
 
-# Three selectable deployment paths
+# Four selectable deployment paths
+
+Compare capabilities in the [README method matrix](../README.md#choose-a-deployment-method);
+locate files in the [shared workflow reference](../fabric-release-process.md#github-actions-workflows).
 
 | `DEPLOY_METHOD` | Result |
 |---|---|
-| unset or `fabric-cicd` | Recommended standard path |
-| `fabric-cicd-bulk` | Requests library bulk; falls back here because of dynamic parameters |
-| `bulk` | Direct Bulk Import implementation |
-| anything else | All deployment workflows skip |
+| unset or `fabric-cicd` | fabric-cicd non-bulk — default and recommended starting point |
+| `fabric-cicd-bulk` | Experimental fabric-cicd bulk + client-read plan; requires `DEPLOYMENT_PLAN_PATH` |
+| `bulk` | Raw REST Bulk Import example; current endpoint compatibility must be revalidated |
+| `fabric-cicd-plan` | Experimental independent sequential non-bulk plan adapter |
+| anything else | All deployment jobs skip |
 
 All successful paths converge on the same ETL workflow.
+Plan adapters are experimental, ordering-only examples, not native plan execution.
+Native Deployment Pipelines are separate and not invoked here; an optional
+second publisher needs verified item/identity support and shared release coordination.
 
 ### Why direct Bulk requires more code
 
-The caller must package definitions, substitute IDs, split phases when necessary, poll operations, activate the Variable Library value set, and interpret per-item results.
-
-It still does not implement full `parameter.yml` compatibility or orphan deletion.
+The caller packages definitions, substitutes IDs, polls imports, activates value sets,
+and checks item results. Full `parameter.yml` compatibility and orphan deletion remain unimplemented.
 
 ---
 
@@ -525,28 +548,31 @@ Switch from the deck to GitHub after the next flow slide.
 
 # From pull request to usable workspace
 
+Default **fabric-cicd non-bulk** walkthrough; other methods use different callers.
+
 ```text
-PR: test → main
-  ↓ branch rules + promotion-path check + unit tests
-merge creates push to main
-  ↓ DEPLOY_METHOD selects one orchestrator
-Prod GitHub Environment supplies identity + workspace
-  ↓ reusable workflow checks out the revision + authenticates
+PR test → main: branch checks + unit tests
+  ↓ merge/push; DEPLOY_METHOD selects the publisher
+Prod Environment supplies identity + workspace
+  ↓ PAT preflight + validate saved connection IDs
+Deployment SP ensures WI pair + verifies admin-group Owner
+  ↓ PAT creates missing ID variables; current IDs flow to publisher
+reusable template checks out the revision + authenticates
 deploy script + parameter.yml → Fabric APIs
-Phase 1 → Phase 2 → orphan cleanup
+3 publish calls → orphan cleanup
   ↓ successful deployment
-Prod ETL runs and validates data readiness
+Prod ETL starts/polls DataPipeline; release checks remain separate
 ```
 
 ### Files to follow
 
 1. [`enforce-promotion-path.yml`](../.github/workflows/enforce-promotion-path.yml) — permits only `test → main`
 2. [`run-tests.yml`](../.github/workflows/run-tests.yml) — installs dependencies and runs pytest for every PR
-3. [`deploy-prod.yml`](../.github/workflows/deploy-prod.yml) — selects the deploy method and Prod environment
-4. [`reusable-deploy-fabric-cicd.yml`](../.github/workflows/reusable-deploy-fabric-cicd.yml) — authenticates and runs the standard deployment
-5. [`deploy_fabric_cicd.py`](../scripts/deploy_fabric_cicd.py) — controls phases and orphan cleanup
+3. [`deploy-prod.yml`](../.github/workflows/deploy-prod.yml) — runs the standard route when selected, targeting Prod
+4. [`reusable-deploy-fabric-cicd.yml`](../.github/workflows/reusable-deploy-fabric-cicd.yml) — preflights, ensures connections, persists IDs, and runs the standard deployment
+5. [`deploy_fabric_cicd_non_bulk.py`](../scripts/deploy_fabric_cicd_non_bulk.py) — controls phases and orphan cleanup
    - [`parameter.yml`](../data/fabric/parameter.yml) — rewrites target workspace/item IDs before upload
-6. [`etl-prod.yml`](../.github/workflows/etl-prod.yml) — starts ETL only after deployment succeeds
+6. [`reusable-fabric-etl.yml`](../.github/workflows/reusable-fabric-etl.yml) — the caller's dependent `run-etl` job starts the pipeline only after deployment succeeds
 
 ---
 
@@ -559,7 +585,9 @@ Prod ETL runs and validates data readiness
 | Promote to `main` | Branch rules, status checks, source-branch restriction |
 | Select deployment | Repository `DEPLOY_METHOD` variable |
 | Enter Prod | GitHub Environment secrets and optional reviewers |
-| Authenticate | Environment-scoped service principal |
+| Manage Fabric connections | Environment-scoped deployment service principal |
+| Persist connection IDs | Environment-scoped GitHub PAT |
+| Run activities | Prod Workspace Identity |
 | Run workflow | Read-only `GITHUB_TOKEN`, pinned Actions |
 | Prove outcome | Commit SHA, run logs, ETL result, Fabric audit |
 
@@ -572,11 +600,8 @@ Prod ETL runs and validates data readiness
 - Evaluate GitHub OIDC instead of a stored client secret
 
 <!--
-Current demo posture on 2026-09-25:
-- Branch rulesets are active, but required approvals are zero.
-- Prod Environment protection and deployment branch policy are not configured.
-- DEPLOY_METHOD currently selects fabric-cicd-bulk.
-Be explicit about current versus recommended controls when showing Settings.
+Before presenting live Settings, recheck branch rules, Environment protection,
+and DEPLOY_METHOD. Do not present an earlier demo-time setting as current.
 -->
 
 ---
@@ -585,24 +610,30 @@ Be explicit about current versus recommended controls when showing Settings.
 
 # Deployment is not the end
 
-[`etl-prod.yml`](../.github/workflows/etl-prod.yml) runs only after the selected deployment succeeds.
+The deployment caller's dependent `run-etl` job starts/polls
+`Patterns_Load_Validate_And_Refresh` after publication succeeds, using the
+same workflow revision.
 
-It:
-
-- resolves `Import_Patterns_Data` by display name;
-- starts the notebook through the Fabric REST API;
-- polls until success, failure, or timeout;
-- can be rerun manually without redeploying definitions.
+- Fabric owns **load → read-only validation → native refresh**. No second refresh.
+- Library `minimum_patient_count`: positive Integer policy, baseline `5`.
+- Pipeline `run_label`: independent String input, default `manual`, CI override.
 
 ```text
-definitions deployed
-  → target configuration applied
-  → ETL / refresh completed
-  → solution validated
-  → environment usable
+publish definitions + target bindings
+  → pipeline terminal success (including native refresh)
+  → separate model date / DAX / consumer checks
 ```
 
-> A green deployment means the definitions arrived. A successful release means the environment can do its job.
+> Verified on 2026-10-14: default Test connection ensure, publication, and
+> same-revision DataPipeline. Prod, alternative publishers, and the complete
+> current Branch Out cycle still need live verification.
+
+<!--
+Model-owner source access and consumer date-field/DAX checks remain separate.
+The same-revision needs chain replaces default-branch workflow_run listeners.
+Standalone ETL workflows remain manual recovery tools; changed workflow names
+prevent old listeners from starting duplicate pipeline jobs during rollout.
+-->
 
 ---
 
@@ -697,5 +728,5 @@ It is reproducing a working Fabric solution across item types whose definitions,
 
 | Official guidance | This repository |
 |---|---|
-| [Plan CI/CD for Fabric solutions](https://learn.microsoft.com/en-us/fabric/fundamentals/understand-best-practices-fabric-cicd)<br>[Choose a Fabric CI/CD workflow](https://learn.microsoft.com/en-us/fabric/cicd/manage-deployment)<br>[End-to-end automation tutorial](https://learn.microsoft.com/en-us/fabric/cicd/tutorial-end-to-end-automation) | [Release options](../fabric-cicd-release-options.md)<br>[Hybrid implementation guide](../fabric-hybrid-cicd-guide.md)<br>[Governance considerations](../fabric-cicd-governance-considerations.md) |
-| [`fabric-cicd` parameterization](https://microsoft.github.io/fabric-cicd/1.3.0/how_to/parameterization/)<br>[Optional and selective features](https://microsoft.github.io/fabric-cicd/1.3.0/how_to/optional_feature/)<br>[Code reference](https://microsoft.github.io/fabric-cicd/1.3.0/reference/code_reference/) | [Direct Bulk API implementation](../fabric-bulk-cicd-guide.md)<br>[Development process](../fabric-development-process.md)<br>[Reference implementation](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns) |
+| [Plan CI/CD for Fabric solutions](https://learn.microsoft.com/en-us/fabric/fundamentals/understand-best-practices-fabric-cicd)<br>[Choose a Fabric CI/CD workflow](https://learn.microsoft.com/en-us/fabric/cicd/manage-deployment)<br>[End-to-end automation tutorial](https://learn.microsoft.com/en-us/fabric/cicd/tutorial-end-to-end-automation) | [Setup](../SETUP.md)<br>[Development process](../fabric-development-process.md)<br>[Release process](../fabric-release-process.md)<br>[Quality gates and recovery](../fabric-cicd-quality-gates-and-release-controls.md) |
+| [`fabric-cicd` parameterization](https://microsoft.github.io/fabric-cicd/1.4.0/how_to/parameterization/)<br>[Optional and selective features](https://microsoft.github.io/fabric-cicd/1.4.0/how_to/optional_feature/)<br>[Code reference](https://microsoft.github.io/fabric-cicd/1.4.0/reference/code_reference/) | [Direct Bulk API implementation](../fabric-bulk-cicd-guide.md)<br>[Deployment Plan adapters](../fabric-deployment-plan-guide.md)<br>[Reference implementation](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns) |

@@ -1,6 +1,6 @@
 """Deploy supported Fabric items via the Bulk Import Item Definitions API (Preview).
 
-Alternative to deploy_fabric_cicd.py. Uses the Fabric REST API's bulk import
+Alternative to deploy_fabric_cicd_non_bulk.py. Uses the Fabric REST API's bulk import
 endpoint instead of the fabric-cicd Python library.
 
 Invoked by .github/workflows/reusable-deploy-bulk.yml. Selected at orchestrator
@@ -28,7 +28,7 @@ bulk-parameter.yml) and value-set activation (a post-deploy PATCH call)
 so the demo repo works end-to-end. They are workarounds, not platform
 fixes — choosing bulk in your own project means owning equivalent code.
 
-Known gaps vs deploy_fabric_cicd.py (intentional, documented):
+Known gaps vs deploy_fabric_cicd_non_bulk.py (intentional, documented):
 - No full parameter.yml feature coverage. bulk-parameter.yml supports
   find_replace + $items + $workspace + $environment only. fabric-cicd's
   key_value_replace, spark_pool, semantic_model_binding are not
@@ -59,6 +59,11 @@ from typing import TypedDict
 
 import requests
 import yaml
+
+from pipeline_bindings import pipeline_files
+from prepare_fabric_workspace import (
+    connection_mode, prepare_pipeline_connections, validate_deployment_source,
+)
 
 # Polling configuration
 POLL_FALLBACK_SECONDS = 30
@@ -100,6 +105,7 @@ SUBSTITUTABLE_EXTENSIONS = (".json", ".yml", ".tmdl", ".py", ".platform")
 _ITEMS_PLACEHOLDER = re.compile(r"\$items\.([^.]+)\.([^$]+?)\.\$id")
 _WORKSPACE_PLACEHOLDER = "$workspace.$id"
 _ENVIRONMENT_PLACEHOLDER = "$environment"
+_ENV_PLACEHOLDER = re.compile(r"\$ENV:(\w+)")
 
 
 # ----- TypedDicts for the Fabric Bulk Import API surface ---------------------
@@ -343,6 +349,18 @@ def resolve_dynamic_value(
     """
     resolved = template.replace(_WORKSPACE_PLACEHOLDER, workspace_id)
 
+    def _replace_env(match: re.Match[str]) -> str:
+        from pipeline_bindings import guid_problem
+
+        name = match.group(1)
+        value = os.environ.get(name, "")
+        problem = guid_problem(value, name)
+        if problem:
+            raise ValueError(problem)
+        return value
+
+    resolved = _ENV_PLACEHOLDER.sub(_replace_env, resolved)
+
     def _replace_items(match: re.Match[str]) -> str:
         item_type = match.group(1)
         display_name = match.group(2)
@@ -469,9 +487,18 @@ def acquire_token(tenant_id: str, client_id: str, client_secret: str) -> str:
 def build_definition_parts(repo_dir: pathlib.Path) -> list[DefinitionPart]:
     if not repo_dir.is_dir():
         sys.exit(f"::error::Repository directory not found: {repo_dir}")
+    plan_directories = {
+        platform.parent
+        for platform in repo_dir.rglob(".platform")
+        if platform.parent.name.endswith(".DeploymentPlan")
+    }
+    if plan_directories:
+        print(f"Excluding {len(plan_directories)} DeploymentPlan control item(s) from raw Bulk import.")
     parts: list[DefinitionPart] = []
     for f in sorted(repo_dir.rglob("*")):
         if not f.is_file():
+            continue
+        if any(directory in f.parents for directory in plan_directories):
             continue
         if f.name in EXCLUDED_FILES:
             continue
@@ -714,14 +741,21 @@ def main() -> None:
     repo_dir = pathlib.Path(os.environ["REPOSITORY_DIRECTORY"]).resolve()
     environment = os.environ.get("ENVIRONMENT", "")
 
-    token = acquire_token(tenant_id, client_id, client_secret)
-    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-
     parts = build_definition_parts(repo_dir)
     print(f"Built {len(parts)} definition parts from {repo_dir}")
 
     config_path = repo_dir / BULK_PARAMETER_FILENAME
     config = load_bulk_config(config_path)
+    if pipeline_files(repo_dir):
+        validate_deployment_source(repo_dir, bulk=True, target_workspace_id=workspace_id)
+        connection_mode()
+    token = acquire_token(tenant_id, client_id, client_secret)
+    if pipeline_files(repo_dir):
+        prepare_pipeline_connections(repo_dir, workspace_id, lambda: token)
+    for rule in config.substitutions:
+        if "$ENV:" in rule.replace_with:
+            resolve_dynamic_value(rule.replace_with, workspace_id, {})
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     if config.substitutions:
         print(
             f"Loaded {len(config.substitutions)} substitution rule(s) from {config_path}"
@@ -772,14 +806,25 @@ def main() -> None:
         item_id_map = extract_item_ids(deps_result)
         print(f"Captured {len(item_id_map)} dependency item ID(s) for substitution")
 
+        pipeline_parts = [part for part in remaining if item_type_of(part["path"]) == "DataPipeline"]
+        other_parts = [part for part in remaining if item_type_of(part["path"]) != "DataPipeline"]
         substituted_remaining = apply_substitutions(
-            remaining, config.substitutions, workspace_id, item_id_map,
+            other_parts, config.substitutions, workspace_id, item_id_map,
         )
         remaining_result = post_bulk(
             substituted_remaining, workspace_id, headers,
             tenant_id, client_id, client_secret, label="remaining items",
         )
         item_id_map.update(extract_item_ids(remaining_result))
+        if pipeline_parts:
+            substituted_pipelines = apply_substitutions(
+                pipeline_parts, config.substitutions, workspace_id, item_id_map,
+            )
+            pipeline_result = post_bulk(
+                substituted_pipelines, workspace_id, headers,
+                tenant_id, client_id, client_secret, label="DataPipeline items",
+            )
+            item_id_map.update(extract_item_ids(pipeline_result))
 
     # Post-deploy: VariableLibrary value-set activation. The bulk API has no
     # equivalent of fabric-cicd's environment-driven value-set selection, so
@@ -803,4 +848,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (OSError, ValueError, KeyError, RuntimeError, requests.RequestException) as exc:
+        print(f"::error::{exc}", file=sys.stderr)
+        sys.exit(1)

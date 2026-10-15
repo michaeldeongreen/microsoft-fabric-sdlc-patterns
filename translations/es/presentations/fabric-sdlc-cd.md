@@ -544,7 +544,7 @@ Prod ETL runs and validates data readiness
 2. [`run-tests.yml`](../../../.github/workflows/run-tests.yml): instala las dependencias y ejecuta pytest en cada PR
 3. [`deploy-prod.yml`](../../../.github/workflows/deploy-prod.yml): selecciona el método de despliegue y el entorno de Prod
 4. [`reusable-deploy-fabric-cicd.yml`](../../../.github/workflows/reusable-deploy-fabric-cicd.yml): autentica y ejecuta el despliegue estándar
-5. [`deploy_fabric_cicd.py`](../../../scripts/deploy_fabric_cicd.py): controla las fases y la limpieza de huérfanos
+5. [`deploy_fabric_cicd_non_bulk.py`](../../../scripts/deploy_fabric_cicd_non_bulk.py): controla las fases y la limpieza de huérfanos
    - [`parameter.yml`](../../../data/fabric/parameter.yml): reescribe los IDs de workspace y elementos de destino antes de subir
 6. [`etl-prod.yml`](../../../.github/workflows/etl-prod.yml): inicia el ETL solo si el despliegue termina con éxito
 

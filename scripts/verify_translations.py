@@ -5,7 +5,7 @@ attention can go to naturalness and terminology instead:
 
   1. relative links resolve (the ``../`` depth changes with nesting)
   2. in-page anchors match the *translated* headings
-  3. fenced code blocks are byte-identical to the English source
+  3. fenced code matches the English source, except diagrams and YAML comments
   4. no terminology the native review rejected
   5. no ``tú`` forms (the agreed register is impersonal / ``usted``)
   6. no gender disagreement left behind by a terminology substitution
@@ -16,6 +16,9 @@ form that had survived two rounds of human review.
 
 The rules are Spanish-specific. A Portuguese translation would need its own
 rejected-terminology and register lists, not a ``--lang`` flag on these.
+
+PyYAML, already declared in requirements-dev.txt, distinguishes YAML comments
+from scalar data. Its safe scanner reads tokens without constructing values.
 
 Run from the repository root::
 
@@ -36,7 +39,7 @@ SKIP_DIRS = {".git", ".venv", ".pytest_cache", "__pycache__", "node_modules", ".
 
 LINK = re.compile(r"(?<!\!)\[([^\]]*)\]\(([^)]+)\)")
 IMG = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
-FENCE_BLOCK = re.compile(r"```[a-zA-Z]*\n(.*?)```", re.S)
+FENCE_BLOCK = re.compile(r"```([a-zA-Z]*)\n(.*?)```", re.S)
 
 # Box-drawing characters mark an ASCII-art diagram rather than code. Those
 # blocks contain prose labels that *should* be translated, so they are exempt
@@ -91,7 +94,12 @@ TU_AMBIGUOUS = (
 # Replacing a feminine Spanish noun with a masculine English one strands the
 # determiner. This is the single most recurrent defect in the batch.
 GENDER_TRAPS = (
-    (r"\b(la|una|las|esta|estas|otra|otras|dicha|misma|propia)\s+workspace", "workspace is masculine"),
+    # Workspace Identity is a feminine product name, not the workspace noun.
+    (
+        r"\b(la|una|las|esta|estas|otra|otras|dicha|misma|propia)\s+"
+        r"workspace(?!\s+Identit(?:y|ies)\b)",
+        "workspace is masculine",
+    ),
     (r"\b(la|una|las|esta|estas)\s+\*?pipeline", "pipeline is masculine"),
     (r"workspace\s+a\s+otra\b", "should be 'a otro'"),
     (r"\b(la|una)\s+\*?Service principal", "Service principal is masculine"),
@@ -116,6 +124,37 @@ def walk_markdown(base: Path) -> list[Path]:
 def is_ascii_art(block: str) -> bool:
     """True if a fenced block is a diagram whose labels should be translated."""
     return any(ch in BOX_DRAWING for ch in block)
+
+
+def strip_yaml_comments(block: str) -> str:
+    """Strip scanner-identified comments while preserving literal token bytes."""
+    try:
+        import yaml
+        from yaml.tokens import ScalarToken
+    except ImportError as exc:
+        raise ValueError("Install requirements-dev.txt; YAML comment checks need PyYAML.") from exc
+
+    out: list[str] = []
+    position = 0
+    try:
+        for token in yaml.scan(block, Loader=yaml.SafeLoader):
+            start, end = token.start_mark.index, token.end_mark.index
+            if end <= start:
+                continue
+            out.append(re.sub(r"#[^\n]*", "", block[position:start]))
+            text = block[start:end]
+            if isinstance(token, ScalarToken):
+                if token.style is None:
+                    text = re.sub(r"(?<!\S)#[^\n]*", "", text)
+                elif token.style in {"|", ">"}:
+                    header, newline, body = text.partition("\n")
+                    text = re.sub(r"#[^\n]*", "", header) + newline + body
+            out.append(text)
+            position = end
+    except yaml.YAMLError as exc:
+        raise ValueError(f"invalid YAML: {exc}") from exc
+    out.append(re.sub(r"#[^\n]*", "", block[position:]))
+    return "".join(out)
 
 
 def strip_code(text: str) -> str:
@@ -217,19 +256,36 @@ def check_anchors(root: Path, translations: Path) -> tuple[int, list[str]]:
 
 
 def check_code_parity(pairs: list[tuple[Path, Path]]) -> list[str]:
-    """Fenced code must survive translation untouched, except ASCII-art labels."""
+    """Preserve code and output while allowing diagram labels and YAML comments."""
     problems: list[str] = []
     for en_path, es_path in pairs:
         if not (en_path.exists() and es_path.exists()):
             continue
-        en = [b.strip() for b in FENCE_BLOCK.findall(en_path.read_text(encoding="utf-8"))]
-        es = [b.strip() for b in FENCE_BLOCK.findall(es_path.read_text(encoding="utf-8"))]
+        en = [
+            (language, block.strip())
+            for language, block in FENCE_BLOCK.findall(en_path.read_text(encoding="utf-8"))
+        ]
+        es = [
+            (language, block.strip())
+            for language, block in FENCE_BLOCK.findall(es_path.read_text(encoding="utf-8"))
+        ]
         if len(en) != len(es):
             problems.append(f"{es_path.name}: {len(en)} English blocks vs {len(es)} Spanish")
             continue
-        for i, (a, b) in enumerate(zip(en, es), 1):
-            if is_ascii_art(a):
+        for i, ((language, a), (translated_language, b)) in enumerate(zip(en, es), 1):
+            if language != translated_language:
+                problems.append(f"{es_path.name} block {i} language differs")
                 continue
+            if language in {"", "text"} and (
+                is_ascii_art(a) or re.search(r"(?m)^[ \t]*->[ \t]+\S", a)
+            ):
+                continue
+            if a != b and language.lower() in {"yaml", "yml"}:
+                try:
+                    a, b = strip_yaml_comments(a), strip_yaml_comments(b)
+                except ValueError as exc:
+                    problems.append(f"{es_path.name} block {i}: {exc}")
+                    continue
             if a != b:
                 problems.append(f"{es_path.name} block {i} differs")
     return problems

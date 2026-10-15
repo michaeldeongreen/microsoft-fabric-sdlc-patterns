@@ -14,8 +14,6 @@ Use:
 
 - [Continuous Delivery in Microsoft Fabric](fabric-sdlc-cd.md) for the
   maintained presentation.
-- [Spanish translation of the archived deck](../translations/es/presentations/fabric-sdlc-cicd-presentation.md)
-  for the previous presentation content.
 - [Setup](../SETUP.md) for a new fork.
 - [Development Process](../fabric-development-process.md) for Branch Out and
   feature-to-Dev work.

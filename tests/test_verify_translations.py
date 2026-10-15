@@ -1,5 +1,6 @@
 """Unit tests for scripts/verify_translations.py."""
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -150,6 +151,136 @@ def test_ascii_art_block_may_differ(repo: Path) -> None:
     assert vt.check_code_parity(vt.build_pairs(repo, repo / "translations" / "es")) == []
 
 
+@pytest.mark.parametrize("language", ["", "text"])
+def test_ascii_arrow_diagram_labels_may_differ(repo: Path, language: str) -> None:
+    (repo / "guide.md").write_text(
+        f"# Guide\n\n```{language}\nPipeline\n  -> native refresh\n```\n", encoding="utf-8"
+    )
+    (repo / "translations" / "es" / "guide.md").write_text(
+        f"# Guía\n\n```{language}\nPipeline\n  -> actualización nativa\n```\n", encoding="utf-8"
+    )
+    assert vt.check_code_parity(vt.build_pairs(repo, repo / "translations" / "es")) == []
+
+
+@pytest.mark.parametrize(
+    ("language", "english", "spanish", "allowed"),
+    [
+        (
+            "yaml",
+            '# Existing rules\nfind: "dev-id"  # Dev baseline',
+            '# Reglas existentes\nfind: "dev-id"  # Referencia de Dev',
+            True,
+        ),
+        ("yml", "value: 'it''s # literal' # Note", "value: 'it''s # literal' # Nota", True),
+        (
+            "yaml",
+            'value: "escaped \\" # literal" # Note',
+            'value: "escaped \\" # literal" # Nota',
+            True,
+        ),
+        (
+            "yaml",
+            "url: https://example.invalid/#anchor # Note",
+            "url: https://example.invalid/#anchor # Nota",
+            True,
+        ),
+        ("yaml", 'find: "dev-id" # Note', 'find: "other-id" # Nota', False),
+        ("yaml", 'value: "error # literal"', 'value: "error # traducido"', False),
+        ("yaml", "value: 'error # literal'", "value: 'error # traducido'", False),
+        ("yaml", "value: plain#literal", "value: plain#traducido", False),
+        ("yaml", "value: |\n  # literal", "value: |\n  # traducido", False),
+        ("yaml", "value: >-\n  # literal", "value: >-\n  # traducido", False),
+        ("yaml", "value: |2-\n  # literal", "value: |2-\n  # traducido", False),
+        (
+            "yaml",
+            'value: "first\n# literal\nlast"',
+            'value: "first\n# traducido\nlast"',
+            False,
+        ),
+        (
+            "yaml",
+            "name: don't\nvalue: 'hello # original'",
+            "name: don't\nvalue: 'hello # changed'",
+            False,
+        ),
+        ("yaml", "value: &body |\n  # original", "value: &body |\n  # changed", False),
+        ("yaml", "value: !!str >-\n  # original", "value: !!str >-\n  # changed", False),
+        (
+            "yaml",
+            "value: &body | # Note\n  # literal",
+            "value: &body | # Nota\n  # literal",
+            True,
+        ),
+        (
+            "yaml",
+            "value: first\n  # Note\n  second",
+            "value: first\n  # Nota\n  second",
+            True,
+        ),
+        ("yaml", 'value: "a → original"', 'value: "a → changed"', False),
+        ("python", 'message = "a → original"', 'message = "a → changed"', False),
+        ("text", "# Literal tool output", "# Salida traducida", False),
+        ("console", "  -> Literal tool output", "  -> Salida traducida", False),
+        ("console", "done → original", "done → changed", False),
+        (
+            "python",
+            'message = """\n  -> Literal output\n"""',
+            'message = """\n  -> Salida traducida\n"""',
+            False,
+        ),
+    ],
+)
+def test_code_parity_preserves_data_while_allowing_yaml_comments(
+    repo: Path, language: str, english: str, spanish: str, allowed: bool,
+) -> None:
+    (repo / "guide.md").write_text(
+        f"# Guide\n\n```{language}\n{english}\n```\n", encoding="utf-8"
+    )
+    (repo / "translations" / "es" / "guide.md").write_text(
+        f"# Guía\n\n```{language}\n{spanish}\n```\n", encoding="utf-8"
+    )
+    problems = vt.check_code_parity(vt.build_pairs(repo, repo / "translations" / "es"))
+    assert (problems == []) is allowed
+
+
+def test_changed_fence_language_is_reported(repo: Path) -> None:
+    (repo / "translations" / "es" / "guide.md").write_text(
+        "# Guía\n\n```text\nfabric-cicd --workspace dev\n```\n", encoding="utf-8"
+    )
+    assert vt.check_code_parity(vt.build_pairs(repo, repo / "translations" / "es"))
+
+
+def test_invalid_yaml_comment_comparison_is_reported(repo: Path) -> None:
+    (repo / "guide.md").write_text(
+        '# Guide\n\n```yaml\nvalue: "unterminated # Note\n```\n', encoding="utf-8"
+    )
+    (repo / "translations" / "es" / "guide.md").write_text(
+        '# Guía\n\n```yaml\nvalue: "unterminated # Nota\n```\n', encoding="utf-8"
+    )
+    problems = vt.check_code_parity(vt.build_pairs(repo, repo / "translations" / "es"))
+    assert any("invalid YAML" in problem for problem in problems)
+
+
+def test_missing_yaml_parser_is_reported(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    (repo / "guide.md").write_text(
+        "# Guide\n\n```yaml\nvalue: same # Note\n```\n", encoding="utf-8"
+    )
+    (repo / "translations" / "es" / "guide.md").write_text(
+        "# Guía\n\n```yaml\nvalue: same # Nota\n```\n", encoding="utf-8"
+    )
+    monkeypatch.setitem(sys.modules, "yaml", None)
+    problems = vt.check_code_parity(vt.build_pairs(repo, repo / "translations" / "es"))
+    assert any("Install requirements-dev.txt" in problem for problem in problems)
+
+
+def test_unchanged_yaml_needs_no_comment_parser(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    text = '```yaml\nvalue: "intentionally incomplete\n```\n'
+    (repo / "guide.md").write_text(f"# Guide\n\n{text}", encoding="utf-8")
+    (repo / "translations" / "es" / "guide.md").write_text(f"# Guía\n\n{text}", encoding="utf-8")
+    monkeypatch.setitem(sys.modules, "yaml", None)
+    assert vt.check_code_parity(vt.build_pairs(repo, repo / "translations" / "es")) == []
+
+
 def test_rejected_term_in_prose_is_reported(repo: Path) -> None:
     (repo / "translations" / "es" / "guide.md").write_text(
         "# Guía\n\nAbra el área de trabajo de desarrollo.\n", encoding="utf-8"
@@ -199,6 +330,34 @@ def test_stranded_feminine_determiner_is_reported(repo: Path) -> None:
     )
     problems = vt.check_gender(repo, repo / "translations" / "es")
     assert any("la workspace" in p.lower() for p in problems)
+
+
+@pytest.mark.parametrize(
+    "phrase",
+    [
+        "la Workspace Identity",
+        "una Workspace Identity",
+        "las Workspace Identities",
+        "estas Workspace Identities",
+        "la\nWorkspace Identity",
+    ],
+)
+def test_feminine_workspace_identity_is_allowed(repo: Path, phrase: str) -> None:
+    (repo / "translations" / "es" / "guide.md").write_text(
+        f"# Guía\n\nSe verifica {phrase}.\n", encoding="utf-8"
+    )
+    assert vt.check_gender(repo, repo / "translations" / "es") == []
+
+
+@pytest.mark.parametrize(
+    "phrase",
+    ["la workspace de desarrollo", "las workspaces de desarrollo", "la workspace IdentityProvider"],
+)
+def test_workspace_identity_exception_does_not_hide_gender_errors(repo: Path, phrase: str) -> None:
+    (repo / "translations" / "es" / "guide.md").write_text(
+        f"# Guía\n\nSe verifica {phrase}.\n", encoding="utf-8"
+    )
+    assert vt.check_gender(repo, repo / "translations" / "es")
 
 
 def test_verb_desencadenado_is_allowed_but_noun_is_not(repo: Path) -> None:

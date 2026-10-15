@@ -97,7 +97,7 @@ The `.github/` exclusion is not stylistic. Those files are **model input** consu
 
 So **Fabric item types and portal object names stay in English**, including in running prose: *Lakehouse*, *Notebook*, *Semantic Model*, *Variable Library*, *Data Pipeline*, *Data Agent*, *Ontology*, *Branch Out*, *workspace*.
 
-Translate only where the target-language equivalent is firmly established and transparent to any practitioner — *branch* → "rama", *repository* → "repositorio", *workspace* → "área de trabajo".
+Translate only where the target-language equivalent is firmly established and transparent to any practitioner — *branch* → "rama", *repository* → "repositorio", *environment* → "entorno". Spanish keeps *workspace* in English, as settled by native review.
 
 Where a term stays in English and a localized portal string exists, gloss it in parentheses on first use:
 
@@ -315,12 +315,21 @@ It checks the defects that human review reliably skims past, and exits non-zero 
 |---|---|
 | Relative links | A copied file whose `../` depth is now wrong — the most common defect by far |
 | In-page anchors | Links pointing at English anchors after the heading was translated, including `guide.md#anchor` links into a translated sibling |
-| Code fence parity | Translation that leaked inside a code block, including altered GUIDs |
+| Code fence parity | Altered commands, values, output or fence languages; diagram labels and YAML comments are translatable |
 | Rejected terminology | Terms the native review ruled out, in prose and in diagram labels |
 | Register | `tú` forms, where the agreed register is impersonal and *usted* |
 | Gender agreement | A feminine article stranded by a masculine English replacement |
 
 ASCII-art blocks are exempt from code parity, because their labels are meant to be translated. Ambiguous verb forms — identical as a `tú` imperative and as third-person indicative — are listed for human judgement rather than failed.
+
+Diagram exemptions, including ASCII arrows, apply only to unlabelled or `text`
+fences, not executable or console-output fences. YAML comments may be translated;
+PyYAML's safe scanner preserves literal token content, including quoted hashes,
+plain-scalar hashes and multiline scalar data. It constructs no values. Install
+`requirements-dev.txt` before checking translated YAML comments; missing parser
+dependencies or invalid YAML fail the comparison explicitly.
+`Workspace Identity` and `Workspace Identities` take feminine agreement in
+Spanish; they are distinct from the masculine noun *workspace*.
 
 This is not wired into CI. It has to be run deliberately.
 

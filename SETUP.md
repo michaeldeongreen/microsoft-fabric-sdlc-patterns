@@ -296,7 +296,7 @@ Start with the default:
 
 <a id="fabric-cicd-bulk-settings"></a>
 
-The two fabric-cicd methods use `parameter.yml`. Raw REST uses
+The fabric-cicd methods use `parameter.yml`. Raw REST uses
 `bulk-parameter.yml`. All four share the connection prelude and the same
 Fabric DataPipeline handoff.
 

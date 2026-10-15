@@ -1,3 +1,5 @@
+**English** | [Español](translations/es/SETUP.md)
+
 # Set Up This Repository
 
 This guide takes a new fork from an unconfigured repository to a working

@@ -10,17 +10,42 @@ La regla general: **importa la naturalidad, no la literalidad**. Una traducción
 
 ## Qué hay en esta revisión
 
-La primera traducción (`README.md`) se revisó documento a documento. A partir de ahí se ha traducido **el resto del repositorio de una sola vez**: seis documentos más, dos presentaciones y siete diagramas, unas 35.000 palabras.
+La primera traducción (`README.md`) se revisó documento a documento. La
+actualización del **15 de octubre de 2026** sincroniza el conjunto con el
+modelo actual de desarrollo, conexiones y lanzamientos:
 
-El cambio de método es deliberado. Revisar un archivo cada vez obligaba a volver sobre el mismo material en cada entrega; entregarlo completo permite decidir la terminología una vez y aplicarla en bloque.
+- diez documentos, incluidos los nuevos de [configuración](SETUP.md),
+  [lanzamiento](fabric-release-process.md),
+  [Deployment Plan](fabric-deployment-plan-guide.md) y
+  [controles de calidad](fabric-cicd-quality-gates-and-release-controls.md);
+- la [presentación mantenida](presentations/fabric-sdlc-cd.md) y un
+  [aviso de presentación sustituida](presentations/fabric-sdlc-cicd-presentation.md),
+  que ya no presenta las diapositivas obsoletas como guía operativa; y
+- siete diagramas.
 
-**No se espera una lectura completa.** El volumen no lo justifica y la revisión exhaustiva no es el objetivo. Lo que se pide son **comprobaciones puntuales**:
+Las decisiones terminológicas de las revisiones nativas anteriores se
+conservan. **Esta actualización está asistida por IA; no constituye una nueva
+aprobación de un hablante nativo.** Antes de fusionarla, sigue siendo necesaria
+la revisión humana prevista en [`TRANSLATION.md`](../../TRANSLATION.md).
+
+La entrega conjunta permite evaluar la coherencia del recorrido completo y
+aplicar cada decisión terminológica una sola vez.
+
+Tres agentes de IA —dos especialistas y el agente coordinador— revisaron el
+conjunto completo y después las correcciones acordadas. Las comprobaciones
+mecánicas y las mediciones de diapositivas y diagramas complementan esa revisión.
+
+Para la revisión humana se proponen **comprobaciones puntuales**:
 
 1. **Abrir dos o tres documentos al azar** y leer unos párrafos de cada uno. Lo que se busca es si *suena* a español escrito por una persona.
 2. **Revisar los diagramas** ([`assets/es/`](../../assets/es)), que son rápidos de ver y donde un texto desbordado o una etiqueta a medio traducir se detecta de inmediato.
 3. **Responder la pregunta del apartado «Preguntas abiertas»**, que es lo único que sigue sin decidir.
 
-Todo lo mecánico —enlaces, anclas, bloques de código, términos rechazados, tuteo, concordancia de género— ya está comprobado de forma automática. No hace falta dedicarle atención.
+Antes de entregar los cambios debe ejecutarse
+`python scripts/verify_translations.py`: comprueba enlaces, anclas, bloques de
+código, términos rechazados, tuteo y concordancia de género. Sus resultados no
+sustituyen la revisión del sentido técnico ni la medición del texto en las
+diapositivas y los diagramas.
 
 Si aparece un problema de terminología, basta con señalarlo **una vez**: la corrección se aplica después a todos los documentos a la vez.
 
@@ -35,7 +60,7 @@ Debe comprobarse que el documento sigue [`GLOSARIO.md`](GLOSARIO.md). El princip
 Si se corrige un término:
 
 1. Se actualiza la entrada en [`GLOSARIO.md`](GLOSARIO.md) **en el mismo PR**.
-2. Su marca pasa de 🟡 Provisional a 📘 Convención.
+2. Se registra la procedencia: 👤 Revisión si la decisión corresponde a un revisor nativo. Una propuesta asistida por IA se identifica como tal y nunca recibe esa marca.
 3. La corrección se aplica en todo el documento, no solo donde se detectó.
 
 ### 2. Registro y estilo
@@ -128,7 +153,11 @@ El límite y sus tres casos están en [`GLOSARIO.md`](GLOSARIO.md#dónde-está-e
 
 ### B. Citas textuales en inglés
 
-Hay **cuatro citas literales** de documentación de Microsoft y de `fabric-cicd`, en dos documentos ([`fabric-development-process.md`](fabric-development-process.md) y [`fabric-hybrid-cicd-guide.md`](fabric-hybrid-cicd-guide.md)). Se han dejado **en inglés y sin alterar**, con la traducción justo debajo precedida de «Traducción:», porque una cita traducida deja de poder contrastarse con la fuente que se enlaza.
+Cuando el original contiene citas literales de Microsoft o de `fabric-cicd`,
+se conservan **en inglés y sin alterar**. Si se añade una traducción de apoyo,
+se sitúa debajo, precedida de «Traducción:», para que el lector pueda
+contrastar la cita con la fuente enlazada. El número y la ubicación de las
+citas pueden cambiar al sincronizar los originales.
 
 ¿Es la decisión correcta, o resulta más incómodo de leer que útil? Es la única pregunta que sigue abierta.
 
@@ -144,6 +173,10 @@ La conversión a impersonal y **usted** y el uso de cursiva en los anglicismos c
 
 ## Cómo dejar constancia
 
-Los comentarios pueden dejarse directamente en el *pull request*. Al tratarse de una entrega en bloque, conviene indicar en cada observación de terminología si la corrección afecta **solo al documento donde se detectó** o **a todas las traducciones**: en el segundo caso se actualiza [`GLOSARIO.md`](GLOSARIO.md) y el cambio se aplica a los once documentos de una vez.
+Los comentarios pueden dejarse directamente en el *pull request*. Al tratarse
+de una entrega en bloque, conviene indicar en cada observación de terminología
+si la corrección afecta **solo al documento donde se detectó** o **a todas las
+traducciones**: en el segundo caso se actualiza [`GLOSARIO.md`](GLOSARIO.md)
+y el cambio se aplica a todos los documentos y diagramas afectados.
 
 Si el acceso al *pull request* está restringido, el mismo comentario por cualquier otro medio sirve igual: lo que importa es la observación, no dónde quede registrada.

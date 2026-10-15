@@ -1,3 +1,4 @@
+<!-- source: assets/fabric-deployment-pipelines-flow.svg @ f7f949d | translated: 2026-10-15 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 340" font-family="Segoe UI, Arial, sans-serif">
   <!-- Background -->
   <rect width="900" height="340" fill="#f9f9f9" rx="8"/>
@@ -16,7 +17,7 @@
 
   <!-- Dev Workspace -->
   <rect x="210" y="70" width="140" height="60" rx="8" fill="#28a745" stroke="#1e7e34" stroke-width="1.5"/>
-  <text x="280" y="97" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Workspace Dev</text>
+  <text x="280" y="97" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Workspace de Dev</text>
   <text x="280" y="113" text-anchor="middle" font-size="10" fill="#c3e6cb">(Desarrollo)</text>
 
   <!-- Arrow: Dev → Test -->
@@ -25,7 +26,7 @@
 
   <!-- Test Workspace -->
   <rect x="430" y="70" width="140" height="60" rx="8" fill="#fd7e14" stroke="#e8590c" stroke-width="1.5"/>
-  <text x="500" y="97" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Workspace Test</text>
+  <text x="500" y="97" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Workspace de Test</text>
   <text x="500" y="113" text-anchor="middle" font-size="10" fill="#ffe0b2">(Pruebas)</text>
 
   <!-- Arrow: Test → Prod -->
@@ -34,7 +35,7 @@
 
   <!-- Prod Workspace -->
   <rect x="650" y="70" width="140" height="60" rx="8" fill="#dc3545" stroke="#bd2130" stroke-width="1.5"/>
-  <text x="720" y="97" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Workspace Prod</text>
+  <text x="720" y="97" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Workspace de Prod</text>
   <text x="720" y="113" text-anchor="middle" font-size="10" fill="#f5c6cb">(Producción)</text>
 
   <!-- Deployment Pipeline bracket -->
@@ -52,9 +53,9 @@
   <!-- Automated (API) path -->
   <rect x="480" y="200" width="360" height="110" rx="8" fill="#fdf2e9" stroke="#fd7e14" stroke-width="1"/>
   <text x="660" y="222" text-anchor="middle" font-size="13" font-weight="bold" fill="#e8590c">Automatizado (API)</text>
-  <text x="660" y="244" text-anchor="middle" font-size="10" fill="#333">1. El merge del PR dispara el pipeline de ADO o GitHub Actions</text>
-  <text x="660" y="260" text-anchor="middle" font-size="10" fill="#333">2. El pipeline llama al API REST de Deployment Pipelines</text>
-  <text x="660" y="276" text-anchor="middle" font-size="10" fill="#333">3. El API despliega el contenido entre etapas</text>
+  <text x="660" y="244" text-anchor="middle" font-size="10" fill="#333">1. Merge del PR → pipeline de ADO o GitHub Actions</text>
+  <text x="660" y="260" text-anchor="middle" font-size="10" fill="#333">2. El pipeline llama a la API REST de Pipelines de despliegue</text>
+  <text x="660" y="276" text-anchor="middle" font-size="10" fill="#333">3. La API despliega el contenido entre etapas</text>
   <text x="660" y="292" text-anchor="middle" font-size="10" fill="#333">4. Pruebas y aprobaciones posteriores al despliegue</text>
 
   <!-- Arrow marker definition -->

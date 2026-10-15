@@ -9,10 +9,10 @@ Terminología acordada para la traducción al español de este repositorio. Es l
 
 ## Antes de traducir un documento nuevo
 
-1. Lee la tabla **[Falsos amigos y trampas recurrentes](#falsos-amigos-y-trampas-recurrentes)**: son los errores que ya se detectaron una vez y que se repiten.
-2. Aplica las entradas 👤 Revisión sin reabrir el debate: ya se decidieron.
-3. Consulta [`GUIA-DE-ESTILO.md`](GUIA-DE-ESTILO.md) para registro (impersonal/usted) y tratamiento de anglicismos.
-4. Si aparece un término nuevo, sigue [Cómo ampliar este glosario](#cómo-ampliar-este-glosario).
+1. Lea la tabla **[Falsos amigos y trampas recurrentes](#falsos-amigos-y-trampas-recurrentes)**: son los errores que ya se detectaron una vez y que se repiten.
+2. Aplique las entradas 👤 Revisión sin reabrir el debate: ya se decidieron.
+3. Consulte [`GUIA-DE-ESTILO.md`](GUIA-DE-ESTILO.md) para registro (impersonal/usted) y tratamiento de anglicismos.
+4. Si aparece un término nuevo, siga [Cómo ampliar este glosario](#cómo-ampliar-este-glosario).
 
 ## Procedencia de los términos
 
@@ -24,6 +24,8 @@ Cada entrada lleva una marca de origen:
 | ✅ **MS** | Verificado en [Microsoft Terminology](https://learn.microsoft.com/en-us/globalization/reference/microsoft-terminology) (colección oficial `SPANISH.tbx`, 61 956 entradas). |
 | 🟡 **Provisional** | No existe en Microsoft Terminology — normalmente por ser terminología reciente de Fabric. Propuesta pendiente de confirmación por un hablante nativo. |
 | 📘 **Convención** | Uso establecido en documentación técnica; no procede de una fuente única. |
+
+Las [convenciones de la actualización del 15-10-2026](#convenciones-de-la-actualización-del-15-10-2026) se acordaron en una revisión con asistencia de IA. No se atribuyen a hablantes nativos ni se marcan 👤 Revisión. Se conservan las decisiones humanas anteriores.
 
 > 📌 **La revisión nativa tiene la última palabra.** Microsoft Terminology es el punto de partida, no la autoridad final: recoge el término *oficial*, que no siempre es el que usa quien trabaja a diario con el producto. Cuando ambos difieren, gana el uso real y la entrada se marca 👤 Revisión.
 
@@ -121,7 +123,7 @@ Así se entiende la idea en español y se encuentra el botón en la interfaz.
 | deployment | **despliegue** | 👤 Revisión | ⚠️ **No «implementación».** El inglés usa *implementation* y *deployment* con sentidos distintos que en español colisionarían. Véase «Falsos amigos». |
 | implementation | **implementación** | 📘 Convención | Solo en el sentido de *implementación de referencia* o *guía de implementación*, nunca para el acto de desplegar. |
 | build | **compilación** | ✅ MS | |
-| release | **versión** / **lanzamiento** | ✅ MS | Según contexto. |
+| release | **versión** / **lanzamiento** | ✅ MS | Según contexto: «versión» para el resultado y «lanzamiento» para el proceso. La actualización con IA del 15-10-2026 distingue «lanzamiento» de la «publicación» de definiciones; no modifica el origen de esta entrada. |
 | rollback | **reversión** | ✅ MS | |
 | environment | **entorno** | ✅ MS | Nunca «ambiente». |
 | pipeline | ***pipeline*** | 👤 Revisión | **No se traduce nunca.** «Tubería» es la traducción literal y resulta absurda en CI/CD. **«Canalización» tampoco se usa**: no se entiende en este contexto, aunque sea el término de Microsoft Terminology. En cursiva y **en masculino**: «el *pipeline*», «los *pipelines*». |
@@ -165,7 +167,7 @@ Errores detectados en la revisión de la primera traducción. **Conviene revisar
 | **citas textuales** | Reemplazar términos dentro de una cita de Microsoft Learn | Dejar la cita intacta | Las citas literales no se tocan, aunque usen terminología que este repositorio ha descartado. |
 | **librería** | «la **librería** de Python» | «la **biblioteca** de Python» | *Library* es «biblioteca»; «librería» es *bookshop*. |
 | **soportar** | «Fabric **soporta** estos elementos» | «Fabric **admite** estos elementos» | *Support* es «admitir» o «ser compatible con»; «soportar» es *to endure*. |
-| **mezclar *feature* y «característica»** | «desarrollo de **características**» junto a «***feature branch***» | «desarrollo de ***features***» | Si *feature branch* se mantiene en inglés, alternar con «característica» en la misma página resulta incoherente. Elige una forma por documento. |
+| **mezclar *feature* y «característica»** | «desarrollo de **características**» junto a «***feature branch***» | «desarrollo de ***features***» | Si *feature branch* se mantiene en inglés, alternar con «característica» en la misma página resulta incoherente. Debe elegirse una forma por documento. |
 | **registro impersonal a medias** | «**La persona desarrolladora** crea una rama» en una lista cuyos demás pasos dicen «**Se crea**…» | «**Se crea** una rama» | Dentro de una misma lista o procedimiento, todos los pasos deben usar la misma construcción. |
 
 ---
@@ -181,10 +183,46 @@ Estos elementos no se traducen en ningún contexto, ni siquiera dentro de prosa:
 - **Vocabulario de CI/CD**: *pipeline*, *commit*, *pull request*, *feature branch*, *Trigger*, *Service principal*
 - **Nombres de rama**: `dev`, `test`, `main`, `feature/*`
 - **Variables y secretos**: `FABRIC_WORKSPACE_ID`, `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_CLIENT_SECRET`, `DEPLOY_METHOD`
-- **Valores de configuración**: `fabric-cicd`, `fabric-cicd-bulk`, `bulk`
+- **Valores de configuración**: `fabric-cicd`, `fabric-cicd-plan`, `fabric-cicd-bulk`, `bulk`
 - **Rutas y nombres de archivo**: `data/fabric/`, `scripts/workspace_swap.py`, `parameter.yml`, `deploy-test.yml`
 - **Funciones y claves**: `publish_all_items()`, `unpublish_all_orphan_items()`, `find_replace`, `$workspace.$id`
 - **Salida literal de herramientas y mensajes de error** — el lector los verá en inglés en su pantalla
+
+---
+
+## Convenciones de la actualización del 15-10-2026
+
+Acuerdos de redacción de la actualización asistida por IA, **sin atribuirlos a una revisión de hablantes nativos**. Se aplican a la documentación nueva o actualizada; no autorizan a cambiar citas, cadenas de interfaz, claves ni identificadores.
+
+| Inglés o contexto | Forma acordada | Criterio |
+|---|---|---|
+| Workspace Identity | **Workspace Identity** | Nombre de producto y autenticación; no se traduce. Designa una identidad: «la Workspace Identity», «las Workspace Identities»; el sustantivo *workspace* sigue siendo masculino. Las rutas de interfaz conservan su grafía exacta, como `Workspace settings -> Workspace identity`. |
+| Deployment Plan / DeploymentPlan | **Deployment Plan** / `DeploymentPlan` | Nombre de producto frente a identificador del tipo de elemento. No es un Data Pipeline ni un Pipeline de despliegue. |
+| non-bulk | **sin publicación masiva**; **no masivo** como forma breve | Ambas formas designan el mismo modo de publicación. La forma breve es válida cuando el contexto es claro, especialmente en diapositivas y diagramas; no se alteran valores como `fabric-cicd`. |
+| Data Pipeline / DataPipeline | **Data Pipeline** / `DataPipeline` | Tipo de elemento en prosa frente a identificador de API, ruta o configuración. Ejecuta la carga de trabajo; no promueve contenido entre workspaces. |
+| Environment *(tipo de elemento de Fabric)* | **Environment** | Se conserva como tipo de producto. El concepto general y los entornos de GitHub siguen siendo «entorno»; los nombres `Dev`, `Test` y `Prod` no cambian. |
+| Owner / Contributor / Admin / Member / Viewer / User | **Se conservan cuando nombran roles literales** | En instrucciones de interfaz y tablas de permisos se mantienen las etiquetas que hay que localizar. No se traducen rutas de navegación ni tipos de conector como `Power BI datasets`. |
+| fine-grained PAT | ***fine-grained PAT*** (PAT de permisos específicos) | Categoría de token de GitHub; se mantiene el término reconocible con una glosa en la primera aparición. |
+| preflight | **comprobaciones previas** | Describe verificaciones anteriores a una operación, no una fase de aprovisionamiento por sí misma. |
+| binding | **vinculación** | Para referencias de ejecución, modelos y conexiones. «Enlace» sigue siendo válido para hipervínculos; los nombres literales como `semantic_model_binding` no cambian. |
+| runtime | **en tiempo de ejecución** | En compuestos puede reformularse: «identidad de ejecución», «conexiones de ejecución». |
+| framing *(Direct Lake)* | ***framing*** | Término técnico de Direct Lake. La actualización realiza el framing de las referencias Delta; no es una nueva carga de datos. Se evita el calco «creación de marcos». |
+| candidate | **versión candidata** | Para una candidata de lanzamiento. No se usa «candidato» sin expresar qué objeto es. |
+| release process | **proceso de lanzamiento** | Se distingue de desplegar y de publicar definiciones. |
+| publish *(definiciones)* | **publicar** | La publicación no implica ejecutar la carga de trabajo, validar a quienes consumen los datos ni aprobar un lanzamiento. |
+| quality gate / exit criterion | **control de calidad** / **criterio de salida** | Un control aplica la comprobación; el criterio especifica qué debe cumplirse para continuar. No se traducen estados literales de herramientas. |
+| smoke checks | **pruebas básicas de funcionamiento** | Forma explícita y neutral, sin el calco «pruebas de humo». |
+| baseline | **estado, configuración o valores de referencia** | Según el objeto. Para Dev: «configuración de referencia de Dev» o «IDs canónicos de Dev» cuando se trata específicamente de IDs. |
+| connection ensure | **preparación y verificación de conexiones** | Explicitar «crea o reutiliza y verifica las conexiones» solo si la operación puede crearlas. La preparación de feature valida conexiones existentes y no las crea. |
+| create-only persistence | **crear las variables que falten, sin sobrescribir valores en conflicto** | Debe expresarse el comportamiento real, no prometer una actualización incondicional. |
+| fail closed | **detener la operación si falla una comprobación** | Indicar qué no se publica o sobrescribe. No implica deshacer escrituras anteriores ni que todas las fases sean de solo lectura. |
+| tenant-level connections | **conexiones de ámbito de inquilino** | No se presupone que eliminarlas forme parte de borrar un workspace. |
+| skill *(Copilot)* | ***skill*** | Función de Copilot; se conserva por correspondencia con el producto. No debe describirse como un antiguo archivo de prompt ni atribuirle acciones que no realiza. |
+| fallback *(publicación masiva de fabric-cicd)* | **vuelta a la publicación estándar** | Expresa el cambio concreto de modo. En otras situaciones debe describirse la alternativa real; se evita «repliegue». |
+| foundations *(dependencias de publicación)* | **elementos base** / **dependencias previas** | No «fundaciones». Se refiere a los elementos que deben existir antes de publicar sus dependientes. |
+| compromise *(seguridad)* | **vulneración de seguridad** | No «un compromiso en Test». En *sample compromise* el sentido es distinto: «concesión del ejemplo». |
+
+Estas decisiones son contextuales, no reglas de sustitución ciega. «Contenido codificado en base64» y «conocimiento codificado en un contrato» conservan el sentido correcto de *encoded*; no deben confundirse con el falso amigo de *hardcoded*.
 
 ---
 
@@ -194,6 +232,6 @@ Estos elementos no se traducen en ningún contexto, ni siquiera dentro de prosa:
 2. Si existe un equivalente español asentado, se busca primero en **Microsoft Terminology**. Si el término aparece allí, se usa y se marca ✅ MS.
 3. Si no aparece, se propone una traducción, se marca 🟡 Provisional y se explica el razonamiento.
 4. La entrada se añade **en el mismo *pull request*** que la traducción que la motivó, para que el siguiente traductor herede la decisión.
-5. Si un revisor nativo corrige un término, se actualiza la entrada y su marca pasa a 📘 Convención o ✅ MS según corresponda.
+5. Si un revisor nativo corrige un término, se registra la decisión como 👤 Revisión, con su procedencia cuando conste. Una decisión asistida por IA se identifica como tal y nunca recibe esa marca.
 
 Véase también [`GUIA-DE-ESTILO.md`](GUIA-DE-ESTILO.md) para variante, registro y tratamiento de extranjerismos.

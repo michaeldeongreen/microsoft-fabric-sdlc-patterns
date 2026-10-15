@@ -1,3 +1,4 @@
+<!-- source: assets/git-based-deployments-flow.svg @ f7f949d | translated: 2026-10-15 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 380" font-family="Segoe UI, Arial, sans-serif">
   <!-- Background -->
   <rect width="900" height="380" fill="#f9f9f9" rx="8"/>
@@ -23,27 +24,27 @@
 
   <!-- Arrow: dev branch → Dev Workspace -->
   <line x1="148" y1="108" x2="250" y2="108" stroke="#28a745" stroke-width="2" marker-end="url(#arrowGreen)"/>
-  <text x="199" y="100" text-anchor="middle" font-size="9" fill="#28a745">Actualizar desde Git</text>
+  <text x="199" y="100" text-anchor="middle" font-size="9" fill="#28a745">Actualización desde Git</text>
 
   <!-- Arrow: test branch → Test Workspace -->
   <line x1="148" y1="148" x2="250" y2="148" stroke="#fd7e14" stroke-width="2" marker-end="url(#arrowOrange)"/>
-  <text x="199" y="140" text-anchor="middle" font-size="9" fill="#e8590c">Actualizar desde Git</text>
+  <text x="199" y="140" text-anchor="middle" font-size="9" fill="#e8590c">Actualización desde Git</text>
 
   <!-- Arrow: prod branch → Prod Workspace -->
   <line x1="148" y1="188" x2="250" y2="188" stroke="#dc3545" stroke-width="2" marker-end="url(#arrowRed)"/>
-  <text x="199" y="180" text-anchor="middle" font-size="9" fill="#dc3545">Actualizar desde Git</text>
+  <text x="199" y="180" text-anchor="middle" font-size="9" fill="#dc3545">Actualización desde Git</text>
 
   <!-- Dev Workspace -->
   <rect x="255" y="88" width="150" height="40" rx="8" fill="#28a745" stroke="#1e7e34" stroke-width="1.5"/>
-  <text x="330" y="113" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Workspace Dev</text>
+  <text x="330" y="113" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Workspace de Dev</text>
 
   <!-- Test Workspace -->
   <rect x="255" y="128" width="150" height="40" rx="8" fill="#fd7e14" stroke="#e8590c" stroke-width="1.5"/>
-  <text x="330" y="153" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Workspace Test</text>
+  <text x="330" y="153" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Workspace de Test</text>
 
   <!-- Prod Workspace -->
   <rect x="255" y="168" width="150" height="40" rx="8" fill="#dc3545" stroke="#bd2130" stroke-width="1.5"/>
-  <text x="330" y="193" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Workspace Prod</text>
+  <text x="330" y="193" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">Workspace de Prod</text>
 
   <!-- PR flow on the right side -->
   <rect x="500" y="55" width="370" height="180" rx="8" fill="#e8f0fe" stroke="#0078d4" stroke-width="1"/>
@@ -51,23 +52,23 @@
 
   <!-- Step boxes -->
   <rect x="520" y="90" width="330" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
-  <text x="535" y="109" font-size="10" fill="#333"><tspan font-weight="bold">1.</tspan> Merge del PR en la rama dev → dispara el pipeline de publicación</text>
+  <text x="535" y="109" font-size="10" fill="#333"><tspan font-weight="bold">1.</tspan> Merge del PR en dev → pipeline de lanzamiento</text>
 
   <rect x="520" y="124" width="330" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
-  <text x="535" y="143" font-size="10" fill="#333"><tspan font-weight="bold">2.</tspan> El pipeline llama a Update from Git → se sincroniza el Workspace Dev</text>
+  <text x="535" y="143" font-size="10" fill="#333"><tspan font-weight="bold">2.</tspan> Pipeline → API Actualización desde Git → Dev</text>
 
   <rect x="520" y="158" width="330" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
-  <text x="535" y="177" font-size="10" fill="#333"><tspan font-weight="bold">3.</tspan> Se crea un PR de dev → rama test (revisión y aprobación)</text>
+  <text x="535" y="177" font-size="10" fill="#333"><tspan font-weight="bold">3.</tspan> PR de dev a test → revisión y aprobación</text>
 
   <rect x="520" y="192" width="330" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
-  <text x="535" y="211" font-size="10" fill="#333"><tspan font-weight="bold">4.</tspan> Se repite: Actualizar desde Git → Test, después PR a prod</text>
+  <text x="535" y="211" font-size="10" fill="#333"><tspan font-weight="bold">4.</tspan> Actualización desde Git a Test; después PR a prod</text>
 
   <!-- Key difference callout -->
   <rect x="30" y="260" width="840" height="100" rx="8" fill="#fff3cd" stroke="#f9a825" stroke-width="1.5"/>
   <text x="450" y="285" text-anchor="middle" font-size="13" font-weight="bold" fill="#856404">Concepto clave</text>
   <text x="450" y="305" text-anchor="middle" font-size="11" fill="#856404">Git es la única fuente de verdad. Cada etapa tiene su propia rama.</text>
   <text x="450" y="325" text-anchor="middle" font-size="11" fill="#856404">El contenido pasa de una etapa a otra mediante pull requests entre ramas, no de workspace a workspace.</text>
-  <text x="450" y="345" text-anchor="middle" font-size="11" fill="#856404">Los workspaces se sincronizan desde su rama con el API «Actualizar desde Git» de Fabric.</text>
+  <text x="450" y="345" text-anchor="middle" font-size="11" fill="#856404">Los workspaces se sincronizan desde su rama con la API de Actualización desde Git de Fabric.</text>
 
   <!-- Arrow markers -->
   <defs>

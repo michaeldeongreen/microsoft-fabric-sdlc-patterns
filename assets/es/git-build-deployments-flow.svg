@@ -1,3 +1,4 @@
+<!-- source: assets/git-build-deployments-flow.svg @ f7f949d | translated: 2026-10-15 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 420" font-family="Segoe UI, Arial, sans-serif">
   <!-- Background -->
   <rect width="960" height="420" fill="#f9f9f9" rx="8"/>
@@ -27,7 +28,7 @@
 
   <!-- Dev Build Environment -->
   <rect x="215" y="70" width="140" height="75" rx="8" fill="#6f42c1" stroke="#59359a" stroke-width="1.5"/>
-  <text x="285" y="92" text-anchor="middle" font-size="10" fill="#fff" font-weight="bold">Entorno compilación (Dev)</text>
+  <text x="285" y="92" text-anchor="middle" font-size="10" fill="#fff" font-weight="bold">Compilación (Dev)</text>
   <text x="285" y="108" text-anchor="middle" font-size="9" fill="#d4c5f9">Ejecuta pruebas unitarias</text>
   <text x="285" y="122" text-anchor="middle" font-size="9" fill="#d4c5f9">Ajusta la config. para Dev</text>
   <text x="285" y="136" text-anchor="middle" font-size="9" fill="#d4c5f9">fabric-cicd / API masiva</text>
@@ -51,7 +52,7 @@
 
   <!-- Test Build Environment -->
   <rect x="215" y="190" width="140" height="75" rx="8" fill="#6f42c1" stroke="#59359a" stroke-width="1.5"/>
-  <text x="285" y="212" text-anchor="middle" font-size="10" fill="#fff" font-weight="bold">Entorno compilación (Test)</text>
+  <text x="285" y="212" text-anchor="middle" font-size="10" fill="#fff" font-weight="bold">Compilación (Test)</text>
   <text x="285" y="228" text-anchor="middle" font-size="9" fill="#d4c5f9">Ejecuta pruebas</text>
   <text x="285" y="242" text-anchor="middle" font-size="9" fill="#d4c5f9">Ajusta la config. para Test</text>
   <text x="285" y="256" text-anchor="middle" font-size="9" fill="#d4c5f9">fabric-cicd / API masiva</text>
@@ -75,7 +76,7 @@
 
   <!-- Prod Build Environment -->
   <rect x="215" y="310" width="140" height="75" rx="8" fill="#6f42c1" stroke="#59359a" stroke-width="1.5"/>
-  <text x="285" y="332" text-anchor="middle" font-size="10" fill="#fff" font-weight="bold">Entorno compilación (Prod)</text>
+  <text x="285" y="332" text-anchor="middle" font-size="10" fill="#fff" font-weight="bold">Compilación (Prod)</text>
   <text x="285" y="348" text-anchor="middle" font-size="9" fill="#d4c5f9">Ejecuta pruebas</text>
   <text x="285" y="362" text-anchor="middle" font-size="9" fill="#d4c5f9">Ajusta la config. para Prod</text>
   <text x="285" y="376" text-anchor="middle" font-size="9" fill="#d4c5f9">fabric-cicd / API masiva</text>
@@ -96,7 +97,7 @@
   <text x="755" y="143" text-anchor="middle" font-size="10" fill="#856404">que alimenta su entorno de compilación.</text>
   <text x="755" y="161" text-anchor="middle" font-size="10" fill="#856404">Los entornos ajustan la config. propia del</text>
   <text x="755" y="179" text-anchor="middle" font-size="10" fill="#856404">workspace (connectionId, lakehouseId) ANTES</text>
-  <text x="755" y="197" text-anchor="middle" font-size="10" fill="#856404">de desplegar. Usa fabric-cicd o API masivas.</text>
+  <text x="755" y="197" text-anchor="middle" font-size="10" fill="#856404">de desplegar, con fabric-cicd o API masivas.</text>
 
   <!-- Tooling callout -->
   <rect x="580" y="230" width="350" height="90" rx="8" fill="#e8f0fe" stroke="#0078d4" stroke-width="1"/>

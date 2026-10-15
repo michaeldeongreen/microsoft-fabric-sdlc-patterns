@@ -1,3 +1,5 @@
+**English** | [Español](translations/es/fabric-deployment-plan-guide.md)
+
 # Deployment Plan CI/CD Guide
 
 Two independent repository-owned adapters read a committed Fabric Deployment

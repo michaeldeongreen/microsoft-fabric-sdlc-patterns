@@ -1,247 +1,339 @@
-[English](fabric-development-process.md) | **Español**
+[English](../../fabric-development-process.md) | **Español**
 
-<!-- source: fabric-development-process.md @ c4ee255 | translated: 2026-09-23 -->
+<!-- source: fabric-development-process.md @ f7f949d | translated: 2026-10-15 -->
 
-> 📄 **La versión en inglés de este documento es la autoritativa.** En caso de discrepancia, [el original en inglés](fabric-development-process.md) tiene precedencia.
+> 📄 **La versión en inglés de este documento es la de referencia.** En caso de discrepancia, [el original en inglés](../../fabric-development-process.md) tiene precedencia.
 
 # Proceso de desarrollo
 
-Este documento describe los dos enfoques principales para el desarrollo en *feature branches* en Microsoft Fabric con integración de Git, las ventajas e inconvenientes de cada uno, y cómo este repositorio aplica el patrón **Branch Out**.
+Esta guía describe el flujo de desarrollo desde Branch Out en Dev hasta el traspaso de los cambios de feature a Dev. La promoción de Dev a Test y de Test a `main`/Prod se documenta en el [Proceso de lanzamiento](fabric-release-process.md).
 
-## Comparación de escenarios
+Este repositorio usa workspaces de Branch Out conectados a Git para desarrollar *features*. No publica en ellos mediante fabric-cicd.
 
-### Escenario A: workspaces de feature efímeros (sin sincronización con Git)
+## El flujo de desarrollo
 
-En este escenario, `dev` es el único workspace conectado a Git. Los workspaces de feature se crean de forma independiente y **no** están sincronizados con Git. El código se despliega en ellos mediante [fabric-cicd](https://microsoft.github.io/fabric-cicd/latest/).
+El ciclo habitual con asistencia de Copilot utiliza dos *skills*:
 
-**Cómo funciona:**
+> Después de Branch Out: [`/swap-to-feature`](../../.github/skills/swap-to-feature/SKILL.md); antes del *pull request* (PR) a Dev: [`/swap-to-dev`](../../.github/skills/swap-to-dev/SKILL.md).
 
-1. Se crea una *feature branch* en Git a partir de `dev`.
-2. Se crea un workspace de Fabric independiente para esa *feature* (sin conexión a Git).
-3. Un *pipeline* de CI/CD usa `fabric-cicd` para desplegar los elementos de la *feature branch* en el workspace.
-4. `fabric-cicd` se encarga de sustituir los metadatos (IDs de workspace y de *Lakehouse*) mediante `parameter.yml` en el momento del despliegue.
-5. El desarrollo se hace en la interfaz de Fabric y después se hace *commit* de los cambios en la *feature branch*.
-6. Se abre un *pull request* (PR) para fusionar la *feature branch* en `dev`.
+Sin Copilot, se sigue el flujo de [CLI independiente](#cli-independiente).
 
-**A favor:** se puede usar `fabric-cicd` para actualizar los metadatos, porque el workspace de destino no está sincronizado con Git. Los workspaces desplegados solo se actualizan mediante despliegues por script, que es el [flujo recomendado por fabric-cicd](https://microsoft.github.io/fabric-cicd/latest/how_to/getting_started/#git-flow):
+El recorrido completo es el siguiente:
 
-> *"Deployed branches are not connected to workspaces via GIT Sync. Feature branches are connected to workspaces via GIT Sync. Deployed workspaces are only updated through script-based deployments."*
-> — [fabric-cicd Getting Started: GIT Flow](https://microsoft.github.io/fabric-cicd/latest/how_to/getting_started/#git-flow)
->
-> Traducción: «Las ramas desplegadas no están conectadas a workspaces mediante Git Sync. Las *feature branches* sí están conectadas a workspaces mediante Git Sync. Los workspaces desplegados solo se actualizan mediante despliegues por script.»
+1. Se parte de un workspace de Dev actualizado y de la rama `dev` al día.
+2. Se hace Branch Out para crear una *feature branch* y su workspace.
+3. Quien administra el workspace crea la *Workspace Identity* de feature y dos conexiones con autenticación mediante Workspace Identity.
+4. Se registran los GUID del workspace y de las conexiones en el `.env` de la persona que desarrolla.
+5. Se ejecuta `/swap-to-feature`. La skill valida los recursos existentes, descubre los IDs del Lakehouse y del modelo de feature y reescribe las referencias físicas locales.
+6. Se hace *commit* y *push*, se actualiza el workspace de feature desde Git, se activa su conjunto de valores de Variable Library y se realizan las pruebas.
+7. Se ejecuta `/swap-to-dev`. La skill restaura las referencias canónicas de Dev sin conexión y ejecuta las comprobaciones de preparación.
+8. Se hace commit y push y se abre el PR a `dev`.
+9. Tras el *Merge* del PR, la persona designada para operar el workspace de Dev selecciona **Update all** y ejecuta manualmente el Data Pipeline de Fabric de Dev.
 
-**En contra:** todo el desarrollo ocurre en la interfaz de Fabric. Sincronizar los cambios de vuelta a la *feature branch* es un proceso manual y propenso a errores, sobre todo con los elementos que no se pueden seguir por completo en Git.
+Ninguna de las dos skills hace commit o push, actualiza Fabric, activa un conjunto de valores ni ejecuta el Data Pipeline.
 
----
+## Requisitos previos
 
-### Escenario B: Branch Out (workspaces de feature sincronizados con Git)
+Para desarrollar se necesita:
 
-En este escenario se usa la función [Branch Out](https://learn.microsoft.com/en-us/fabric/cicd/git-integration/manage-branches#scenario-2---branch-out-to-another-workspace) de Fabric. El workspace de feature **sí** está sincronizado con la *feature branch*.
+- un clon local con Python 3.10 o posterior y las dependencias de desarrollo;
+- una credencial propia para GitHub y la integración de Git de Fabric;
+- acceso mediante Azure CLI al inquilino aprobado para validar los recursos de feature;
+- permiso para hacer Branch Out y crear o utilizar el workspace de feature;
+- el rol Contributor o los permisos necesarios sobre los elementos del workspace de feature;
+- una Workspace Identity de feature con los accesos necesarios al workspace y a los recursos;
+- acceso User a las conexiones de feature, si las ha creado otra persona.
 
-**Cómo funciona:**
+Quien administra el workspace de feature necesita permiso para crear la Workspace Identity y sus conexiones. Quienes desarrollan no necesitan las credenciales del *Service principal* de despliegue ni el PAT utilizado para las variables de los entornos de GitHub.
 
-1. Desde el panel de control de código fuente de la interfaz de Fabric se selecciona **Branch out to another workspace**.
-2. Fabric crea una rama y un workspace nuevos, y sincroniza todos los elementos automáticamente.
-3. El workspace queda conectado a la *feature branch* mediante Git Sync.
-4. El desarrollo se hace en el workspace y se hace *commit* de los cambios directamente en la *feature branch*.
-5. Se abre un PR para fusionar la *feature branch* en `dev`.
+## 1. Hacer Branch Out desde Dev
 
-**A favor:** Fabric traslada automáticamente todos los elementos compatibles al workspace de feature. El desarrollo y el control de código fuente quedan estrechamente integrados.
+Se utiliza la [operación Branch out](https://learn.microsoft.com/en-us/fabric/cicd/git-integration/branched-workspace#branch-out-operation) actual de Fabric:
 
-**En contra:** **no** se puede usar `fabric-cicd` para desplegar en un workspace sincronizado con Git. `fabric-cicd` envía los cambios directamente por las API de Fabric, lo que provoca **desviación del workspace** (*workspace drift*): el estado del workspace deja de coincidir con lo que Git espera. En la siguiente sincronización, Git Sync puede sobrescribir los cambios de `fabric-cicd` o provocar conflictos, desestabilizando el workspace.
+1. Confirme que Dev está actualizado desde Git y que el workspace no contiene cambios pendientes.
+2. En el panel **Source control** de Dev, seleccione **Branch out**.
+3. Cree una feature branch a partir de `dev` y un workspace dedicado.
+4. Incluya todos los elementos del repositorio para este flujo. No utilice la creación selectiva de ramas sin haber revisado todas las dependencias.
+5. No seleccione un Deployment Plan nativo para la operación de creación de la rama. El plan versionado en este repositorio lo leen los adaptadores opcionales de publicación por API; no es el mecanismo de Branch Out.
+6. Revise la advertencia relativa a los workspaces de destino existentes: pueden eliminarse los elementos sin confirmar.
+7. Complete Branch Out y espere a que el workspace de feature termine de sincronizarse.
 
-Está documentado de forma explícita:
+El workspace queda conectado por Git a la feature branch. La sincronización copia las definiciones compatibles, pero no crea la Workspace Identity de feature, las conexiones, los permisos ni la asignación de Fabric Capacity.
 
-> *"Deployed branches are not connected to workspaces via GIT Sync ... Deployed workspaces are only updated through script-based deployments, such as through the fabric-cicd library."*
-> — [fabric-cicd Getting Started: GIT Flow](https://microsoft.github.io/fabric-cicd/latest/how_to/getting_started/#git-flow)
->
-> Traducción: «Las ramas desplegadas no están conectadas a workspaces mediante Git Sync… Los workspaces desplegados solo se actualizan mediante despliegues por script, como los de la biblioteca fabric-cicd.»
+Antes de modificar la configuración del workspace o de utilizar uno existente, deben revisarse las [limitaciones actuales de Branch Out](https://learn.microsoft.com/en-us/fabric/cicd/git-integration/branched-workspace#branching-out-limitations).
 
-Lo contrario también es cierto: **los workspaces sincronizados con Git no deben ser destino de despliegues de `fabric-cicd`.**
+## 2. Crear las conexiones de ejecución de feature
 
-Además, al hacer *Branch Out* solo están disponibles en el workspace nuevo los [elementos compatibles con Git](https://learn.microsoft.com/en-us/fabric/cicd/git-integration/intro-to-git-integration#supported-items), y algunas opciones de configuración del workspace no se copian:
+Este paso corresponde a una persona. `/swap-to-feature` no crea conexiones ni concede roles.
 
-> *"When branching out, a new branch is created and the settings from the original branch aren't copied. Adjust any settings or definitions to ensure that the new meets your organization's policies."*
-> — [Basic concepts in Git integration: Branching out limitations](https://learn.microsoft.com/en-us/fabric/cicd/git-integration/git-integration-process#branching-out-limitations)
->
-> Traducción: «Al hacer *branch out* se crea una rama nueva y no se copia la configuración de la rama original. Conviene ajustar las opciones o definiciones necesarias para cumplir las políticas de la organización.»
+En el workspace de feature:
 
----
+1. Abra **Workspace settings -> Workspace identity** y cree la Workspace Identity si no existe.
+2. Abra **Manage access** y concédale los permisos de Notebook, Semantic Model, OneLake y demás recursos que necesite la carga de trabajo de feature.
+3. Abra `Patterns_Load_Validate_And_Refresh` en modo de edición.
+4. Para las actividades de Notebook, cree o seleccione una conexión de tipo Notebook con autenticación **Workspace Identity**. Ambas actividades de Notebook utilizan esta conexión.
+5. Para la actividad de actualización nativa del Semantic Model, cree o seleccione una conexión independiente de tipo Power BI datasets con autenticación **Workspace Identity**.
+6. Guarde el Data Pipeline.
+7. Abra **Settings -> Manage connections and gateways -> Connections** y compruebe en ambos registros:
+   - que tengan GUID distintos;
+   - que correspondan al workspace de feature previsto;
+   - que sus tipos de conector sean Notebook y Power BI datasets;
+   - que usen autenticación Workspace Identity;
+   - que se hayan compartido con los roles User/Owner necesarios.
+8. Copie el GUID de cada conexión desde sus detalles o su URL a `.env`.
 
-## Cómo aplica este repositorio el patrón Branch Out
+El repositorio no intenta deducir las conexiones buscando fragmentos de sus nombres para mostrar. Si las etiquetas de la interfaz de Fabric difieren, los criterios de aceptación son el tipo de conector, la autenticación Workspace Identity, la asociación con el workspace y el GUID.
 
-Este repositorio usa el **escenario B (Branch Out)** para el desarrollo de *features*. Dado que `fabric-cicd` no puede usarse en workspaces sincronizados con Git, un script de Python se encarga de actualizar los metadatos que normalmente actualizaría `fabric-cicd` en el momento del despliegue.
+## 3. Configurar el destino local de feature
 
-### El problema
+Si es necesario, copie [.env.sample](../../.env.sample) a `.env`. `.env` está excluido de Git. Para el workspace de feature seleccionado, configure:
 
-Al hacer *Branch Out* desde `dev`, todos los elementos de Fabric se copian al workspace de feature. Sin embargo, varios elementos contienen **IDs de workspace y de *Lakehouse* de dev definidos directamente en el elemento**:
+| Clave | Valor |
+|---|---|
+| `FEATURE_WORKSPACE_ID` | GUID del workspace de Branch Out |
+| `FEATURE_NOTEBOOK_CONNECTION_ID` | GUID de la conexión de Notebook existente |
+| `FEATURE_REFRESH_CONNECTION_ID` | GUID de la conexión de actualización de Power BI datasets existente |
 
-- ***Semantic Model*** (`expressions.tmdl`) — la URL de conexión de Direct Lake contiene los GUID del workspace y del *Lakehouse* de dev.
-- ***Notebooks*** (`notebook-content.py`) — los bloques META de dependencias referencian los GUID del workspace y del *Lakehouse* de dev.
-- ***Variable Library*** (`variables.json`) — el conjunto de valores predeterminado contiene los IDs de dev (es lo esperado y no se modifica).
+Borre los valores de Lakehouse y modelo de feature que hayan quedado de otro workspace. El paso de preparación descubre y registra:
 
-Sin intervención, el *Semantic Model* del workspace de feature apunta al *Lakehouse* de dev, y los *Notebooks* con dependencias definidas directamente se conectan a dev.
+| Clave | Elemento descubierto |
+|---|---|
+| `FEATURE_LAKEHOUSE_ID` | GUID físico del elemento `PatternsLakehouse` |
+| `FEATURE_SEMANTIC_MODEL_ID` | GUID físico del elemento `Patterns_Semantic_Model` |
 
-### La solución: `workspace_swap.py`
+No se deben utilizar los IDs lógicos de `.platform` en lugar de los GUID físicos.
 
-El script `scripts/workspace_swap.py` gestiona el ciclo de vida completo del entorno de una *feature branch*.
+## 4. Cambiar al workspace de feature
 
-#### Paso a paso: cambiar al workspace de feature
+Seleccione y actualice la feature branch:
 
-![Flujo de cambio al workspace de feature](../../assets/es/development-swap-to-feature-flow.svg)
+```powershell
+git fetch origin
+git checkout <feature-branch>
+git pull --ff-only
+```
 
-1. **Branch out** desde el panel de control de código fuente de la interfaz de Fabric.
-2. **Clonar o actualizar** la *feature branch* en local:
-   ```
-   git fetch origin
-   git checkout <feature-branch-name>
-   ```
-3. **Configurar `.env`** (una sola vez por persona): copie `.env.sample` a `.env` en la raíz del repositorio y pegue los GUID de su workspace y su *Lakehouse* de feature. El archivo `.env` está en `.gitignore`.
-4. **Ejecutar el script de cambio a feature** (conviene previsualizar antes con `--dry-run`):
-   ```
-   python scripts/workspace_swap.py --dry-run
-   python scripts/workspace_swap.py
-   ```
-   El script hace lo siguiente de forma automática:
-   - Detecta el nombre de la rama actual (no necesita argumentos).
-   - Lee los IDs de dev de `variables.json` (el conjunto de valores predeterminado).
-   - Lee los IDs del workspace y el *Lakehouse* de feature desde `.env`. Si `.env` no existe o tiene claves vacías o ausentes, el script termina con un error que remite a `.env.sample`; no hay alternativa interactiva.
-   - Muestra el cambio previsto y solicita `Type YES (uppercase) to apply, anything else to abort.` Hay que escribir `YES` (distingue mayúsculas) para continuar; la ejecución solo es de prueba si además se pasa `--dry-run`.
-   - Crea un conjunto de valores para la *feature branch* (por ejemplo, `valueSets/<branch-name>.json`).
-   - Añade el conjunto de valores a `settings.json`.
-   - Reescribe la conexión de Direct Lake del *Semantic Model* en `expressions.tmdl`.
-   - Reescribe los bloques META de dependencias en todos los archivos `notebook-content.py`.
-   - Limpia los IDs de feature obsoletos de un cambio anterior si `.env` se modificó desde la última ejecución (pasada de recuperación).
-   - Valida que no queden IDs de dev en los archivos críticos.
-5. **Hacer *commit* y *push*** de los cambios en la *feature branch*:
-   ```
-   git add -A
-   git commit -m "Swap to feature workspace for <branch-name>"
-   git push
-   ```
-6. **Sincronizar** el workspace de feature desde la interfaz de Fabric (Actualización desde Git).
-7. **Activar el conjunto de valores de feature** en la interfaz de Fabric: abra la *Variable Library* → seleccione el conjunto de valores de feature → actívelo.
-8. **Ejecutar el *Notebook* de importación de datos** para cargar el *Lakehouse* de feature.
+Ejecute [`/swap-to-feature`](../../.github/skills/swap-to-feature/SKILL.md). Sin Copilot, siga la [secuencia independiente de feature](#cli-independiente).
 
-#### Paso a paso: volver a dev antes del PR
+Para un nuevo destino de feature, la skill:
 
-![Flujo de cambio a dev](../../assets/es/development-swap-to-dev-flow.svg)
+1. usa la identidad de usuario aprobada de Azure CLI;
+2. valida el workspace explícito y los GUID de ambas conexiones existentes;
+3. descubre el Lakehouse y el Semantic Model exactos por nombre;
+4. escribe los IDs descubiertos en `.env`;
+5. se detiene antes de reescribir archivos locales si falla la preparación;
+6. ejecuta el cambio de referencias sin conexión cuando la preparación termina correctamente.
 
-Antes de fusionar de vuelta en `dev`, hay que revertir todos los cambios específicos de la *feature* para restaurar los IDs de dev:
+La preparación utiliza `mode="existing"`. No crea conexiones, modifica permisos, realiza operaciones de Git ni efectúa ninguna otra escritura en la nube.
 
-1. **Ejecutar el script de vuelta a dev** (conviene previsualizar antes con `--dry-run`):
-   ```
-   python scripts/workspace_swap.py --swap-to-dev --dry-run
-   python scripts/workspace_swap.py --swap-to-dev
-   ```
-   El script hace lo siguiente de forma automática:
-   - Lee los IDs de feature del conjunto de valores de la rama.
-   - Revierte la conexión del *Semantic Model* a los IDs de dev.
-   - Revierte los bloques META de los *Notebooks* a los IDs de dev.
-   - Elimina el archivo del conjunto de valores de feature.
-   - Quita la entrada de feature de `settings.json`.
-   - Valida que no queden IDs de feature en los archivos críticos.
-2. **Hacer *commit* y *push***:
-   ```
-   git add -A
-   git commit -m "Swap to dev for merge"
-   git push
-   ```
-3. **Abrir un PR** hacia `dev`.
+El cambio de referencias sin conexión:
 
-#### Validación del PR
+- crea un conjunto de valores de feature y lo añade a `settings.json`;
+- reescribe la URL de workspace y Lakehouse de Direct Lake del Semantic Model;
+- reescribe las dependencias de Lakehouse de los bloques META de los Notebooks que las tengan;
+- reescribe los campos registrados de workspace, modelo y conexión del Data Pipeline;
+- conserva los IDs lógicos portables;
+- detecta IDs obsoletos de un destino de feature anterior;
+- comprueba que los IDs físicos críticos de Dev ya no estén presentes.
 
-Un flujo de trabajo de GitHub Actions (`.github/workflows/check-pr-ready.yml`) se ejecuta en cada PR dirigido a `dev`. Comprueba que:
+Revise los cambios exactos antes de hacer commit:
 
-- El *Semantic Model* contiene los IDs de workspace y de *Lakehouse* de dev.
-- Los *Notebooks* con dependencias de *Lakehouse* contienen los IDs de dev.
-- No existe ningún archivo de conjunto de valores de *feature branch* (solo se admiten `Test.json` y `Prod.json`).
+```powershell
+git add -A
+git commit -m "Swap references to feature workspace"
+git push
+```
 
-Si alguna comprobación falla, el PR queda bloqueado hasta que se ejecute `workspace_swap.py --swap-to-dev`.
+## 5. Actualizar y probar el workspace de feature
 
-#### Ejecutar el script desde GitHub Copilot Chat
+1. En el panel **Source control** del workspace de feature, realice la Actualización desde Git.
+2. Abra `Patterns_Variables` y active el conjunto de valores de feature.
+3. Inspeccione el Data Pipeline:
+   - ambas actividades de Notebook deben usar la conexión de Notebook de feature;
+   - la actividad de actualización debe usar la conexión de actualización de feature;
+   - los IDs físicos de workspace y modelo deben pertenecer al workspace de feature.
+4. Inspeccione las vinculaciones del Semantic Model y del Lakehouse asociado a los Notebooks.
+5. Ejecute `Patterns_Load_Validate_And_Refresh`.
+6. Confirme que:
+   - la carga haya finalizado;
+   - la validación de solo lectura haya finalizado;
+   - la actualización nativa haya finalizado;
+   - los campos de fecha y los cálculos necesarios se comporten como se espera;
+   - el informe se visualice;
+   - se superen las comprobaciones necesarias de Ontology, Data Agent y consumo de datos.
 
-El repositorio incluye comandos de barra en `.github/prompts/` que envuelven la CLI. En Copilot Chat (modo agente) se puede escribir:
+`minimum_patient_count` procede de la Variable Library activa y es un valor positivo de tipo Integer. `run_label` es un parámetro independiente de tipo String cuyo valor predeterminado es `manual`. Que la validación termine correctamente no demuestra que funcionen DAX, la propiedad del modelo, el acceso al informe ni la autorización de quienes consumen los datos.
 
-- `/swap-to-feature` — cambia los IDs del repositorio al workspace de feature
-- `/swap-to-feature-dryrun` — previsualiza el cambio sin escribir archivos
-- `/swap-to-dev` — devuelve los IDs a dev (conviene ejecutarlo antes de abrir un PR)
-- `/swap-to-dev-dryrun` — previsualiza la reversión sin escribir archivos
-- `/check-pr-ready` — ejecuta en local la comprobación de preparación equivalente a la de CI
+## 6. Restaurar Dev antes del PR
 
-Copilot ejecuta el script en el terminal integrado de VS Code y muestra la salida. El comando `/swap-to-feature` traslada la confirmación `YES` a la interfaz del chat: se pulsa `YES` o `NO` en el chat y Copilot envía la respuesta al script, de modo que el terminal nunca se queda bloqueado. Resulta útil cuando ya se está trabajando en Copilot Chat y se prefiere no cambiar al terminal.
+Ejecute [`/swap-to-dev`](../../.github/skills/swap-to-dev/SKILL.md). En la CLI: `python scripts\workspace_swap.py --swap-to-dev`. La operación se realiza sin conexión:
 
-Nota: Copilot no puede ejecutar el script automáticamente al cambiar de rama. Sigue siendo necesario invocar un comando de barra o ejecutarlo manualmente después de descargar una *feature branch*.
+- sin autenticación en Azure ni GitHub;
+- sin artefactos de Actions;
+- sin activar flujos de aprovisionamiento;
+- sin cambios en conexiones ni permisos;
+- sin actualizar Fabric.
 
-### Configuración local de `.env`
+Elimina el conjunto de valores de feature, restaura las referencias canónicas de workspace, Lakehouse, modelo y conexiones de Dev y ejecuta las mismas comprobaciones de preparación que CI. La skill comprueba la preparación automáticamente. Si se utiliza la CLI, también debe ejecutarse `python scripts\workspace_swap.py --check-ready`.
 
-`workspace_swap.py` lee los GUID del workspace y del *Lakehouse* de feature desde un archivo `.env` en la raíz del repositorio. Este archivo está en `.gitignore`: cada persona mantiene el suyo.
+Revise el resultado:
 
-1. Copie `.env.sample` a `.env`.
-2. Abra el workspace de feature en Fabric y localice:
-   - **ID del workspace:** configuración del workspace → Acerca de → ID del workspace.
-   - **ID del *Lakehouse*:** abra el *Lakehouse* y copie el GUID de la URL (el segmento posterior a `/lakehouses/`).
-3. Pegue ambos valores en `.env`.
-4. Ejecute `python scripts/workspace_swap.py` (o `/swap-to-feature` en Copilot Chat).
+```powershell
+git diff
+git add -A
+git commit -m "Restore Dev references before merge"
+git push
+```
 
-Si `.env` no existe, tiene valores vacíos o le falta alguna de las dos claves, el script termina con un error claro que remite a `.env.sample`. No hay alternativa interactiva: `.env` es la única fuente de verdad para el cambio a feature.
+Abra un PR a `dev`. Configure estas comprobaciones obligatorias:
 
-Para el cambio a feature, el script lee siempre `.env` (el archivo del conjunto de valores existente no lo sobrescribe). El conjunto de valores en disco lo lee el cambio a dev (para saber qué IDs de feature hay que revertir) y la pasada de recuperación (para detectar IDs obsoletos aplicados anteriormente que haya que reescribir). Antes de cualquier reescritura, el script muestra el cambio previsto de dev a feature y espera a que se escriba literalmente `YES` para confirmar.
+- `Check for non-dev IDs in Fabric items`
+- `Run unit tests`
 
-El script **no** descubre los IDs automáticamente a través de la API REST de Fabric, y es intencionado. Una implementación anterior localizaba los workspaces por nombre para mostrar, lo que podía elegir en silencio el workspace equivocado (por ejemplo, el propio workspace de dev) y hacer que el cambio se abortara sin escribir ningún conjunto de valores. La configuración explícita mediante `.env` evita esa clase de error.
+La comprobación de preparación verifica:
 
-### Alcance de la reescritura de metadatos
+- las referencias canónicas de workspace, Lakehouse, modelo y conexiones de Dev;
+- que no haya archivos de conjuntos de valores de feature;
+- que no queden IDs físicos de feature conocidos en los archivos registrados;
+- que los valores de referencia de las reglas de parametrización sean coherentes.
 
-El script usa un **registro de tipos de elemento** para gestionar qué tipos de elemento de Fabric participan en la gestión del entorno de rama. Cada tipo registrado declara sus patrones de archivo, si necesita reescritura de IDs y qué IDs hay que validar. Añadir un tipo nuevo requiere una sola entrada en el registro, sin ningún otro cambio de código.
+## 7. Actualizar y validar Dev
 
-No todos los tipos de elemento necesitan reescritura. Los elementos de Fabric se dividen en dos categorías según cómo referencian los recursos específicos de cada entorno:
+Tras el merge del PR:
 
-- **IDs reales** (por ejemplo, *Semantic Models* y *Notebooks*): contienen GUID reales de workspace y de *Lakehouse* que cambian en cada workspace. Hay que reescribirlos al cambiar al workspace de feature y revertirlos antes del PR.
-- **IDs lógicos** (por ejemplo, *Ontology* y *Data Agent*): referencian otros elementos mediante el `logicalId` de `.platform`, que Fabric resuelve en tiempo de ejecución dentro del workspace actual. Son portables entre workspaces creados con *Branch Out* y no necesitan reescritura.
+1. En Dev, abra **Source control**.
+2. Revise las definiciones entrantes y seleccione **Update all**.
+3. Espere a que termine la sincronización.
+4. Inspeccione el Data Pipeline canónico de Dev y las vinculaciones del Semantic Model.
+5. Ejecute `Patterns_Load_Validate_And_Refresh`.
+6. Revise las tres actividades, los campos y cálculos del modelo, el informe y las evidencias de aceptación necesarias para la carga de trabajo.
 
-### Referencia de tipos de elemento
+Dev es manual de forma deliberada. El merge no actualiza el workspace ni ejecuta el Data Pipeline.
 
-| Tipo de elemento | Archivos | Tipo de ID | ¿Lo reescribe `workspace_swap.py`? | ¿Lo gestiona `parameter.yml`? | Notas |
-|-----------|-------|---------|--------------------------|-------------------------|-------|
-| **SemanticModel** | `*.SemanticModel/definition/expressions.tmdl` | IDs reales de workspace y *Lakehouse* | Sí | Sí | La URL de conexión de Direct Lake contiene GUID reales |
-| **Notebook** | `*.Notebook/notebook-content.py` | IDs reales de workspace y *Lakehouse* | Sí (solo si existe `default_lakehouse`) | Sí | Los bloques META de dependencias referencian GUID reales |
-| **Ontology** | `*.Ontology/**/DataBindings/*.json`, `*.Ontology/**/Contextualizations/*.json` | `logicalId` de *Lakehouse* (`b36b3bda-...`) y `workspaceId` a cero | No: los `logicalId` son portables | Sí: el `logicalId` se sustituye por `$items.Lakehouse...` para CI/CD | Usa el `logicalId` de `.platform`, que Fabric resuelve en tiempo de ejecución |
-| **DataAgent** | `*.DataAgent/**/datasource.json` | `logicalId` de *Ontology* (`58a6c8ed-...`) y `workspaceId` a cero | No: los `logicalId` son portables | No: referencia a *Ontology* por `logicalId` | Referencia cruzada por `logicalId`, sin IDs específicos del entorno |
-| **VariableLibrary** | `valueSets/*.json`, `settings.json` | ID del *Lakehouse* de dev en el conjunto de valores predeterminado | Gestionado (crea y elimina conjuntos de valores) | Sí: se sustituye el ID del *Lakehouse* del conjunto de valores predeterminado | Los archivos de conjunto de valores se crean y eliminan, no se reescriben |
+El paso siguiente es una promoción revisada de `dev` a `test`. Véase el [Proceso de lanzamiento](fabric-release-process.md#de-dev-a-test).
 
-### Archivos implicados
+## Skills de Copilot
+
+El repositorio incluye:
+
+| Skill | Propósito |
+|---|---|
+| [/swap-to-feature](../../.github/skills/swap-to-feature/SKILL.md) | Validar y registrar un destino de feature conocido y, después, aplicar el cambio local a feature |
+| [/swap-to-dev](../../.github/skills/swap-to-dev/SKILL.md) | Restaurar las referencias canónicas de Dev sin conexión y comprobar la preparación |
+| [/swap-to-feature-dryrun](../../.github/skills/swap-to-feature-dryrun/SKILL.md) | Previsualizar cambios de feature conocidos sin autenticación ni escrituras |
+| [/swap-to-dev-dryrun](../../.github/skills/swap-to-dev-dryrun/SKILL.md) | Previsualizar la restauración de Dev sin autenticación ni escrituras |
+| [/prepare-feature-workspace](../../.github/skills/prepare-feature-workspace/SKILL.md) | Ejecutar la preparación y validación sin aplicar el cambio |
+| [/prepare-dev-workspace](../../.github/skills/prepare-dev-workspace/SKILL.md) | Registrar un cambio aprobado de la configuración de referencia de Dev |
+
+Las skills de simulación no crean los recursos que falten ni aplican el cambio. Invocar una skill constituye la solicitud de ejecución; los fallos normales de validación siguen siendo visibles.
+
+## CLI independiente
+
+Los scripts también se pueden utilizar sin Copilot.
+
+Para preparar un nuevo destino de feature y aplicar el cambio:
+
+```powershell
+az login --tenant <tenant-guid> --use-device-code
+az account show --query tenantId --output tsv
+python scripts\prepare_fabric_workspace.py --feature --use-azure-cli
+python scripts\workspace_swap.py
+```
+
+Confirme que el inquilino mostrado sea el aprobado. No imprima ni copie tokens de acceso. El cambio directo muestra las modificaciones previstas y espera a que se escriba literalmente `YES`.
+
+Para restaurar Dev:
+
+```powershell
+python scripts\workspace_swap.py --swap-to-dev
+python scripts\workspace_swap.py --check-ready
+```
+
+Para registrar un cambio deliberado de los recursos de Dev:
+
+```powershell
+python scripts\prepare_fabric_workspace.py --dev --replace-dev-bindings
+```
+
+Este comando se utiliza en la configuración inicial o para un cambio aprobado de recursos canónicos, no para la vuelta habitual desde el trabajo de feature.
+
+## Por qué es necesario el cambio de referencias
+
+Branch Out copia al workspace de feature las definiciones compatibles con Git. Algunas contienen referencias físicas del entorno que siguen apuntando a Dev:
+
+- las URL de workspace y Lakehouse de Direct Lake del Semantic Model;
+- las dependencias de Lakehouse en los bloques META de los Notebooks;
+- los GUID de workspace, modelo y conexiones del Data Pipeline.
+
+Un pipeline de feature nunca debe actualizar Dev. `workspace_swap.py` reescribe únicamente las referencias físicas registradas y crea o elimina el conjunto de valores de feature de la Variable Library.
+
+Los IDs lógicos portables de `.platform`, como las referencias de Ontology a Lakehouse y de Data Agent a Ontology, se resuelven en el workspace actual y no necesitan un cambio de IDs físicos.
+
+## Por qué no se usa fabric-cicd para los workspaces de feature
+
+Este repositorio utiliza dos modelos de actualización:
+
+| Workspace | Origen de las definiciones |
+|---|---|
+| Dev y feature | Fabric Git |
+| Test y Prod | Publicador por API seleccionado |
+
+Publicar mediante fabric-cicd en un workspace de feature conectado a Git puede provocar una **desviación del workspace** (*workspace drift*) entre Fabric y Git. La siguiente actualización desde Git puede sobrescribir la publicación por API o generar conflictos.
+
+Un workspace de feature efímero, sin conexión a Git y desplegado mediante CI, es una arquitectura alternativa válida, pero no es el flujo implementado aquí.
+
+## Registro de metadatos
+
+El script de cambio utiliza un registro de tipos de elemento. Para añadir un tipo nuevo, basta con una entrada en el registro si las estrategias de reescritura existentes cubren sus campos físicos. Las nuevas estructuras de referencias físicas también requieren correspondencias de configuración y de valores de referencia, además de pruebas de regresión.
+
+| Tipo de elemento | Referencias físicas o lógicas | Comportamiento del cambio |
+|---|---|---|
+| SemanticModel | URL física de workspace y Lakehouse | Se reescribe y se restaura |
+| Notebook con Lakehouse asociado | Campos META físicos de workspace y Lakehouse | Se reescriben y se restauran |
+| DataPipeline | Campos físicos de workspace, modelo y conexiones, además de referencias lógicas portables a los Notebooks | Se reescriben y restauran los campos físicos registrados |
+| VariableLibrary | Conjuntos de valores de etapa y feature | Se crea o elimina el conjunto de valores de feature |
+| Ontology | ID lógico portable de Lakehouse | Se valida, no se reescribe |
+| DataAgent | ID lógico portable de Ontology | Se valida, no se reescribe |
+| DeploymentPlan | IDs lógicos portables de los elementos | No se reescriben |
+
+Archivos principales de la implementación:
 
 | Archivo | Función |
-|------|------|
-| `scripts/workspace_swap.py` | Cambia los IDs de workspace entre dev y feature en los archivos versionados; comprobación de preparación para CI |
-| `tests/test_workspace_swap.py` | Pruebas unitarias del script de entorno de rama |
-| `data/fabric/Patterns_Variables.VariableLibrary/variables.json` | Conjunto de valores predeterminado (dev): referencia de solo lectura para los IDs de dev |
-| `data/fabric/Patterns_Variables.VariableLibrary/valueSets/` | Conjuntos de valores por entorno (Test, Prod, *feature branches*) |
-| `data/fabric/Patterns_Variables.VariableLibrary/settings.json` | Orden de los conjuntos de valores |
-| `data/fabric/Patterns_Semantic_Model.SemanticModel/definition/expressions.tmdl` | Conexión de Direct Lake: la reescribe el script |
-| `data/fabric/Import_Patterns_Data.Notebook/notebook-content.py` | *Notebook* con dependencia de *Lakehouse* definida directamente: la reescribe el script |
-| `data/fabric/Patterns_Ontology.Ontology/EntityTypes/*/DataBindings/*.json` | Enlaces de datos de *Ontology*: el script los valida, no los reescribe |
-| `data/fabric/Patterns_Ontology.Ontology/RelationshipTypes/*/Contextualizations/*.json` | Contextualizaciones de *Ontology*: el script las valida, no las reescribe |
-| `data/fabric/Patterns_Data_Agent.DataAgent/Files/Config/draft/ontology-*/datasource.json` | Origen de datos de *Data Agent*: registrado pero no analizado (no tiene IDs de dev) |
-| `.github/workflows/check-pr-ready.yml` | Comprobación de PR que impide que los IDs de feature lleguen a dev |
-| `.github/workflows/run-tests.yml` | Ejecuta las pruebas unitarias en los PR cuando cambian los scripts o las pruebas |
-| `data/fabric/parameter.yml` | Parametrización en el despliegue para fabric-cicd (se usa en CI/CD, no en `workspace_swap.py`) |
+|---|---|
+| [workspace_swap.py](../../scripts/workspace_swap.py) | Cambio de referencias físicas sin conexión y comprobación de preparación |
+| [prepare_fabric_workspace.py](../../scripts/prepare_fabric_workspace.py) | Validación y descubrimiento de feature, y registro explícito de la configuración de referencia de Dev |
+| [pipeline_bindings.py](../../scripts/pipeline_bindings.py) | Campos físicos registrados del Data Pipeline |
+| [parameter.yml](../../data/fabric/parameter.yml) | Sustituciones de destino de fabric-cicd y valores de referencia canónicos de Dev |
+| [bulk-parameter.yml](../../data/fabric/bulk-parameter.yml) | Sustituciones de REST directo y valores de referencia canónicos de Dev |
+
+## Limpieza de feature
+
+Una vez fusionado el PR de feature y aceptado Dev tras su actualización:
+
+1. La persona que desarrolló la feature registra el workspace, la Workspace Identity y los GUID exactos de las conexiones; después confirma que ninguna definición de origen, variable o pipeline activo haga referencia a ellos.
+2. Se conservan las evidencias necesarias y se obtiene la aprobación para eliminar los recursos.
+3. Quien administra las conexiones elimina las dos conexiones de feature de ámbito de inquilino mientras todavía se puede verificar su relación con el workspace y la identidad.
+4. Quien administra el workspace elimina el workspace de feature y registra el estado resultante del ciclo de vida de la Workspace Identity. No debe suponerse que eliminar el workspace también elimine las conexiones de ámbito de inquilino.
+5. Quien administra el repositorio elimina la feature branch cuando lo permitan las políticas de retención y recuperación.
+6. La persona que desarrolla borra los cinco valores de feature de su `.env` local antes de seleccionar otro workspace.
+
+La limpieza de archivos de origen que realiza `/swap-to-dev` no autoriza a eliminar recursos de Fabric. El apartado [Limpieza de la guía de configuración](SETUP.md#limpieza) describe la retirada completa de los recursos del ejemplo.
 
 ## Referencias
 
-- [fabric-cicd: Getting Started — GIT Flow](https://microsoft.github.io/fabric-cicd/latest/how_to/getting_started/#git-flow) *(solo en inglés)*
-- [Microsoft Fabric: Manage branches — Branch out to another workspace](https://learn.microsoft.com/en-us/fabric/cicd/git-integration/manage-branches#scenario-2---branch-out-to-another-workspace) *(solo en inglés)*
-- [Microsoft Fabric: Basic concepts in Git integration — Branching out limitations](https://learn.microsoft.com/en-us/fabric/cicd/git-integration/git-integration-process#branching-out-limitations) *(solo en inglés)*
-- [Microsoft Fabric: Git integration best practices](https://learn.microsoft.com/en-us/fabric/cicd/best-practices-cicd) *(solo en inglés)*
+- [Flujo de Git de fabric-cicd](https://microsoft.github.io/fabric-cicd/latest/how_to/deployment_overview/#git-flow)
+- [Operación Branch out de Fabric](https://learn.microsoft.com/en-us/fabric/cicd/git-integration/branched-workspace#branch-out-operation)
+- [Limitaciones de Branch Out en Fabric](https://learn.microsoft.com/en-us/fabric/cicd/git-integration/branched-workspace#branching-out-limitations)
+- [Prácticas recomendadas de integración de Git en Fabric](https://learn.microsoft.com/en-us/fabric/cicd/best-practices-cicd)
+- [Actividad de Notebook con Workspace Identity](https://learn.microsoft.com/en-us/fabric/data-factory/notebook-activity#using-fabric-workspace-identity-wi-in-the-notebook-activity)
+- [Administrar conexiones de Fabric](https://learn.microsoft.com/en-us/fabric/data-factory/data-source-management)
 
 ---
 
 ## Sobre esta traducción
 
-Este documento es una traducción de [fabric-development-process.md](fabric-development-process.md). La versión en inglés es la fuente autorizada y puede estar más actualizada.
+Este documento es una traducción de [fabric-development-process.md](../../fabric-development-process.md). La versión en inglés es la fuente de referencia y puede estar más actualizada.
 
-La terminología sigue [`GLOSARIO.md`](GLOSARIO.md) y [`GUIA-DE-ESTILO.md`](GUIA-DE-ESTILO.md). Para revisar esta traducción, véase [`REVISION.md`](REVISION.md).
+La actualización del 15-10-2026 se ha revisado con asistencia de IA, sin nueva validación por hablantes nativos. Se conservan las decisiones anteriores de [`GLOSARIO.md`](GLOSARIO.md) y se aplica [`GUIA-DE-ESTILO.md`](GUIA-DE-ESTILO.md).
 
-**Los enlaces a documentación externa apuntan a la versión en inglés**, y las citas textuales se reproducen en su idioma original con su traducción debajo. Los motivos están en el apartado «Sobre esta traducción» del [README en español](README.md).
-
-Los errores pueden comunicarse abriendo una incidencia e indicando el idioma. Si el error existe también en el original en inglés, **debe corregirse primero allí**: véase [`TRANSLATION.md`](../../TRANSLATION.md).
+Los enlaces externos apuntan a la documentación en inglés. Los errores pueden comunicarse mediante una incidencia que indique el idioma. Si el error también existe en inglés, debe corregirse primero allí; véanse [`REVISION.md`](REVISION.md) y [`TRANSLATION.md`](../../TRANSLATION.md).

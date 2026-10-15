@@ -1,3 +1,5 @@
+**English** | [Español](translations/es/fabric-cicd-quality-gates-and-release-controls.md)
+
 # Fabric CI/CD Quality Gates and Release Controls
 
 A recommended control baseline for releasing Fabric workloads, informed by the public guidance linked below. It is not a mandatory Microsoft checklist or a built-in validator for every item.

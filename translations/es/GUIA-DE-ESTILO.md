@@ -18,7 +18,7 @@ La evidencia que lo confirma es que **Microsoft Learn publica un único español
 
 En la práctica:
 
-- Debe evitarse el vocabulario marcado regionalmente: **equipo** o **computadora**, nunca «ordenador» (marcado como España).
+- Debe evitarse el vocabulario marcado regionalmente. Para el dispositivo se usa **laptop**, PC o computadora, no «equipo» si puede confundirse con el grupo de trabajo; se evita «ordenador» (marcado como España). La decisión revisada sobre *laptop* figura en el glosario.
 - Se evitan los modismos y coloquialismos de cualquier país.
 - Se evita el voseo y cualquier forma verbal regional.
 - Ante la duda entre dos equivalentes válidos, se prefiere el más extendido internacionalmente.
@@ -40,10 +40,10 @@ Esta es también la práctica de la documentación en español de Microsoft. En 
 Para describir comportamiento, procesos o reglas se emplea la pasiva refleja o una construcción impersonal:
 
 ```
-✅ Los identificadores del workspace se revierten automáticamente.
-✅ El script revierte los identificadores del workspace.
+✅ Los IDs del workspace se revierten automáticamente.
+✅ El script revierte los IDs del workspace.
 ✅ La terminología procede de Microsoft Terminology.
-❌ Tú revertirás los identificadores del workspace.
+❌ Tú revertirás los IDs del workspace.
 ```
 
 ### 2. Usted cuando hay instrucción directa
@@ -51,9 +51,9 @@ Para describir comportamiento, procesos o reglas se emplea la pasiva refleja o u
 En procedimientos paso a paso, donde hay que dirigirse a alguien, se usa el imperativo de cortesía:
 
 ```
-✅ Para implementar el elemento, ejecute el script desde la raíz del repositorio.
-✅ Cree un service principal y añádalo como colaborador.
-❌ Para implementar el elemento, ejecuta el script desde la raíz del repositorio.
+✅ Para desplegar el elemento, ejecute el script desde la raíz del repositorio.
+✅ Cree un Service principal y añádalo como colaborador.
+❌ Para desplegar el elemento, ejecuta el script desde la raíz del repositorio.
 ```
 
 ### 3. Reformular antes que tutear
@@ -76,7 +76,7 @@ Original en inglés:  See the Development Process doc.
 
 Se sigue la norma de la RAE/ASALE en el [*Diccionario panhispánico de dudas*](https://www.rae.es/dpd/ayuda/tratamiento-de-los-extranjerismos):
 
-1. **Extranjerismos superfluos** — si existe un equivalente español con plena vitalidad, se emplea este. Por eso *branch* → «rama» y *deployment* → «implementación».
+1. **Extranjerismos superfluos** — si existe un equivalente español con plena vitalidad, se emplea este. Por eso *branch* → «rama» y *deployment* → «despliegue». «Implementación» se reserva para *implementation*, como en «implementación de referencia».
 2. **Extranjerismos necesarios o muy extendidos** — si el término está asentado en el uso internacional en su forma original, se mantiene, **pero debe escribirse con resalte tipográfico (cursiva)**:
 
    > «se advierte de su condición de extranjerismos crudos y de la obligación de escribirlos con resalte tipográfico (cursiva o comillas) para señalar su carácter ajeno a la ortografía del español»
@@ -85,7 +85,7 @@ Se sigue la norma de la RAE/ASALE en el [*Diccionario panhispánico de dudas*](h
 
 - **Cursiva en la primera aparición por documento**: *commit*, *pull request*, *pipeline*, *feature branch*.
 - **Nunca cursiva dentro de bloques de código ni de `código en línea`.** El resalte tipográfico es para la prosa.
-- **No se inventan verbos híbridos**: «commitear», «deployar», «mergear» son incorrectos. En su lugar, «hacer *commit*», «implementar», «fusionar».
+- **No se inventan verbos híbridos**: «commitear», «deployar», «mergear» son incorrectos. En su lugar, «hacer *commit*», «desplegar», «fusionar».
 - **Glosa en la primera aparición** cuando el término tenga un equivalente reconocible: «*pull request* (solicitud de cambios)».
 
 ### Siglas
@@ -119,7 +119,7 @@ Se traduce cuando el equivalente español está plenamente asentado y resulta tr
 | repository → repositorio | *workspace* |
 | deployment → despliegue | *Service principal* |
 | environment → entorno | *Lakehouse*, *Notebook*, *Semantic Model* |
-| trigger → *Trigger* *(no se traduce)* | *Fabric Capacity* |
+| workflow → flujo de trabajo | *Trigger*, *Fabric Capacity* |
 
 ### El término oficial no siempre gana
 
@@ -155,7 +155,7 @@ Después de esa primera aparición se usa solo la forma inglesa. Si la forma esp
   ✅ ## Estrategia de configuración
   ❌ ## Estrategia De Configuración
   ```
-- Los títulos determinan los anclajes de GitHub. Al traducir un título cambia su anclaje, así que **regenera los índices y las referencias cruzadas del documento**. Nunca copies los anclajes del original en inglés.
+- Los títulos determinan los anclajes de GitHub. Al traducir un título cambia su anclaje, por lo que **deben regenerarse los índices y las referencias cruzadas del documento**. No se copian los anclajes del original en inglés. Si el original contiene un anclaje HTML explícito por compatibilidad, se conserva ese identificador literal.
 
 ### Puntuación
 
@@ -174,7 +174,22 @@ Después de esa primera aparición se usa solo la forma inglesa. Si la forma esp
 El español ocupa entre un **15 % y un 25 % más** que el inglés. Conviene tenerlo en cuenta en:
 
 - **Tablas** — puede ser necesario reformular para que las celdas no se desborden.
-- **Diagramas SVG** — las etiquetas viven en cajas de ancho fijo. Hay que acortar la etiqueta o ensanchar la caja; el texto no debe salirse.
+- **Diagramas SVG** — las etiquetas viven en cajas de ancho fijo. Hay que acortar o reformular el texto sin modificar la geometría del original. Debe comprobarse su anchura al renderizarlo; no basta con estimarla.
+
+### Convenciones de la actualización de 2026
+
+Las [convenciones del 15-10-2026](GLOSARIO.md#convenciones-de-la-actualización-del-15-10-2026) proceden de una revisión con asistencia de IA, no de una nueva revisión de hablantes nativos. Entre ellas:
+
+- **Lanzamiento** para el proceso de *release*; **versión** para su resultado y **publicación** para subir definiciones. Publicar no equivale a haber validado un lanzamiento.
+- **Vinculación**, **comprobaciones previas** y **en tiempo de ejecución**, salvo que formen parte de una cadena literal de la interfaz.
+- **Control de calidad** para *quality gate*, **criterio de salida** para la condición que permite continuar y **pruebas básicas de funcionamiento** para *smoke checks*.
+- **Preparación y verificación de conexiones** con los efectos explícitos: crear, reutilizar, validar o detenerse, según corresponda. No se usa «asegurar conexiones» como promesa vaga ni se atribuye creación de recursos a una operación de solo lectura.
+- **Preparación del destino de feature** para validar recursos existentes y descubrir IDs; **comprobación de referencias para el PR** para revisar las referencias canónicas de Dev y los conjuntos de valores permitidos. Esta última no aprovisiona recursos ni sustituye la validación de la carga de trabajo.
+- **Plan interpretado por el adaptador** cuando la ordenación la calcula el código del repositorio, no Fabric. No se sustituye «cliente» en sus sentidos válidos de cliente REST, cliente OAuth o cliente empresarial.
+- **Vía de actualización de definiciones** para el mecanismo que modifica las definiciones de un workspace. No se confunde con un autor humano ni con un proceso de escritura de datos. La regla mantiene una única vía activa por workspace.
+- **Registro impersonal también en presentaciones y notas de ponente.** Un título como «Elegir el método» o una nota como «Mostrar la ejecución» evita el tuteo sin alargar la diapositiva.
+
+Las marcas de fuente y las notas de revisión deben distinguir una actualización asistida por IA de las decisiones humanas anteriores. Nunca se inventa aprobación nativa.
 
 ---
 

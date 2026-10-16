@@ -1,3 +1,5 @@
+**English** | [Español](translations/es/fabric-cicd-release-options.md)
+
 # Choose a Fabric CI/CD Release Architecture
 
 This strategy guide compares Fabric platform options and possible extensions.

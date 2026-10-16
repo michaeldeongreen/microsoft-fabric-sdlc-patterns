@@ -83,11 +83,11 @@ Al igual que la [ruta predeterminada de fabric-cicd sin publicación masiva](fab
 | Activación del conjunto de valores | La biblioteca la gestiona automáticamente cuando se pasa `environment` | El cliente realiza una llamada independiente a `PATCH /variableLibraries/{id}` |
 | Limpieza de huérfanos | `unpublish_all_orphan_items()` incorporado | No implementada |
 
-> Las otras rutas usan fabric-cicd sin publicación masiva, fabric-cicd sin publicación masiva con un plan leído por el cliente, o fabric-cicd masivo con un plan leído por el cliente. `DEPLOY_METHOD` selecciona la ruta; el punto de partida recomendado en este repositorio es fabric-cicd sin publicación masiva. Véanse la [matriz de métodos](README.md#elegir-un-método-de-despliegue) y la [Guía de CI/CD con fabric-cicd sin publicación masiva](fabric-hybrid-cicd-guide.md).
+> Las otras rutas usan fabric-cicd sin publicación masiva, fabric-cicd sin publicación masiva con un plan interpretado por el adaptador, o fabric-cicd masivo con un plan interpretado por el adaptador. `DEPLOY_METHOD` selecciona la ruta; el punto de partida recomendado en este repositorio es fabric-cicd sin publicación masiva. Véanse la [matriz de métodos](README.md#elegir-un-método-de-despliegue) y la [Guía de CI/CD con fabric-cicd sin publicación masiva](fabric-hybrid-cicd-guide.md).
 
 **No debe confundirse REST masivo directo con la publicación masiva de fabric-cicd.** En la versión 1.4.0, la publicación masiva de fabric-cicd admite las sustituciones dinámicas filtradas de [parameter.yml](../../data/fabric/parameter.yml). El [adaptador masivo aislado de fabric-cicd](../../scripts/deploy_fabric_cicd_bulk.py) delega las sustituciones en fabric-cicd y lee un plan de ordenación; no utiliza [bulk-parameter.yml](../../data/fabric/bulk-parameter.yml) ni el motor propio de búsqueda y sustitución de esta guía. Ese motor se conserva aquí para comparar ambas implementaciones.
 
-REST directo permite adjuntar un plan nativo. El adaptador actual de fabric-cicd no lo hace: realiza selecciones masivas ordenadas por el plan y rechaza tanto la vuelta a la publicación estándar como los resultados de elementos fallidos o parciales. La [guía de Deployment Plan](fabric-deployment-plan-guide.md#adaptador-masivo-independiente-14x) detalla su configuración y los límites de validación de las vinculaciones reales.
+REST directo permite adjuntar un plan nativo. El adaptador actual de fabric-cicd no lo hace: realiza selecciones masivas ordenadas por el plan y rechaza tanto la vuelta a la publicación estándar como los resultados fallidos o parciales por elemento. La [guía de Deployment Plan](fabric-deployment-plan-guide.md#adaptador-masivo-independiente-14x) detalla su configuración y los límites de validación de las vinculaciones reales.
 
 ### Ramas y workspaces
 
@@ -205,7 +205,7 @@ Los Notebooks llaman a `notebookutils.variableLibrary.getLibrary("Patterns_Varia
 
 \* Test y Prod heredan `target_lakehouse_id` del archivo base [variables.json](../../data/fabric/Patterns_Variables.VariableLibrary/variables.json); no lo sobrescriben en sus archivos de conjuntos de valores. El cliente REST directo aplica [bulk-parameter.yml](../../data/fabric/bulk-parameter.yml) para sustituir ese marcador base por el ID del Lakehouse desplegado.
 
-El pipeline vincula el mínimo positivo de pacientes de la Library activa al parámetro base del Notebook de validación. La validación utiliza ese valor recibido; `run_label` es un parámetro String independiente del pipeline, no otra política de la Library ni un recuento fijo de datos de prueba definido directamente.
+El pipeline vincula el mínimo positivo de pacientes de la Variable Library activa al parámetro base del Notebook de validación. La validación utiliza ese valor recibido; `run_label` es un parámetro String independiente del pipeline, no otra política de la Variable Library ni un recuento fijo de datos de prueba definido directamente.
 
 ### 2. `bulk-parameter.yml` (en el despliegue)
 
@@ -340,7 +340,7 @@ Con `DEPLOY_METHOD=bulk`, fusione un PR válido de `dev -> test` o `test -> main
 
 ### Paso 2: el ETL carga el Lakehouse y después actualiza el modelo
 
-Cuando el despliegue termina correctamente, el flujo de ETL inicia un único Data Pipeline y consulta su estado. El Notebook de carga no cambia: carga `doctors`, `patients` y `appointments`. El Notebook de validación de solo lectura comprueba esquemas, claves, referencias, tipos de fecha del origen y el mínimo de la Library activa. Solo después se realiza el *framing* de `Patterns_Semantic_Model` mediante la actualización nativa y se espera a su finalización. GitHub no realiza una segunda actualización y las fases de publicación no ejecutan estas actividades.
+Cuando el despliegue termina correctamente, el flujo de ETL inicia un único Data Pipeline y consulta su estado. El Notebook de carga no cambia: carga `doctors`, `patients` y `appointments`. El Notebook de validación de solo lectura comprueba esquemas, claves, referencias, tipos de fecha del origen y el mínimo de la Variable Library activa. Solo después se realiza el *framing* de `Patterns_Semantic_Model` mediante la actualización nativa y se espera a su finalización. GitHub no realiza una segunda actualización y las fases de publicación no ejecutan estas actividades.
 
 ### Paso 3: configurar el origen de datos del Graph Model (manual)
 

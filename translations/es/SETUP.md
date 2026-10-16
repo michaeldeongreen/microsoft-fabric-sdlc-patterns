@@ -7,11 +7,11 @@
 
 # Configuración de este repositorio
 
-Esta guía permite pasar de un *fork* sin configurar a un recorrido funcional
-Dev -> Test -> Prod. Se recomienda empezar con `fabric-cicd`, el método de
-despliegue predeterminado, que no usa publicación masiva. Los demás métodos
-comparten la configuración y el ciclo de lanzamiento, pero requieren
-validaciones adicionales.
+Esta guía explica cómo configurar un *fork* nuevo para disponer de un flujo de
+trabajo funcional de Dev a Test y a Prod. Se recomienda empezar con
+`fabric-cicd`, el método de despliegue predeterminado, que no usa publicación
+masiva. Los demás métodos comparten la configuración y el ciclo de lanzamiento,
+pero requieren validaciones adicionales.
 
 Para aprender el patrón, deben usarse workspaces dedicados al ejemplo y datos
 que no sean de producción.
@@ -40,7 +40,7 @@ y realiza la única actualización del Semantic Model.
 
 | Actor | Responsabilidad durante la configuración |
 |---|---|
-| Administrador del repositorio de GitHub | Fork, ramas, Actions, Environments, reglas, secretos, variables, ciclo de vida del PAT y selección del método de despliegue |
+| Administrador del repositorio de GitHub | Fork, ramas, Actions, entornos, reglas, secretos, variables, ciclo de vida del PAT y selección del método de despliegue |
 | Administrador de identidades o grupos de Entra | Aplicación y Service principal de despliegue, ciclo de vida del secreto de cliente, grupo de Service principals autorizados y grupo de administradores de conexiones |
 | Administrador del inquilino de Fabric | Configuración del inquilino para la integración de Git y los Service principals, limitada a los grupos adecuados |
 | Administrador de workspaces de Fabric | Fabric Capacity, workspaces Dev/Test/Prod, Workspace Identities, roles de workspace y acceso de las Workspace Identities a los recursos |
@@ -90,7 +90,7 @@ Confirme que los administradores designados puedan:
 - asignar Fabric Capacity y crear y administrar workspaces de Fabric;
 - crear una Workspace Identity y concederle acceso al workspace y a los
   recursos;
-- administrar el fork, GitHub Actions, Environments, variables, secretos y
+- administrar el fork, GitHub Actions, entornos, variables, secretos y
   reglas; y
 - crear y administrar conexiones de Fabric.
 
@@ -288,7 +288,8 @@ repositorio:
 Una variable de entorno con el mismo nombre puede sustituirla para usar
 grupos específicos de cada etapa.
 
-No invente manualmente estas variables de los entornos:
+Deje que el flujo correspondiente cree estas variables de los entornos con los
+IDs verificados:
 
 | Variable | Quién la crea | Significado |
 |---|---|---|
@@ -307,8 +308,8 @@ Empiece por el método predeterminado:
 | Método | `DEPLOY_METHOD` | `DEPLOYMENT_PLAN_PATH` | Estado inicial |
 |---|---|---|---|
 | fabric-cicd sin publicación masiva | Sin definir o `fabric-cicd` | No se usa | Recomendado; Test verificado con una ejecución real del método predeterminado |
-| fabric-cicd sin publicación masiva, con plan leído por el cliente | `fabric-cicd-plan` | `data/fabric/DeploymentPlan.DeploymentPlan/plan.yml` | Experimental; sin verificación mediante una ejecución real |
-| fabric-cicd masivo, con plan leído por el cliente | `fabric-cicd-bulk` | La misma ruta del plan | Experimental; sin verificación mediante una ejecución real |
+| fabric-cicd sin publicación masiva, con plan interpretado por el adaptador | `fabric-cicd-plan` | `data/fabric/DeploymentPlan.DeploymentPlan/plan.yml` | Experimental; sin verificación mediante una ejecución real |
+| fabric-cicd masivo, con plan interpretado por el adaptador | `fabric-cicd-bulk` | La misma ruta del plan | Experimental; sin verificación mediante una ejecución real |
 | REST directo masivo | `bulk` | No se usa | Revalidar el comportamiento actual de la API y los requisitos de Fabric Capacity; sin verificación mediante una ejecución real |
 
 <a id="fabric-cicd-bulk-settings"></a>
@@ -408,10 +409,11 @@ Desde `dev`:
 python scripts\prepare_fabric_workspace.py --stage-initial-pipeline
 ```
 
-Revise el traslado de `data/fabric` a `data/fabric-initialization`, haga commit
-y push. Así se evita que la primera importación de toda la rama desde Fabric
-Git cree un DataPipeline cuyos IDs físicos del Semantic Model y de las
-conexiones todavía apunten al inquilino del repositorio de origen.
+Revise el traslado temporal de la carpeta de definición del DataPipeline de
+`data/fabric` a `data/fabric-initialization`. Después, haga commit y push. Así se
+evita que la primera importación de toda la rama desde Fabric Git cree un
+DataPipeline cuyos IDs físicos del Semantic Model y de las conexiones todavía
+apunten al inquilino del repositorio de origen.
 
 ### Conectar y configurar Dev
 
@@ -615,7 +617,7 @@ Para una migración revisada:
 1. Registre los GUID anteriores y sus referencias.
 2. Elimine solo las entradas obsoletas de variables de GitHub, con aprobación
    explícita.
-3. Aprovisione las conexiones sucesoras con Workspace Identity.
+3. Aprovisione las conexiones de sustitución con Workspace Identity.
 4. Actualice las referencias del código fuente canónico de Dev mediante
    revisión.
 5. Ejecute Dev y la promoción normal a Test.

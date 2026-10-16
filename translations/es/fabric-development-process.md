@@ -26,7 +26,7 @@ El recorrido completo es el siguiente:
 4. Se registran los GUID del workspace y de las conexiones en el `.env` de la persona que desarrolla.
 5. Se ejecuta `/swap-to-feature`. La skill valida los recursos existentes, descubre los IDs del Lakehouse y del modelo de feature y reescribe las referencias físicas locales.
 6. Se hace *commit* y *push*, se actualiza el workspace de feature desde Git, se activa su conjunto de valores de Variable Library y se realizan las pruebas.
-7. Se ejecuta `/swap-to-dev`. La skill restaura las referencias canónicas de Dev sin conexión y ejecuta las comprobaciones de preparación.
+7. Se ejecuta `/swap-to-dev`. La skill restaura las referencias canónicas de Dev sin conexión y ejecuta la comprobación de referencias para el PR.
 8. Se hace commit y push y se abre el PR a `dev`.
 9. Tras el *Merge* del PR, la persona designada para operar el workspace de Dev selecciona **Update all** y ejecuta manualmente el Data Pipeline de Fabric de Dev.
 
@@ -118,7 +118,7 @@ Ejecute [`/swap-to-feature`](../../.github/skills/swap-to-feature/SKILL.md). Sin
 Para un nuevo destino de feature, la skill:
 
 1. usa la identidad de usuario aprobada de Azure CLI;
-2. valida el workspace explícito y los GUID de ambas conexiones existentes;
+2. valida el workspace indicado y los GUID de ambas conexiones existentes;
 3. descubre el Lakehouse y el Semantic Model exactos por nombre;
 4. escribe los IDs descubiertos en `.env`;
 5. se detiene antes de reescribir archivos locales si falla la preparación;
@@ -162,7 +162,7 @@ git push
    - el informe se visualice;
    - se superen las comprobaciones necesarias de Ontology, Data Agent y consumo de datos.
 
-`minimum_patient_count` procede de la Variable Library activa y es un valor positivo de tipo Integer. `run_label` es un parámetro independiente de tipo String cuyo valor predeterminado es `manual`. Que la validación termine correctamente no demuestra que funcionen DAX, la propiedad del modelo, el acceso al informe ni la autorización de quienes consumen los datos.
+`minimum_patient_count` procede de la Variable Library activa y es un valor positivo de tipo Integer. `run_label` es un parámetro independiente de tipo String cuyo valor predeterminado es `manual`. Superar la validación no permite dar por verificados los resultados de DAX, la propiedad del modelo, el acceso al informe ni las autorizaciones de los consumidores.
 
 ## 6. Restaurar Dev antes del PR
 
@@ -174,7 +174,7 @@ Ejecute [`/swap-to-dev`](../../.github/skills/swap-to-dev/SKILL.md). En la CLI: 
 - sin cambios en conexiones ni permisos;
 - sin actualizar Fabric.
 
-Elimina el conjunto de valores de feature, restaura las referencias canónicas de workspace, Lakehouse, modelo y conexiones de Dev y ejecuta las mismas comprobaciones de preparación que CI. La skill comprueba la preparación automáticamente. Si se utiliza la CLI, también debe ejecutarse `python scripts\workspace_swap.py --check-ready`.
+Elimina el conjunto de valores de feature, restaura las referencias canónicas de workspace, Lakehouse, modelo y conexiones de Dev y ejecuta la misma comprobación de referencias para el PR que usa CI. La skill ya incluye esta comprobación. Si se utiliza la CLI, también debe ejecutarse `python scripts\workspace_swap.py --check-ready`.
 
 Revise el resultado:
 
@@ -190,12 +190,14 @@ Abra un PR a `dev`. Configure estas comprobaciones obligatorias:
 - `Check for non-dev IDs in Fabric items`
 - `Run unit tests`
 
-La comprobación de preparación verifica:
+La comprobación de referencias para el PR verifica:
 
 - las referencias canónicas de workspace, Lakehouse, modelo y conexiones de Dev;
 - que no haya archivos de conjuntos de valores de feature;
 - que no queden IDs físicos de feature conocidos en los archivos registrados;
 - que los valores de referencia de las reglas de parametrización sean coherentes.
+
+Esta comprobación revisa las referencias registradas de Dev y los conjuntos de valores permitidos. No aprovisiona recursos ni sustituye las pruebas y la aceptación de la carga de trabajo.
 
 ## 7. Actualizar y validar Dev
 
@@ -208,7 +210,7 @@ Tras el merge del PR:
 5. Ejecute `Patterns_Load_Validate_And_Refresh`.
 6. Revise las tres actividades, los campos y cálculos del modelo, el informe y las evidencias de aceptación necesarias para la carga de trabajo.
 
-Dev es manual de forma deliberada. El merge no actualiza el workspace ni ejecuta el Data Pipeline.
+La actualización y la ejecución en Dev son manuales por diseño. El merge no actualiza el workspace ni ejecuta el Data Pipeline.
 
 El paso siguiente es una promoción revisada de `dev` a `test`. Véase el [Proceso de lanzamiento](fabric-release-process.md#de-dev-a-test).
 
@@ -219,7 +221,7 @@ El repositorio incluye:
 | Skill | Propósito |
 |---|---|
 | [/swap-to-feature](../../.github/skills/swap-to-feature/SKILL.md) | Validar y registrar un destino de feature conocido y, después, aplicar el cambio local a feature |
-| [/swap-to-dev](../../.github/skills/swap-to-dev/SKILL.md) | Restaurar las referencias canónicas de Dev sin conexión y comprobar la preparación |
+| [/swap-to-dev](../../.github/skills/swap-to-dev/SKILL.md) | Restaurar las referencias canónicas de Dev sin conexión y ejecutar la comprobación de referencias para el PR |
 | [/swap-to-feature-dryrun](../../.github/skills/swap-to-feature-dryrun/SKILL.md) | Previsualizar cambios de feature conocidos sin autenticación ni escrituras |
 | [/swap-to-dev-dryrun](../../.github/skills/swap-to-dev-dryrun/SKILL.md) | Previsualizar la restauración de Dev sin autenticación ni escrituras |
 | [/prepare-feature-workspace](../../.github/skills/prepare-feature-workspace/SKILL.md) | Ejecutar la preparación y validación sin aplicar el cambio |
@@ -300,7 +302,7 @@ Archivos principales de la implementación:
 
 | Archivo | Función |
 |---|---|
-| [workspace_swap.py](../../scripts/workspace_swap.py) | Cambio de referencias físicas sin conexión y comprobación de preparación |
+| [workspace_swap.py](../../scripts/workspace_swap.py) | Cambio de referencias físicas sin conexión y comprobación de referencias para el PR |
 | [prepare_fabric_workspace.py](../../scripts/prepare_fabric_workspace.py) | Validación y descubrimiento de feature, y registro explícito de la configuración de referencia de Dev |
 | [pipeline_bindings.py](../../scripts/pipeline_bindings.py) | Campos físicos registrados del Data Pipeline |
 | [parameter.yml](../../data/fabric/parameter.yml) | Sustituciones de destino de fabric-cicd y valores de referencia canónicos de Dev |

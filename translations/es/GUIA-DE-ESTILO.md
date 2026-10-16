@@ -184,6 +184,9 @@ Las [convenciones del 15-10-2026](GLOSARIO.md#convenciones-de-la-actualización-
 - **Vinculación**, **comprobaciones previas** y **en tiempo de ejecución**, salvo que formen parte de una cadena literal de la interfaz.
 - **Control de calidad** para *quality gate*, **criterio de salida** para la condición que permite continuar y **pruebas básicas de funcionamiento** para *smoke checks*.
 - **Preparación y verificación de conexiones** con los efectos explícitos: crear, reutilizar, validar o detenerse, según corresponda. No se usa «asegurar conexiones» como promesa vaga ni se atribuye creación de recursos a una operación de solo lectura.
+- **Preparación del destino de feature** para validar recursos existentes y descubrir IDs; **comprobación de referencias para el PR** para revisar las referencias canónicas de Dev y los conjuntos de valores permitidos. Esta última no aprovisiona recursos ni sustituye la validación de la carga de trabajo.
+- **Plan interpretado por el adaptador** cuando la ordenación la calcula el código del repositorio, no Fabric. No se sustituye «cliente» en sus sentidos válidos de cliente REST, cliente OAuth o cliente empresarial.
+- **Vía de actualización de definiciones** para el mecanismo que modifica las definiciones de un workspace. No se confunde con un autor humano ni con un proceso de escritura de datos. La regla mantiene una única vía activa por workspace.
 - **Registro impersonal también en presentaciones y notas de ponente.** Un título como «Elegir el método» o una nota como «Mostrar la ejecución» evita el tuteo sin alargar la diapositiva.
 
 Las marcas de fuente y las notas de revisión deben distinguir una actualización asistida por IA de las decisiones humanas anteriores. Nunca se inventa aprobación nativa.

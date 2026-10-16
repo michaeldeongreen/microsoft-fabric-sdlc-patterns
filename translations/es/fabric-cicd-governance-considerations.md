@@ -28,13 +28,15 @@ Confundir el orquestador, las credenciales, la identidad de ejecución y la pers
 | Workspace Identity de Fabric | Autentica las actividades de Notebook y de actualización del Semantic Model | Administración del workspace de Fabric; Fabric gestiona la credencial |
 | Grupo administrador de conexiones | Recibe el rol Owner verificado en ambas conexiones de la etapa | Administración de grupos de Entra |
 | Administración del workspace y las conexiones de feature | Crea la Workspace Identity de feature, concede sus accesos a recursos y crea su par de conexiones | Administración de Fabric y conexiones |
-| Desarrollo de feature | Identidad Git propia, Branch Out, cambios locales de referencias, validación de feature y PR de feature a Dev | Organización de la persona usuaria |
-| Operación del workspace de Dev | Actualiza Dev conectado a Git, inspecciona las vinculaciones y ejecuta el Data Pipeline de Dev | Persona designada para operar el workspace |
+| Desarrollador de feature | Identidad Git propia, Branch Out, cambios locales de referencias, validación de feature y PR de feature a Dev | Organización de la persona usuaria |
+| Operador del workspace de Dev | Actualiza Dev conectado a Git, inspecciona las vinculaciones y ejecuta el Data Pipeline de Dev | Persona designada para operar el workspace |
 | UAMI de la carga de trabajo en ejecución | Identidad opcional para cargas de trabajo externas de Azure que llaman a Fabric; no se utiliza en el lanzamiento de este repositorio | Administración de plataforma |
 
 Los flujos actuales usan un secreto de cliente del *Service principal* de despliegue. OIDC puede sustituir ese secreto almacenado, pero no elimina los permisos de Fabric, la credencial para las variables de GitHub, la *Workspace Identity* de ejecución ni la aprobación del lanzamiento. La [demostración de OIDC](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns/issues/84) prevista aún no está implementada.
 
-## Configuración automática de conexiones: la concesión de privilegios del ejemplo
+<a id="configuración-automática-de-conexiones-la-concesión-de-privilegios-del-ejemplo"></a>
+
+## Configuración automática de conexiones: equilibrio entre automatización y privilegios
 
 Las conexiones tienen ACL de ámbito de inquilino y no son elementos sincronizados con Git. El rol Admin del workspace no concede automáticamente visibilidad de las conexiones ni permiso para utilizarlas.
 
@@ -55,13 +57,13 @@ En Test y Prod, el trabajo seleccionado:
 5. pasa los IDs de la ejecución actual al publicador;
 6. publica y envía el trabajo del Data Pipeline.
 
-El subproceso publicador fija `FABRIC_CONNECTION_MODE=existing` y `FABRIC_RUNTIME_AUTHENTICATION=WorkspaceIdentity`; valida y utiliza el par en modo de solo lectura. Esto no convierte en un trabajo de solo lectura al trabajo de despliegue que lo contiene.
+El subproceso publicador fija `FABRIC_CONNECTION_MODE=existing` y `FABRIC_RUNTIME_AUTHENTICATION=WorkspaceIdentity`; valida y utiliza el par en modo de solo lectura. Esto no significa que el trabajo de despliegue completo sea de solo lectura.
 
 Antes de ese proceso, una persona crea cada Workspace Identity y concede los permisos de workspace y recursos. El Service principal no aprovisiona identidades, asigna roles de workspace, cambia opciones del inquilino, crea grupos ni gestiona su pertenencia.
 
-Compartir un único Service principal de despliegue y un grupo administrador de conexiones entre etapas es una concesión del ejemplo, no aislamiento de entornos. Un `FABRIC_CONNECTION_ADMINS_GROUP_ID` específico de cada entorno permite seleccionar un grupo por etapa. Quienes desarrollan normalmente necesitan User en las dependencias de Dev o feature, no Owner de las conexiones de Test y Prod.
+Compartir un único Service principal de despliegue y un grupo administrador de conexiones entre etapas es una simplificación deliberada del ejemplo, no una medida de aislamiento entre entornos. Un `FABRIC_CONNECTION_ADMINS_GROUP_ID` específico de cada entorno permite seleccionar un grupo por etapa. Quienes desarrollan normalmente necesitan User en las dependencias de Dev o feature, no Owner de las conexiones de Test y Prod.
 
-El PAT limitado al repositorio tiene permisos de lectura y escritura en Contents y Environments. Interviene en todos los lanzamientos seleccionados de Test y Prod, aislado en las comprobaciones previas de GitHub y la persistencia. La escritura en Environments es más amplia que dos nombres de variable y puede abarcar otras operaciones de gestión del entorno. En producción debe usarse caducidad y designarse una persona responsable de la rotación, o utilizarse una GitHub App con permisos acotados por separado. El token nunca debe exponerse al código de feature ni a quienes desarrollan sin administrar el repositorio.
+El PAT limitado al repositorio tiene permisos de lectura y escritura en Contents y Environments. En los lanzamientos seleccionados de Test y Prod, solo se utiliza en las comprobaciones previas de GitHub y en la persistencia de IDs. El permiso de escritura en Environments no se limita a esas dos variables y puede permitir otras operaciones de administración del entorno. En producción debe usarse caducidad y designarse una persona responsable de la rotación, o utilizarse una GitHub App con permisos acotados por separado. El token nunca debe exponerse al código de feature ni a quienes desarrollan sin administrar el repositorio.
 
 Quien administra Fabric debe autorizar al Service principal de despliegue mediante la configuración de inquilino de Service principals, limitada a un grupo aprobado. La configuración de Fabric Git corresponde a quienes realizan las operaciones de Git; no debe usarse la lista de Service principals permitidos como sustituto de un ámbito aprobado de usuarios de Git. Los roles de workspace no anulan las políticas del inquilino.
 
@@ -77,7 +79,7 @@ Esta separación empresarial es una adaptación recomendada, no el trabajo de Te
 
 Los GUID de conexión son referencias no secretas; los tokens de acceso, las credenciales y los tokens del proveedor de Git deben quedar fuera de Git.
 
-El **required reviewer** de un entorno de GitHub es un control de aprobación útil antes de la preparación con privilegios. La aprobación permite que continúe el trabajo; **no** concede ni eleva permisos de Fabric. Si se requiere una elevación temporal, debe usarse el proceso de gestión de privilegios aprobado por la organización o una identidad privilegiada independiente. Este ejemplo no implementa PIM, no concede Admin silenciosamente al Service principal que despliega ni afirma que una aprobación de Actions sea una operación de RBAC.
+El revisor obligatorio (`required reviewer`) de un entorno de GitHub es un control de aprobación útil antes de la preparación con privilegios. La aprobación permite que continúe el trabajo; **no** concede ni eleva permisos de Fabric. Si se requiere una elevación temporal, debe usarse el proceso de gestión de privilegios aprobado por la organización o una identidad privilegiada independiente. Este ejemplo no implementa PIM, no concede Admin silenciosamente al Service principal que despliega ni afirma que una aprobación de Actions sea una operación de RBAC.
 
 Véanse el [contrato de configuración y permisos](SETUP.md#permisos-para-la-actualización-posterior-al-etl) y la documentación oficial de [Create Connection](https://learn.microsoft.com/en-us/rest/api/fabric/core/connections/create-connection), [Provision Identity](https://learn.microsoft.com/en-us/rest/api/fabric/core/workspaces/provision-identity) y [configuración de inquilino para desarrolladores](https://learn.microsoft.com/en-us/fabric/admin/service-admin-portal-developer).
 

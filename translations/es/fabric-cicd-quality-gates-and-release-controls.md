@@ -13,8 +13,9 @@ Fabric, a partir de la documentación pública enlazada más adelante. No es una
 lista de comprobación obligatoria de Microsoft ni un validador integrado para
 todos los elementos.
 
-Se usan desarrollo -> pruebas -> producción como roles del ciclo de vida.
-Una organización puede llamar a Test «Certification», «UAT» o «Staging».
+En esta guía, desarrollo, pruebas y producción indican la finalidad de los
+entornos dentro del ciclo de vida. La etapa de pruebas puede denominarse
+«Certification», «UAT» o «Staging», según la organización.
 Elija rutas de Git, de Pipelines de despliegue nativos o de API/biblioteca que
 sean compatibles con la carga de trabajo; los pipelines nativos y Deployment
 Plans no son requisitos universales.
@@ -112,8 +113,8 @@ lanzamiento; no deduzca que está listo solo porque se haya publicado.
   para las que no pueda usarse automatización aprobada.
 - Criterio de salida: registre el estado de referencia correcto de producción
   solo cuando se superen las pruebas básicas obligatorias. En caso contrario,
-  mantenga el lanzamiento incompleto y active la decisión de gestión del
-  fallo y recuperación.
+  mantenga el lanzamiento incompleto y decida qué medidas de gestión del
+  fallo y recuperación deben aplicarse.
 
 ## 2. Comprobaciones por artefacto
 
@@ -247,8 +248,9 @@ básicas de funcionamiento verifican el resultado en producción.
   en condiciones representativas de datos y Fabric Capacity fuera de
   producción.
 - Pruebas de consumidores: use la autenticación aprobada del usuario previsto.
-  Los roles Admin/Member/Contributor del workspace omiten la RLS del Semantic
-  Model; la identidad de despliegue no sustituye al usuario.
+  La RLS del Semantic Model no se aplica a las identidades con los roles
+  Admin, Member o Contributor en el workspace; la identidad de despliegue no
+  sustituye al usuario.
   [Comportamiento de RLS](https://learn.microsoft.com/en-us/fabric/security/service-admin-row-level-security).
 - Límites de acceso: verifique los resultados permitidos y denegados en cada
   recorrido pertinente de Semantic Model, informe, SQL, OneLake y agente. La

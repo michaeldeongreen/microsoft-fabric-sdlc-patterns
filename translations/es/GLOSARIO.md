@@ -198,18 +198,22 @@ Acuerdos de redacción de la actualización asistida por IA, **sin atribuirlos a
 |---|---|---|
 | Workspace Identity | **Workspace Identity** | Nombre de producto y autenticación; no se traduce. Designa una identidad: «la Workspace Identity», «las Workspace Identities»; el sustantivo *workspace* sigue siendo masculino. Las rutas de interfaz conservan su grafía exacta, como `Workspace settings -> Workspace identity`. |
 | Deployment Plan / DeploymentPlan | **Deployment Plan** / `DeploymentPlan` | Nombre de producto frente a identificador del tipo de elemento. No es un Data Pipeline ni un Pipeline de despliegue. |
+| client-read plan | **plan interpretado por el adaptador** | El adaptador del repositorio lee el plan y calcula el orden de publicación; Fabric no ejecuta el plan de forma nativa en estas rutas. Se evita confundir «cliente» con la empresa cliente. Los sentidos válidos de «cliente REST», «cliente OAuth» y «cliente de Microsoft» no cambian. |
 | non-bulk | **sin publicación masiva**; **no masivo** como forma breve | Ambas formas designan el mismo modo de publicación. La forma breve es válida cuando el contexto es claro, especialmente en diapositivas y diagramas; no se alteran valores como `fabric-cicd`. |
 | Data Pipeline / DataPipeline | **Data Pipeline** / `DataPipeline` | Tipo de elemento en prosa frente a identificador de API, ruta o configuración. Ejecuta la carga de trabajo; no promueve contenido entre workspaces. |
 | Environment *(tipo de elemento de Fabric)* | **Environment** | Se conserva como tipo de producto. El concepto general y los entornos de GitHub siguen siendo «entorno»; los nombres `Dev`, `Test` y `Prod` no cambian. |
 | Owner / Contributor / Admin / Member / Viewer / User | **Se conservan cuando nombran roles literales** | En instrucciones de interfaz y tablas de permisos se mantienen las etiquetas que hay que localizar. No se traducen rutas de navegación ni tipos de conector como `Power BI datasets`. |
 | fine-grained PAT | ***fine-grained PAT*** (PAT de permisos específicos) | Categoría de token de GitHub; se mantiene el término reconocible con una glosa en la primera aparición. |
 | preflight | **comprobaciones previas** | Describe verificaciones anteriores a una operación, no una fase de aprovisionamiento por sí misma. |
+| feature-target preparation | **preparación del destino de feature** | Valida el workspace y las conexiones existentes y descubre los IDs de los elementos. No crea las conexiones ni aprovisiona la Workspace Identity. No debe confundirse con la comprobación de referencias para el PR. |
+| readiness check / `--check-ready` | **comprobación de referencias para el PR** | Comprueba las referencias canónicas registradas de Dev y los conjuntos de valores permitidos. No aprovisiona recursos ni certifica toda la carga de trabajo. También se usa durante la configuración inicial de Dev. Los nombres literales de las comprobaciones de GitHub no se traducen. |
 | binding | **vinculación** | Para referencias de ejecución, modelos y conexiones. «Enlace» sigue siendo válido para hipervínculos; los nombres literales como `semantic_model_binding` no cambian. |
 | runtime | **en tiempo de ejecución** | En compuestos puede reformularse: «identidad de ejecución», «conexiones de ejecución». |
 | framing *(Direct Lake)* | ***framing*** | Término técnico de Direct Lake. La actualización realiza el framing de las referencias Delta; no es una nueva carga de datos. Se evita el calco «creación de marcos». |
 | candidate | **versión candidata** | Para una candidata de lanzamiento. No se usa «candidato» sin expresar qué objeto es. |
 | release process | **proceso de lanzamiento** | Se distingue de desplegar y de publicar definiciones. |
 | publish *(definiciones)* | **publicar** | La publicación no implica ejecutar la carga de trabajo, validar a quienes consumen los datos ni aprobar un lanzamiento. |
+| writer *(de definiciones)* | **vía de actualización de definiciones** | Designa el mecanismo que modifica las definiciones, no al autor ni únicamente a un responsable humano. La regla es «una única vía activa de actualización de definiciones por workspace». Puede abreviarse a «vía de actualización» cuando el contexto sea claro. Los procesos que escriben datos siguen siendo «procesos de escritura». |
 | quality gate / exit criterion | **control de calidad** / **criterio de salida** | Un control aplica la comprobación; el criterio especifica qué debe cumplirse para continuar. No se traducen estados literales de herramientas. |
 | smoke checks | **pruebas básicas de funcionamiento** | Forma explícita y neutral, sin el calco «pruebas de humo». |
 | baseline | **estado, configuración o valores de referencia** | Según el objeto. Para Dev: «configuración de referencia de Dev» o «IDs canónicos de Dev» cuando se trata específicamente de IDs. |
@@ -220,7 +224,7 @@ Acuerdos de redacción de la actualización asistida por IA, **sin atribuirlos a
 | skill *(Copilot)* | ***skill*** | Función de Copilot; se conserva por correspondencia con el producto. No debe describirse como un antiguo archivo de prompt ni atribuirle acciones que no realiza. |
 | fallback *(publicación masiva de fabric-cicd)* | **vuelta a la publicación estándar** | Expresa el cambio concreto de modo. En otras situaciones debe describirse la alternativa real; se evita «repliegue». |
 | foundations *(dependencias de publicación)* | **elementos base** / **dependencias previas** | No «fundaciones». Se refiere a los elementos que deben existir antes de publicar sus dependientes. |
-| compromise *(seguridad)* | **vulneración de seguridad** | No «un compromiso en Test». En *sample compromise* el sentido es distinto: «concesión del ejemplo». |
+| compromise *(seguridad)* | **vulneración de seguridad** | No «un compromiso en Test». En *sample compromise* el sentido es distinto: «simplificación deliberada del ejemplo». Esa simplificación no implica aislamiento de entornos ni una recomendación de producción. |
 
 Estas decisiones son contextuales, no reglas de sustitución ciega. «Contenido codificado en base64» y «conocimiento codificado en un contrato» conservan el sentido correcto de *encoded*; no deben confundirse con el falso amigo de *hardcoded*.
 

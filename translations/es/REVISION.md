@@ -35,6 +35,12 @@ Tres agentes de IA —dos especialistas y el agente coordinador— revisaron el
 conjunto completo y después las correcciones acordadas. Las comprobaciones
 mecánicas y las mediciones de diapositivas y diagramas complementan esa revisión.
 
+El pulido lingüístico posterior precisa los actores y las acciones, y distingue
+la preparación del destino de la comprobación de referencias para el PR. Las
+nuevas formulaciones se registran como convenciones asistidas por IA en el
+glosario, sin modificar las decisiones de las revisiones humanas anteriores ni
+el alcance técnico del original.
+
 Para la revisión humana se proponen **comprobaciones puntuales**:
 
 1. **Abrir dos o tres documentos al azar** y leer unos párrafos de cada uno. Lo que se busca es si *suena* a español escrito por una persona.

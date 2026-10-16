@@ -2,15 +2,15 @@
 
 <!-- source: fabric-deployment-plan-guide.md @ f7f949d | translated: 2026-10-15 -->
 
-> 📄 **La versión en inglés de este documento es la autoritativa.** En caso de discrepancia, [el original en inglés](../../fabric-deployment-plan-guide.md) tiene precedencia.
+> 📄 **La versión en inglés de este documento es la de referencia.** En caso de discrepancia, [el original en inglés](../../fabric-deployment-plan-guide.md) tiene precedencia.
 
 # Guía de CI/CD con Deployment Plan
 
 Dos adaptadores independientes, mantenidos por este repositorio, leen un
 *Deployment Plan* de Fabric guardado en Git: `fabric-cicd-plan` publica de forma
-secuencial y no masiva, mientras que `fabric-cicd-bulk` combina grupos
-independientes cuyas dependencias ya se han satisfecho en selecciones de
-publicación masiva estricta de fabric-cicd. Cada adaptador sustituye las fases
+secuencial y no masiva, mientras que `fabric-cicd-bulk` combina en una misma
+selección de publicación masiva estricta de fabric-cicd los grupos independientes
+cuyas dependencias ya se hayan satisfecho. Cada adaptador sustituye las fases
 definidas directamente en su propio método.
 **fabric-cicd no masivo** (`fabric-cicd`) sigue siendo el método predeterminado
 y el punto de partida recomendado de este repositorio; véase la
@@ -35,19 +35,23 @@ permite localizar el flujo que la invoca y el script que la ejecuta.
 > «[not officially supported or recommended](https://github.com/microsoft/fabric-cicd/issues/290#issuecomment-2881790140)».
 > Traducción: «no es una práctica recomendada» y «no se admite ni se recomienda
 > oficialmente».
-> Este puente requiere una responsabilidad explícita, definiciones completas
-> de las dependencias, validación fuera de producción y una vía para volver al
-> método estándar de despliegue completo. Está pensado para equipos avanzados
+> Esta solución de transición requiere un responsable designado, definiciones
+> completas de las dependencias, validación fuera de producción y una vía para
+> volver al método estándar de despliegue completo. Está pensada para equipos avanzados
 > que evalúan una carencia documentada, no como nuevo método predeterminado
 > para todos los usuarios de fabric-cicd.
 
 ## Cómo funciona
 
 Este recorrido describe **fabric-cicd no masivo con un plan interpretado por
-el cliente** (`fabric-cicd-plan`). La ruta masiva de fabric-cicd lee el mismo
+el adaptador** (`fabric-cicd-plan`). La ruta masiva de fabric-cicd lee el mismo
 formato de plan admitido, pero agrupa elementos independientes cuyas
 dependencias ya se han satisfecho; sus instrucciones empiezan en
 [Adaptador masivo independiente](#adaptador-masivo-independiente-14x).
+
+La expresión «interpretado por el adaptador» indica que el código del repositorio
+lee el plan y calcula el orden de publicación. Fabric no ejecuta la ordenación
+nativa del plan en estas rutas.
 
 <pre>
 <a href="../../.github/workflows/deploy-test-fabric-cicd-plan.yml">deploy-test-fabric-cicd-plan.yml</a> / <a href="../../.github/workflows/deploy-prod-fabric-cicd-plan.yml">deploy-prod-fabric-cicd-plan.yml</a>
@@ -115,10 +119,10 @@ más adelante permiten comprobar la planificación tras cambiar el plan o el
 inventario.
 
 En el método no masivo, cada elemento declarado recibe una llamada
-`publish_all_items(..., items_to_include=...)` independiente, con el estado del
-workspace obtenido de nuevo. Las llamadas posteriores pueden así resolver los
-IDs de destino creados por las anteriores. Los grupos independientes se
-procesan de forma secuencial y determinista, no en paralelo.
+`publish_all_items(..., items_to_include=...)` independiente. En cada llamada
+se vuelve a consultar el inventario del workspace. Así, las llamadas posteriores
+pueden resolver los IDs de destino creados por las anteriores. Los grupos
+independientes se procesan de forma secuencial y determinista, no en paralelo.
 
 [deployment_plan.py](../../scripts/deployment_plan.py) descubre los elementos
 restantes a partir de los metadatos del repositorio y de `ITEM_TYPE_IN_SCOPE`.
@@ -130,7 +134,7 @@ y `Patterns_Report`. La Variable Library, la carga, la validación y el
 DataPipeline tienen ahora grupos explícitos en lugar de pertenecer a los
 elementos restantes. Un plan personalizado puede producir otro inventario;
 debe previsualizarse el grafo.
-Para esta muestra de 11 elementos, la publicación no masiva con plan hace nueve
+Para este ejemplo de 11 elementos, la publicación no masiva con plan hace nueve
 llamadas a la biblioteca —ocho grupos declarados y una selección de elementos
 restantes—, no nueve solicitudes HTTP.
 El elemento de control DeploymentPlan no se publica ni se elimina como
@@ -151,7 +155,7 @@ combinan en una selección exacta de fabric-cicd; no se envían en paralelo.
 El plan actual da al DataPipeline dependencias explícitas de
 `Patterns_Variables`, `Import_Patterns_Data`, `Validate_Patterns_Data` y
 `Patterns_Semantic_Model`.
-Para la muestra de 11 elementos guardada en Git, la planificación de solo
+Para el ejemplo de 11 elementos guardado en Git, la planificación de solo
 lectura es:
 
 | Selección | Número de elementos | Grupos o elementos restantes |
@@ -163,14 +167,14 @@ lectura es:
 
 Son cuatro selecciones de la biblioteca, con `[1, 5, 2, 3]` elementos.
 El contrato de transporte comprobado sin conexión espera cuatro POST de
-importación masiva de definiciones para esta muestra; los GET de inventario,
+importación masiva de definiciones para este ejemplo; los GET de inventario,
 los PATCH de activación de conjuntos de valores y los DELETE de limpieza son
 solicitudes HTTP adicionales.
 Estas cifras no son evidencia de un despliegue real ni un orden de tipos
 definido directamente: al cambiar las dependencias o el inventario, cambia la
 planificación. Debe previsualizarse el plan guardado en Git después de cambiarlo.
-Cada llamada obtiene de nuevo el estado del workspace y usa tipos de elemento
-explícitos y selectores de inclusión exactos `Name.ItemType`.
+Cada llamada vuelve a consultar el inventario del workspace y usa tipos de
+elemento explícitos y selectores de inclusión exactos `Name.ItemType`.
 En otros repositorios, fabric-cicd puede dividir una selección en más lotes
 internos de dependencias; una llamada a la biblioteca no equivale a un número
 fijo de solicitudes HTTP.
@@ -233,19 +237,19 @@ activación sin avisar. No hace un segundo PATCH de activación.
 
 Para que esa comprobación siga siendo válida después de parametrizar, se
 ejecutan comprobaciones previas autenticadas y de solo lectura de las reglas
-de fabric-cicd para todas las bibliotecas seleccionadas antes de la primera
+de fabric-cicd para todas las Variable Libraries seleccionadas antes de la primera
 importación de definiciones, y de nuevo para cada selección.
 Esto no forma parte de `--dry-run`.
-Los archivos de control de la biblioteca `settings.json` y `valueSets/*.json`,
+Los archivos de control de cada Variable Library, `settings.json` y `valueSets/*.json`,
 incluido el contenido de las sobrescrituras, deben conservar sus valores
 literales. Se rechazan las reglas activas `find_replace` que coincidan con el
 contenido de esos archivos de control. También se rechaza cualquier regla
 `key_value_replace` cuyos filtros los incluyan: fabric-cicd vuelve a serializar
 el JSON aunque no coincidan la clave ni el entorno, lo que puede permitir que
 una regla de texto posterior cambie los metadatos de activación.
-Las reglas de sustitución por clave y valor de la biblioteca deben limitarse
+Las reglas de sustitución por clave y valor de una Variable Library deben limitarse
 a `**/variables.json`; los archivos normales de la carga de trabajo y las
-variables de la biblioteca siguen usando la parametrización de fabric-cicd.
+variables de la Variable Library siguen usando la parametrización de fabric-cicd.
 Las reglas guardadas en Git no se ven afectadas. Es una restricción de seguridad
 conservadora del adaptador, no una limitación de fabric-cicd.
 
@@ -258,10 +262,10 @@ publicación, no llamadas de transporte privadas ni modificaciones de fabric-cic
 
 Después de cada selección exige `bulk_publish_enabled=True` real y resultados
 completos, identificados correctamente, con `operationStatus=Succeeded` e IDs
-de destino válidos para todos los elementos. Los resultados fallidos, parcialmente
-correctos, desconocidos, ausentes o mal formados detienen las selecciones
-dependientes, la publicación de los elementos restantes y la limpieza de
-huérfanos.
+de destino válidos para todos los elementos. Los resultados de fallo o de éxito
+parcial, así como los desconocidos, ausentes o mal formados, detienen las
+selecciones dependientes, la publicación de los elementos restantes y la
+limpieza de huérfanos.
 La comprobación del modo se ejecuta después de que termine `publish_all_items`:
 las causas conocidas de retorno a la publicación estándar se rechazan antes
 de publicar, pero un retorno inesperado puede haber realizado ya escrituras
@@ -292,7 +296,7 @@ Las pruebas de regresión de la revisión adversarial rechazan las sustituciones
 de metadatos de activación y las reglas encadenadas de clave/valor y texto
 antes de importar definiciones, activar o limpiar, y permiten las reglas de
 texto inactivas o sin coincidencias y las sustituciones por clave y valor
-válidas limitadas a las variables de la biblioteca.
+válidas limitadas a las variables de la Variable Library.
 
 La carga útil masiva conserva `datasetReference.byPath` del Report; no realiza
 la conversión a `byConnection` de la publicación estándar. El plan coloca el
@@ -395,8 +399,9 @@ Después:
    rama `test`, o fusione en `test` un cambio que cumpla los filtros.
 3. Revise la planificación, el despliegue y los resultados del ETL con las
    comprobaciones siguientes.
-4. Promueva a `main` cuando Test pase. Se aplica la protección configurada
-   para el entorno Prod; el repositorio no crea esa protección.
+4. Promueva los cambios a `main` cuando se hayan superado las comprobaciones
+   de Test. Se aplica la protección configurada para el entorno Prod; el
+   repositorio no crea esa protección.
 
 Una ejecución manual de
 [deploy-test-fabric-cicd-plan.yml](../../.github/workflows/deploy-test-fabric-cicd-plan.yml)
@@ -474,7 +479,7 @@ todos los requisitos previos.
 ## Configuración y límites ante fallos
 
 Este apartado describe el comportamiento de **fabric-cicd no masivo con un
-plan interpretado por el cliente**. Las protecciones adicionales del modo
+plan interpretado por el adaptador**. Las protecciones adicionales del modo
 masivo sobre el modo de publicación, las respuestas y la Variable Library se
 documentan en
 [Sustituciones de fabric-cicd y requisitos de éxito](#sustituciones-de-fabric-cicd-y-requisitos-de-éxito).
@@ -590,9 +595,10 @@ importa ni se elimina como huérfano.
 
 REST de Fabric acepta `options.deploymentPlan`, pero fabric-cicd 1.4.0 no lo
 expone en su API pública de publicación. El adaptador masivo independiente
-debe mantenerse como un puente sustituible cuando se publique y verifique
-una integración masiva nativa adecuada de fabric-cicd. Esto no implica
-compatibilidad nativa no masiva ni retira el ejemplo no masivo independiente.
+debe mantenerse como una solución de transición que podrá sustituirse cuando
+se publique y verifique una integración masiva nativa adecuada de fabric-cicd.
+Esto no implica compatibilidad nativa no masiva ni retira el ejemplo no masivo
+independiente.
 
 Las actualizaciones de fabric-cicd deben volver a probarse. Al migrar la ruta
 masiva a una ejecución nativa del plan, deben reevaluarse los elementos no

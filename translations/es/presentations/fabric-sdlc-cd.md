@@ -188,7 +188,7 @@ La documentación oficial de Microsoft es la canónica; este repositorio present
 
 # El problema de la entrega en Fabric
 
-Un workspace de Fabric es a la vez una **superficie de desarrollo** y un **entorno en vivo**.
+Un workspace de Fabric es, a la vez, un **entorno de desarrollo y de ejecución**.
 
 Una sola solución puede abarcar:
 
@@ -198,7 +198,7 @@ Una sola solución puede abarcar:
 - *Variable Libraries* y conexiones
 - *Ontologies* y agentes
 
-> **¿Cómo reproducimos una solución que funciona en Test y Prod sin reconstruirla a mano ni dejar que cada workspace acabe siendo una verdad distinta?**
+> **¿Cómo reproducir una solución funcional en Test y Prod sin reconstruirla a mano ni convertir cada workspace en una fuente de verdad independiente?**
 
 <!--
 No definir CD de forma genérica. Empezar por el problema operativo concreto de Fabric.
@@ -216,8 +216,8 @@ Editar directamente en el navegador es potente, pero por eso mismo hace falta un
 | | |
 |---|---|
 | **Compatibilidad desigual del ciclo de vida**<br>Git, los *pipelines* de despliegue, `fabric-cicd` y las API admiten conjuntos de elementos distintos. | **Las dependencias se convierten en lógica de despliegue**<br>Los elementos base deben existir antes de que se resuelvan los IDs de destino y las definiciones dependientes. |
-| **La configuración está fragmentada**<br>Variables en ejecución, metadatos, conexiones, reglas y secretos tienen responsables y momentos distintos. | **Las definiciones no son todo el entorno**<br>Datos, credenciales, permisos, programaciones y vinculaciones del primer despliegue necesitan planes aparte. |
-| **Varios escritores generan desviación**<br>Las ediciones directas, la sincronización con Fabric Git y el despliegue por API no deberían competir por el mismo workspace. | **La seguridad y la gobernanza abarcan varios sistemas**<br>Los roles de Fabric y la configuración de inquilino deben encajar con la identidad de Entra, los controles de GitHub, las aprobaciones, la auditoría y la gobernanza de datos corporativa. |
+| **La configuración está fragmentada**<br>Variables en tiempo de ejecución, metadatos, conexiones, reglas y secretos tienen responsables y momentos de aplicación distintos. | **Las definiciones no son todo el entorno**<br>Datos, credenciales, permisos, programaciones y vinculaciones del primer despliegue necesitan planes aparte. |
+| **Varias vías de actualización generan desviación**<br>Las ediciones directas, la sincronización con Fabric Git y el despliegue por API no deberían competir por el mismo workspace. | **La seguridad y la gobernanza abarcan varios sistemas**<br>Los roles de Fabric y la configuración de inquilino deben encajar con la identidad de Entra, los controles de GitHub, las aprobaciones, la auditoría y la gobernanza de datos corporativa. |
 
 <!--
 Esta es la diapositiva central del problema del cliente. La CD en Fabric es difícil porque el workspace es heterogéneo, no porque el YAML sea complicado.
@@ -230,7 +230,7 @@ La idea no es que no se pueda cambiar, sino que migrar es un programa estratégi
 
 <!-- _class: dense -->
 
-# Antes de elegir herramientas de CI/CD, definir la superficie de entrega
+# Antes de elegir herramientas de CI/CD, definir el alcance de la entrega
 
 **Empezar por la solución, no por la herramienta de despliegue.**
 
@@ -241,7 +241,7 @@ La idea no es que no se pueda cambiar, sino que migrar es un programa estratégi
 | **¿Cómo de portables son las referencias?** | Distinguir entre valores de ejecución, IDs lógicos e IDs físicos que hay que sustituir. |
 | **¿Qué hay que aprovisionar?** | Inventariar las instancias de Fabric Capacity, los workspaces, vínculos privados, accesos directos y conexiones, roles y configuración de inquilino; elegir Bicep, Terraform o API según la cobertura. |
 | **¿Qué se mueve más allá de las definiciones?** | Planificar datos, credenciales, permisos, conexiones, programaciones, vinculaciones y configuración del destino. |
-| **¿Quién es responsable del destino y del resultado?** | Establecer un único escritor, el ETL o la actualización posterior al despliegue, la validación y las evidencias del lanzamiento. |
+| **¿Quién es responsable del destino y del resultado?** | Establecer una única vía activa de actualización de definiciones, el ETL o la actualización posterior al despliegue, la validación y las evidencias del lanzamiento. |
 
 > **Compatible no significa completo:** las definiciones de los elementos son solo una parte de un entorno utilizable. Deben conservarse cuando sea posible, aunque el publicador elegido no pueda desplegar el elemento.
 
@@ -270,13 +270,13 @@ Fase 1:   Lakehouse ──▶ Variable Library / Notebooks / Semantic Model
           Ontology  ──▶ Data Agent
 
 Fase 2:   Publicar los elementos dependientes salvo el DataPipeline
-Fase 3:   Descubrir de nuevo Notebook/Model → publicar DataPipeline
+Fase 3:   Consultar de nuevo los IDs de Notebook/SemanticModel → publicar DataPipeline
 ```
 
 <!--
 Abrir los archivos enlazados si resulta útil. El Data Agent referencia directamente la Ontology, no el Lakehouse.
 El Lakehouse y la Ontology son elementos base de la fase 1 para cadenas de dependencia distintas.
-El SDK conserva el estado en caché durante una llamada; la fase 3 descubre de nuevo las dependencias del DataPipeline creadas en la fase 2.
+El SDK conserva el estado en caché durante una llamada; la fase 3 vuelve a consultar los IDs de las dependencias del DataPipeline creadas en la fase 2.
 Este es un ejemplo concreto de los retos generales de la diapositiva anterior, no un tema nuevo.
 -->
 
@@ -343,7 +343,7 @@ Conviene tratar las API como la superficie de automatización de esta opción, n
 - La sincronización con Fabric Git pasa a formar parte de la ruta de despliegue a producción
 - Todos los workspaces de destino deben estar conectados a Fabric Git y gobernados
 - Algunos clientes reportan cambios de definición generados por la plataforma o sin significado semántico («*ghost commits*»)
-- Las ramas de larga vida, la desviación y los escritores en competencia aumentan la complejidad operativa
+- Las ramas de larga duración, la desviación y las vías de actualización en conflicto aumentan la complejidad operativa
 
 **Encaje ideal:** equipos cómodos operando todas las etapas con la integración de Git de Fabric.
 
@@ -467,7 +467,7 @@ El script REST directo obtiene primero los IDs de Lakehouse/Ontology, después e
 | `test` | Test | GitHub Actions |
 | `main` | Prod | GitHub Actions |
 
-Un solo escritor de definiciones por workspace
+Una única vía activa de actualización de definiciones por workspace
 
 - Dev lo gestiona Fabric Git.
 - Las definiciones de Test y Prod se gestionan por API.
@@ -490,8 +490,8 @@ Un solo escritor de definiciones por workspace
 
 ```text
 Publicación 1: Lakehouse + Ontology
-Publicación 2: Library + Notebooks + Model + Report + Agent
-Publicación 3: DataPipeline (nuevo descubrimiento de Notebook/Model)
+Publicación 2: Variable Library + Notebooks + Semantic Model + Report + Data Agent
+Publicación 3: DataPipeline (nueva consulta de IDs de Notebook/SemanticModel)
           ↓ limpieza de los huérfanos que corresponda
 Después: un DataPipeline — carga → validación → actualización nativa
 ```
@@ -502,7 +502,7 @@ de IDs solo si faltan, la búsqueda del DataPipeline por nombre, las dependencia
 de éxito y el comportamiento ante fallos. Un DeploymentPlan ordena la
 publicación, no las actividades de la carga de trabajo ni la configuración de conexiones.
 
-> El *pipeline* no necesita conocimiento tribal de Fabric cuando ese conocimiento se hace explícito y verificable en el repositorio.
+> El *pipeline* deja de depender del conocimiento no documentado del equipo cuando ese conocimiento queda explícito y verificable en el repositorio.
 
 ---
 
@@ -516,7 +516,7 @@ publicación, no las actividades de la carga de trabajo ni la configuración de 
 | `DEPLOY_METHOD` | Resultado |
 |---|---|
 | sin definir o `fabric-cicd` | No masivo: predeterminado y recomendado |
-| `fabric-cicd-bulk` | Masivo experimental + plan interpretado por el cliente; exige `DEPLOYMENT_PLAN_PATH` |
+| `fabric-cicd-bulk` | Masivo experimental + plan interpretado por el adaptador; exige `DEPLOYMENT_PLAN_PATH` |
 | `bulk` | REST directo de Bulk Import; revalidar el endpoint actual |
 | `fabric-cicd-plan` | Adaptador secuencial no masivo + plan; independiente y experimental |
 | cualquier otro valor | Se omiten todos los trabajos de despliegue |
@@ -636,8 +636,9 @@ El acceso al origen del propietario del modelo y las comprobaciones de fechas/DA
 de los consumidores siguen siendo independientes. La cadena needs de la misma
 revisión sustituye a los flujos workflow_run de la rama predeterminada.
 Los flujos ETL independientes siguen siendo herramientas manuales de recuperación;
-los nombres actualizados de los flujos evitan que los listeners antiguos inicien
-trabajos duplicados del DataPipeline durante la transición.
+los nombres actualizados de los flujos de despliegue evitan que los flujos
+antiguos que recibían esos eventos inicien trabajos duplicados del DataPipeline
+durante la transición.
 -->
 
 ---
@@ -724,7 +725,7 @@ Es reproducir una solución de Fabric que funcione, entre tipos de elemento cuya
 
 ### Prácticas que conviene llevarse
 
-- Establecer una única fuente de verdad y un único escritor de despliegue por workspace.
+- Establecer una única fuente de verdad y una única vía activa de actualización de definiciones por workspace.
 - Preferir despliegues completos y repetibles; usar el despliegue selectivo solo con conciencia de las dependencias.
 - Separar la entrega de elementos, la vinculación de entorno, la identidad y los permisos, y la validación de datos.
 - Usar identidades de ámbito de entorno, controles de aprobación y el SHA del *commit* como hilo del lanzamiento.

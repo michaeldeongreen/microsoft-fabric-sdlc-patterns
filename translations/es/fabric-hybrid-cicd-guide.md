@@ -68,7 +68,7 @@ La misma mecánica de publicación se aplica a Prod. El [contrato común de Test
 
 GitHub publica las definiciones, inicia un único trabajo de `Patterns_Load_Validate_And_Refresh` y consulta su estado. Fabric controla la validación y la única actualización del modelo; ya no hay un paso de actualización de Power BI en GitHub ni una ruta alternativa de actualización en tiempo de ejecución. Este Data Pipeline de Fabric orquesta trabajo; en cambio, los **Pipelines de despliegue de Fabric** nativos promueven contenido y DeploymentPlan ordena la publicación.
 
-> Junto a esta ruta predeterminada de fabric-cicd sin publicación masiva existen rutas alternativas: REST masivo directo y dos rutas de fabric-cicd con planes leídos por el cliente. Todas se seleccionan mediante `DEPLOY_METHOD`. El punto de partida recomendado es la ruta predeterminada sin publicación masiva; véanse la [matriz de métodos](README.md#elegir-un-método-de-despliegue) y la [guía de REST directo](fabric-bulk-cicd-guide.md).
+> Junto a esta ruta predeterminada de fabric-cicd sin publicación masiva existen rutas alternativas: REST masivo directo y dos rutas de fabric-cicd con planes interpretados por el adaptador. Todas se seleccionan mediante `DEPLOY_METHOD`. El punto de partida recomendado es la ruta predeterminada sin publicación masiva; véanse la [matriz de métodos](README.md#elegir-un-método-de-despliegue) y la [guía de REST directo](fabric-bulk-cicd-guide.md).
 
 Para configurar la ordenación sin modificar esta ruta predeterminada, véase la [Guía de CI/CD con Deployment Plan](fabric-deployment-plan-guide.md). Los adaptadores independientes `fabric-cicd-plan` y `fabric-cicd-bulk` usan el plan versionado en lugar de fases fijas: llamadas estándar secuenciales o llamadas masivas estrictas agrupadas, respectivamente. Ninguno ejecuta un Deployment Plan nativo.
 
@@ -121,13 +121,18 @@ Este contenido común se ha trasladado al [Proceso de lanzamiento: qué activa c
 
 ### Trabajo de despliegue
 
-Después de la [preparación común de conexiones](fabric-release-process.md#de-dev-a-test), el flujo seleccionado llama a `reusable-deploy-fabric-cicd.yml`. Cuando el ámbito incluye un Data Pipeline, el ejecutor estándar hace tres llamadas de publicación: Lakehouse + Ontology; elementos dependientes distintos de Data Pipeline —Variable Library, Notebooks, Semantic Model, Report y Data Agent—; por último, Data Pipeline. fabric-cicd almacena en caché el estado del workspace durante una llamada, por lo que el orden de los elementos no basta para que las referencias del pipeline dispongan de los IDs de Notebook y modelo recién creados. La tercera llamada descubre los recursos de nuevo. Si no hay ningún Data Pipeline, el ejecutor conserva su comportamiento de dos fases. Los tipos de elemento siguen acotándose explícitamente mediante `item_type_in_scope`.
+Después de la [preparación común de conexiones](fabric-release-process.md#de-dev-a-test), el flujo seleccionado llama a `reusable-deploy-fabric-cicd.yml`. Cuando el ámbito incluye un Data Pipeline, el ejecutor estándar hace tres llamadas de publicación: Lakehouse + Ontology; elementos dependientes distintos de Data Pipeline —Variable Library, Notebooks, Semantic Model, Report y Data Agent—; por último, Data Pipeline.
+
+fabric-cicd almacena en caché el estado del workspace durante una llamada, por lo que el orden de los elementos no basta para resolver las referencias del pipeline a los Notebooks y al modelo recién creados. La tercera llamada vuelve a consultar el inventario del workspace para resolver esas referencias con los nuevos IDs.
+
+Si no hay ningún Data Pipeline, el ejecutor conserva su comportamiento de dos fases. Los tipos de elemento siguen acotándose explícitamente mediante `item_type_in_scope`.
 
 El trabajo dependiente de ETL comienza cuando la publicación termina correctamente. El traspaso común se documenta en el [Proceso de lanzamiento](fabric-release-process.md#flujos-de-trabajo-que-invocan-el-etl-y-traspaso-de-control).
 
 <a id="strict-plan-driven-sdk-bulk-14x"></a>
+<a id="publicación-masiva-de-fabric-cicd-con-un-plan-leído-por-el-cliente-14x"></a>
 
-### Publicación masiva de fabric-cicd con un plan leído por el cliente (1.4.x)
+### Publicación masiva de fabric-cicd con un plan interpretado por el adaptador (1.4.x)
 
 Los adaptadores basados en planes ya no se documentan en esta guía. La [Guía de CI/CD con Deployment Plan](fabric-deployment-plan-guide.md#adaptador-masivo-independiente-14x) describe el comportamiento de la publicación masiva de fabric-cicd y sus límites de validación. Se conserva este anclaje para mantener la compatibilidad con los enlaces existentes.
 
@@ -169,7 +174,7 @@ Dos mecanismos complementarios gestionan la configuración específica de cada e
 
 ### 1. Variable Libraries (en tiempo de ejecución)
 
-Los Notebooks de carga y validación llaman a `notebookutils.variableLibrary.getLibrary("Patterns_Variables")` durante su ejecución para obtener la configuración de workspace y Lakehouse. El pipeline también vincula el mínimo de pacientes de la Library activa al parámetro base de la validación. La Variable Library tiene **conjuntos de valores** por entorno:
+Los Notebooks de carga y validación llaman a `notebookutils.variableLibrary.getLibrary("Patterns_Variables")` durante su ejecución para obtener la configuración de workspace y Lakehouse. El pipeline también vincula el mínimo de pacientes de la Variable Library activa al parámetro base del Notebook de validación. La Variable Library tiene **conjuntos de valores** por entorno:
 
 | Variable | Predeterminado (Dev) | Test | Prod |
 |---|---|---|---|
@@ -201,7 +206,11 @@ find_replace:
 
 **Cómo funciona:** fabric-cicd despliega los elementos en orden de dependencia; el Lakehouse se crea antes que la Variable Library. Al procesar los archivos de la Variable Library, `$items.Lakehouse.PatternsLakehouse.$id` se resuelve al GUID real del Lakehouse de destino. La clave `_ALL_` indica que se aplica a todos los entornos.
 
-Las reglas del Data Pipeline también sustituyen los IDs físicos de workspace y modelo y las conexiones canónicas de Dev del origen. La sustitución del modelo de destino usa `$items.SemanticModel.Patterns_Semantic_Model.$id`; la de conexiones utiliza los nombres exactos `$ENV:NOTEBOOK_CONNECTION_ID` y `$ENV:SEMANTIC_MODEL_REFRESH_CONNECTION_ID`. Los ejecutores habilitan la sustitución de variables de entorno y validan los dos GUID de conexión antes de publicar las definiciones. Se requiere la biblioteca en el intervalo `>=1.4.0,<1.5.0`. La creación y el uso compartido de las conexiones de Test y Prod corresponden a los pasos previos de conexión del lanzamiento seleccionado, no al subproceso publicador ni a la sustitución de parámetros. Las comprobaciones previas del origen examinan los campos reales y los valores de referencia de parametrización para que los IDs obsoletos de feature no eludan una sustitución literal sin que se detecte.
+Las reglas del Data Pipeline también sustituyen los IDs físicos de workspace y modelo y las conexiones canónicas de Dev del origen. La sustitución del modelo de destino usa `$items.SemanticModel.Patterns_Semantic_Model.$id`; la de conexiones utiliza los nombres exactos `$ENV:NOTEBOOK_CONNECTION_ID` y `$ENV:SEMANTIC_MODEL_REFRESH_CONNECTION_ID`.
+
+Los ejecutores habilitan la sustitución de variables de entorno y validan los dos GUID de conexión antes de publicar las definiciones. Se requiere la biblioteca en el intervalo `>=1.4.0,<1.5.0`. La creación y el uso compartido de las conexiones de Test y Prod corresponden a los pasos previos de conexión del lanzamiento seleccionado, no al subproceso publicador ni a la sustitución de parámetros.
+
+Las comprobaciones previas de las definiciones de origen examinan los campos reales y los valores de referencia de parametrización para evitar que los IDs obsoletos de feature queden sin sustituir de forma inadvertida.
 
 ---
 
@@ -316,7 +325,7 @@ Los flujos invocadores de despliegue estándar observan las definiciones de Fabr
 - [API Create Item de Fabric: permisos](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/create-item): requisito del rol Contributor.
 - [Modelo de permisos de Fabric](https://learn.microsoft.com/en-us/fabric/security/permission-model): roles de workspace Admin, Member, Contributor y Viewer.
 - [API de actualización de Power BI](https://learn.microsoft.com/en-us/rest/api/power-bi/datasets/refresh-dataset-in-group): iniciar una actualización mejorada del Semantic Model.
-- [Inventario de datasets de Power BI](https://learn.microsoft.com/en-us/rest/api/power-bi/datasets/get-datasets-in-group): resolver el modelo en el workspace de destino.
+- [Inventario de conjuntos de datos de Power BI](https://learn.microsoft.com/en-us/rest/api/power-bi/datasets/get-datasets-in-group): resolver el modelo en el workspace de destino.
 - [Detalles de ejecución de una actualización de Power BI](https://learn.microsoft.com/en-us/rest/api/power-bi/datasets/get-refresh-execution-details-in-group): seguir la solicitud de actualización concreta.
 - [Framing de Direct Lake](https://learn.microsoft.com/en-us/fabric/fundamentals/direct-lake-how-it-works#framing): comportamiento de actualización de las tablas Direct Lake.
 - [Permisos del propietario de Direct Lake](https://learn.microsoft.com/en-us/fabric/fundamentals/direct-lake-security-integration#direct-lake-owners): la autorización del propietario sobre el origen se comprueba con independencia de quién actualice.

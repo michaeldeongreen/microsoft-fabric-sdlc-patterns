@@ -412,11 +412,11 @@ Técnicamente puede *crear* elementos, como Notebooks, en un destino. Sin embarg
 
 Para este repositorio, recomiendo **fabric-cicd sin publicación masiva** como punto de partida. Publica los elementos de la carga de trabajo a partir de definiciones conservadas, usa `parameter.yml` para la configuración del despliegue y mantiene Dev conectado a Git mientras Test y Prod reciben despliegues por API.
 
-La ruta predeterminada se selecciona estableciendo `DEPLOY_METHOD=fabric-cicd` o dejando la variable sin definir. La [Guía de CI/CD con fabric-cicd sin publicación masiva](fabric-hybrid-cicd-guide.md) describe su implementación y la [matriz de métodos](README.md#elegir-un-método-de-despliegue) presenta las alternativas de planes leídos por el cliente y REST directo. Es una recomendación de punto de partida para este repositorio, no la afirmación de que un método sirva para todas las cargas de Fabric.
+La ruta predeterminada se selecciona estableciendo `DEPLOY_METHOD=fabric-cicd` o dejando la variable sin definir. La [Guía de CI/CD con fabric-cicd sin publicación masiva](fabric-hybrid-cicd-guide.md) describe su implementación y la [matriz de métodos](README.md#elegir-un-método-de-despliegue) presenta las alternativas de planes interpretados por el adaptador y REST directo. Es una recomendación de punto de partida para este repositorio, no la afirmación de que un método sirva para todas las cargas de Fabric.
 
 **Híbrido** describe una arquitectura que combina publicadores cuando hace falta, no el nombre del método predeterminado. Usar Fabric Git para desarrollo y fabric-cicd para publicar no requiere Pipelines de despliegue nativos.
 
-> **Límite de la implementación:** los cuatro métodos publican mediante su ruta seleccionada de GitHub y comparten el mismo Data Pipeline posterior: carga → validación de solo lectura → actualización nativa del modelo. Ninguno invoca Pipelines de despliegue nativos para promover entre workspaces. DeploymentPlan, leído por el cliente, ordena la publicación; no ejecuta la carga de trabajo.
+> **Límite de la implementación:** los cuatro métodos publican mediante su ruta seleccionada de GitHub y comparten el mismo Data Pipeline posterior: carga → validación de solo lectura → actualización nativa del modelo. Ninguno invoca Pipelines de despliegue nativos para promover entre workspaces. DeploymentPlan, interpretado por el adaptador, ordena la publicación; no ejecuta la carga de trabajo.
 
 ![Flujo de fabric-cicd sin publicación masiva con extensión híbrida opcional](../../assets/es/hybrid-recommendation-flow.svg)
 
@@ -463,7 +463,11 @@ Dos mecanismos complementarios gestionan la configuración por entorno:
 
 **Se recomienda usar Variable Libraries como mecanismo principal** de vinculación automática. Resuelven los valores en tiempo de ejecución sin reescrituras en el despliegue. `parameter.yml` cubre los metadatos que no alcanzan, como los GUID de `default_lakehouse` de Notebook META y los IDs de conexión en JSON de Data Pipeline.
 
-El ejemplo separa la política del entorno —`minimum_patient_count`, Integer positivo, referencia `5`— de la entrada de cada ejecución —`run_label`, String, predeterminado `manual`, modificable desde CI—. Las conexiones Notebook y Power BI de Workspace Identity se crean fuera de Git. Dev se aprovisiona manualmente; las conexiones de feature las crea una persona; y los trabajos seleccionados de Test y Prod crean o reutilizan y verifican sus pares automáticamente. Los GUID son dos variables del entorno de GitHub, no secretos. El Service principal gestiona las ACL de conexión de Test y Prod antes de que el publicador utilice el par en modo de solo lectura. El uso de las conexiones, el acceso del propietario del modelo al origen y el acceso de quienes consumen los datos se verifican por separado de los permisos de la identidad de despliegue.
+El ejemplo separa la política del entorno —`minimum_patient_count`, Integer positivo, referencia `5`— de la entrada de cada ejecución —`run_label`, String, predeterminado `manual`, modificable desde CI—.
+
+Las conexiones Notebook y Power BI de Workspace Identity se crean fuera de Git. Dev se aprovisiona manualmente; las conexiones de feature las crea una persona; y los trabajos seleccionados de Test y Prod crean o reutilizan y verifican sus pares automáticamente.
+
+Los GUID se guardan en dos variables del entorno de GitHub, no en secretos. El Service principal gestiona las ACL de conexión de Test y Prod antes de que el publicador utilice el par en modo de solo lectura. El uso de las conexiones, el acceso del propietario del modelo al origen y el acceso de quienes consumen los datos se verifican por separado de los permisos de la identidad de despliegue.
 
 ---
 

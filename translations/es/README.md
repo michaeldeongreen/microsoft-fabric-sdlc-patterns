@@ -40,21 +40,21 @@ El [Proceso de lanzamiento](fabric-release-process.md) describe los límites ent
 
 ## Elegir un método de despliegue
 
-La variable de repositorio `DEPLOY_METHOD` selecciona el trabajo de despliegue para Test y Prod. Si no se define, se selecciona `fabric-cicd`. La tabla describe las implementaciones incluidas aquí, no todas las funciones de las API subyacentes. «Sí» y «No» indican si se utiliza una capacidad, no una clasificación de calidad.
+La variable de repositorio `DEPLOY_METHOD` selecciona el trabajo de despliegue para Test y Prod. Si no se define, se selecciona `fabric-cicd`. La tabla describe las implementaciones incluidas aquí, no todas las funciones de las API subyacentes. «Sí» y «No» indican si el método usa esa capacidad; no indican si un método es mejor que otro.
 
 Los valores exactos y su ubicación en la interfaz de GitHub están en [Configuración: variables del método de despliegue](SETUP.md#variables-del-método-de-despliegue). El mismo apartado incluye la [configuración de fabric-cicd-bulk](SETUP.md#variables-del-método-de-despliegue).
 
 | `DEPLOY_METHOD` | Publicador | Definiciones en bloque | Orden y tratamiento del plan | Archivo de sustituciones | Evidencia en un entorno real para esta revisión |
 |---|---|---|---|---|---|
-| [`fabric-cicd`](fabric-hybrid-cicd-guide.md): opción predeterminada, sin publicación masiva | fabric-cicd | No | Fases en Python propias + orden de fabric-cicd | [parameter.yml](../../data/fabric/parameter.yml) | Ruta predeterminada en Test verificada |
-| [`fabric-cicd-plan`](fabric-deployment-plan-guide.md#cómo-funciona) | fabric-cicd | No | Deployment Plan leído por el cliente | [parameter.yml](../../data/fabric/parameter.yml) | Aún sin verificar en un entorno real |
-| [`fabric-cicd-bulk`](fabric-deployment-plan-guide.md#adaptador-masivo-independiente-14x) | fabric-cicd | Sí | Deployment Plan leído por el cliente | [parameter.yml](../../data/fabric/parameter.yml) | Aún sin verificar en un entorno real |
-| [`bulk`](fabric-bulk-cicd-guide.md) | REST directo: código Python propio | Sí | Fases en Python propias | [bulk-parameter.yml](../../data/fabric/bulk-parameter.yml) | Aún sin verificar en un entorno real |
+| [`fabric-cicd`](fabric-hybrid-cicd-guide.md): opción predeterminada, sin publicación masiva | fabric-cicd | No | Fases propias en Python + orden de fabric-cicd | [parameter.yml](../../data/fabric/parameter.yml) | Ruta predeterminada en Test verificada |
+| [`fabric-cicd-plan`](fabric-deployment-plan-guide.md#cómo-funciona) | fabric-cicd | No | Deployment Plan interpretado por el adaptador | [parameter.yml](../../data/fabric/parameter.yml) | Aún sin verificar en un entorno real |
+| [`fabric-cicd-bulk`](fabric-deployment-plan-guide.md#adaptador-masivo-independiente-14x) | fabric-cicd | Sí | Deployment Plan interpretado por el adaptador | [parameter.yml](../../data/fabric/parameter.yml) | Aún sin verificar en un entorno real |
+| [`bulk`](fabric-bulk-cicd-guide.md) | REST directo: código Python propio | Sí | Fases propias en Python | [bulk-parameter.yml](../../data/fabric/bulk-parameter.yml) | Aún sin verificar en un entorno real |
 
 Significado de las modalidades de ordenación:
 
-- **Fases en Python propias:** el ejecutor elige las fases sin leer un *Deployment Plan*.
-- **Deployment Plan leído por el cliente:** los adaptadores de este repositorio interpretan `DEPLOYMENT_PLAN_PATH`, normalmente [este plan.yml](../../data/fabric/DeploymentPlan.DeploymentPlan/plan.yml), para seleccionar los elementos que publicará fabric-cicd. La ruta sin publicación masiva usa grupos secuenciales; la masiva combina los grupos que ya pueden ejecutarse. El plan no se pasa a fabric-cicd ni se incluye en las solicitudes REST.
+- **Fases propias en Python:** el ejecutor elige las fases sin leer un *Deployment Plan*.
+- **Deployment Plan interpretado por el adaptador:** el adaptador del repositorio lee el plan y calcula el orden de publicación. Fabric no ejecuta el plan de forma nativa en estas rutas. Los adaptadores leen el archivo indicado por `DEPLOYMENT_PLAN_PATH` —normalmente [este plan.yml](../../data/fabric/DeploymentPlan.DeploymentPlan/plan.yml)— para seleccionar los elementos que publicará fabric-cicd. La ruta sin publicación masiva usa grupos secuenciales; la masiva combina los grupos que ya pueden ejecutarse. El plan no se pasa a fabric-cicd ni se incluye en las solicitudes REST.
 - **Deployment Plan ejecutado por la plataforma:** modalidad reservada para una ruta futura que incluiría el plan en la solicitud REST para que Fabric ejecutara su ordenación. Actualmente no está implementada ni se puede seleccionar.
 
 - La biblioteca de Python fabric-cicd también llama a API REST. «REST directo» significa que el repositorio se encarga de la publicación y las sustituciones sin fabric-cicd.
@@ -174,7 +174,7 @@ La integración de Git, la publicación basada en archivos y la compatibilidad c
 
 > **Importante:** la compatibilidad evoluciona. Debe comprobarse la documentación oficial de cada mecanismo seleccionado, sin deducir los límites de uno a partir de los de otro.
 
-La [Guía de CI/CD con fabric-cicd sin publicación masiva](fabric-hybrid-cicd-guide.md) explica la ruta predeterminada. Si no cubre la carga de trabajo, conviene consultar las [extensiones opcionales](fabric-cicd-release-options.md#extensiones-opcionales-para-elementos-no-compatibles) y conservar para cada elemento un origen revisado y un método de recuperación. La ruta predeterminada cubre las definiciones de la carga de trabajo de este repositorio sin Pipelines de despliegue nativos; DeploymentPlan es configuración de ordenación y los adaptadores que lo leen en el cliente no lo publican.
+La [Guía de CI/CD con fabric-cicd sin publicación masiva](fabric-hybrid-cicd-guide.md) explica la ruta predeterminada. Si no cubre la carga de trabajo, conviene consultar las [extensiones opcionales](fabric-cicd-release-options.md#extensiones-opcionales-para-elementos-no-compatibles) y conservar para cada elemento un origen revisado y un método de recuperación. La ruta predeterminada cubre las definiciones de la carga de trabajo de este repositorio sin Pipelines de despliegue nativos; DeploymentPlan es configuración de ordenación y los adaptadores que interpretan el plan no lo publican.
 
 ### Variable Libraries: metadatos dinámicos frente a estáticos
 
@@ -209,7 +209,7 @@ La acción explícita **Provision Fabric Connections** crea o reutiliza dos cone
 
 El PAT interviene en la ruta de lanzamiento de Test y Prod, limitado a las comprobaciones previas de GitHub y a los pasos de persistencia de variables. El Service principal de despliegue realiza las operaciones de Fabric sobre conexiones, roles de conexión, publicación y envío de trabajos. Después, el subproceso publicador valida y utiliza el par resuelto en modo de solo lectura.
 
-Los IDs locales de Dev se registran en las reglas de parametrización existentes, no en un manifiesto JSON adicional ni en un artefacto descargado. Los cambios de referencias y las comprobaciones de preparación posteriores siguen funcionando sin conexión. Véase [Aprovisionar las conexiones de Dev](SETUP.md#4-aprovisionar-las-conexiones-de-dev). Quienes desarrollan nunca necesitan los secretos del Service principal de despliegue. Compartir la administración entre etapas y reutilizar un PAT sin caducidad son concesiones del ejemplo, no recomendaciones para producción.
+Los IDs locales de Dev se registran en las reglas de parametrización existentes, no en un manifiesto JSON adicional ni en un artefacto descargado. Los cambios de referencias posteriores y la comprobación de referencias para el PR (`--check-ready`) siguen funcionando sin conexión. Véase [Aprovisionar las conexiones de Dev](SETUP.md#4-aprovisionar-las-conexiones-de-dev). Quienes desarrollan nunca necesitan los secretos del Service principal de despliegue. Compartir la administración entre etapas y reutilizar un PAT sin caducidad son simplificaciones deliberadas del ejemplo, no recomendaciones para producción.
 
 La [matriz de métodos](#elegir-un-método-de-despliegue) sirve para evaluar alternativas una vez comprobada la ruta predeterminada sin publicación masiva. La [guía de planes](fabric-deployment-plan-guide.md) documenta las comprobaciones que detectan y rechazan la vuelta a la publicación estándar en la ruta masiva de fabric-cicd y sus límites de validación. No debe deducirse que una ruta está lista para producción a partir de pruebas del código fuente ni de la verificación de la ruta predeterminada en Test.
 

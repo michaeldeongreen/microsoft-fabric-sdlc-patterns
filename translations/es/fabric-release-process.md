@@ -39,7 +39,7 @@ mediante API.
 |---|---|
 | Administrador del repositorio de GitHub | Reglas, entornos, secretos y variables, selección del método de despliegue, ciclo de vida del PAT e inicio manual del aprovisionamiento de Dev |
 | Operador del workspace Dev | Actualización de Dev desde Git, inspección de vinculaciones y ejecución manual del DataPipeline |
-| GitHub Actions | Ejecuta la revisión de lanzamiento aprobada y hace cumplir el orden de dependencias entre trabajos |
+| GitHub Actions | Ejecuta el contenido revisado para el lanzamiento y hace cumplir el orden de dependencias entre trabajos |
 | Service principal de despliegue | Crea o reutiliza y verifica las conexiones de Test/Prod, administra sus ACL, publica definiciones y envía trabajos de Fabric |
 | PAT para las variables de los entornos de GitHub | Lee y crea las dos variables de ID de conexión durante las comprobaciones previas y la persistencia del lanzamiento |
 | Workspace Identity de Fabric | Autentica las actividades de Notebook y de actualización del Semantic Model en tiempo de ejecución |
@@ -61,7 +61,7 @@ Identity del workspace de destino.
    crea la Workspace Identity y las conexiones; el desarrollador intercambia
    las referencias y valida el workspace.
 2. Antes del PR, se restauran las referencias canónicas de Dev y se supera
-   la comprobación de preparación para el PR.
+   la comprobación de referencias para el PR.
 3. Tras el *Merge* del PR de feature a `dev`, el operador designado del
    workspace Dev actualiza desde Git y ejecuta
    `Patterns_Load_Validate_And_Refresh` manualmente.
@@ -83,8 +83,8 @@ de lanzamiento es:
 
 1. Ejecute [`/swap-to-dev`](../../.github/skills/swap-to-dev/SKILL.md). CLI:
    `python scripts\workspace_swap.py --swap-to-dev`.
-2. Revise los cambios exactos. La skill comprueba automáticamente la
-   preparación para el PR; con la CLI también debe ejecutarse
+2. Revise los cambios exactos. La skill comprueba automáticamente las
+   referencias para el PR; con la CLI también debe ejecutarse
    `python scripts\workspace_swap.py --check-ready`.
 3. Haga *commit* y push de la feature branch con las referencias restauradas.
 4. Abra un PR a `dev`.
@@ -246,7 +246,7 @@ configuradas para ellos.
 | Plantilla | Script de ejecución | Función específica del publicador |
 |---|---|---|
 | [reusable-deploy-fabric-cicd.yml](../../.github/workflows/reusable-deploy-fabric-cicd.yml) | [deploy_fabric_cicd_non_bulk.py](../../scripts/deploy_fabric_cicd_non_bulk.py) | Fases predeterminadas sin publicación masiva y limpieza de elementos huérfanos aptos |
-| [reusable-deploy-fabric-cicd-plan.yml](../../.github/workflows/reusable-deploy-fabric-cicd-plan.yml) | [deploy_fabric_cicd_non_bulk_plan.py](../../scripts/deploy_fabric_cicd_non_bulk_plan.py) | Grupos secuenciales del plan leído por el cliente, elementos restantes y limpieza de huérfanos aptos |
+| [reusable-deploy-fabric-cicd-plan.yml](../../.github/workflows/reusable-deploy-fabric-cicd-plan.yml) | [deploy_fabric_cicd_non_bulk_plan.py](../../scripts/deploy_fabric_cicd_non_bulk_plan.py) | Grupos secuenciales del plan interpretado por el adaptador, elementos restantes y limpieza de huérfanos aptos |
 | [reusable-deploy-fabric-cicd-bulk.yml](../../.github/workflows/reusable-deploy-fabric-cicd-bulk.yml) | [deploy_fabric_cicd_bulk.py](../../scripts/deploy_fabric_cicd_bulk.py) | Selecciones masivas estrictas agrupadas y limpieza de huérfanos aptos |
 | [reusable-deploy-bulk.yml](../../.github/workflows/reusable-deploy-bulk.yml) | [deploy_fabric_rest_bulk.py](../../scripts/deploy_fabric_rest_bulk.py) | Cargas útiles REST directas, consulta de estado y activación de conjuntos de valores; sin limpieza de huérfanos |
 | [reusable-fabric-etl.yml](../../.github/workflows/reusable-fabric-etl.yml) | [run_fabric_etl.py](../../scripts/run_fabric_etl.py) | Resuelve, inicia y consulta el estado de un único trabajo de Fabric |
@@ -264,7 +264,7 @@ dependencias entre trabajos definidos a nivel de flujo de trabajo.
 
 | Flujo de trabajo | Trigger | Propósito |
 |---|---|---|
-| Trabajo `run-etl` del flujo de despliegue seleccionado | Trabajo de despliegue correcto, mediante `needs` | Ejecuta el DataPipeline desde la misma revisión de la rama |
+| Trabajo `run-etl` del flujo de despliegue seleccionado | Finalización con éxito del trabajo de despliegue, mediante `needs` | Ejecuta el DataPipeline desde la misma revisión de la rama |
 | [etl-test.yml](../../.github/workflows/etl-test.yml) | Manual, rama `test` | Recuperación de Test sin volver a publicar |
 | [etl-prod.yml](../../.github/workflows/etl-prod.yml) | Manual, rama `main` | Recuperación de Prod con su entorno y las protecciones configuradas |
 
@@ -309,8 +309,8 @@ DAX, la visualización de informes ni el acceso de los consumidores.
 | Creación o reutilización y verificación de conexiones | Puede dejar una conexión correctamente creada o un rol verificado; corrija el error y vuelva a ejecutar, ya que se concilian los nombres y los IDs |
 | Persistencia de IDs | Nunca sobrescribe un valor existente distinto; revise el recurso previsto antes de eliminar o cambiar una variable |
 | Publicación | El ETL no se inicia; inspeccione el resultado por elemento del publicador seleccionado |
-| Inicio del DataPipeline o fallo al terminar | La publicación sigue completada; inspeccione la ejecución exacta de Fabric y los diagnósticos de las actividades |
-| Tiempo de espera de consulta de GitHub agotado | No cancela el trabajo de Fabric; inspeccione Fabric antes de reintentar |
+| Fallo al iniciar el DataPipeline o finalización con error | Las definiciones ya están publicadas; inspeccione la ejecución exacta de Fabric y los diagnósticos de las actividades |
+| Se agota el tiempo de espera de GitHub al consultar el estado | No cancela el trabajo de Fabric; inspeccione Fabric antes de reintentar |
 | Recuperación manual del ETL | Usa la revisión actual de la rama y las definiciones publicadas existentes; no repara una publicación fallida |
 
 No vuelva a ejecutar una revisión antigua para probar un flujo de trabajo más

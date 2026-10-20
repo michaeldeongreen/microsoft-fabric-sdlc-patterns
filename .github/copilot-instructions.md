@@ -27,6 +27,7 @@ No build step — scripts are standalone CLI tools, not an installable package. 
 
 - `scripts/workspace_swap.py` — Swaps Fabric workspace IDs in tracked files between dev and a feature workspace, and provides a CI readiness check (`--check-ready`). Uses an **item type registry** pattern — new Fabric item types are added as config entries, not new functions.
 - `scripts/workspace_swap.py --check-ready` — CI check for PR readiness (dev IDs present, no stray value sets).
+- `scripts/verify_translations.py` — Mechanical checks over `translations/` and `assets/<lang>/`: link and anchor resolution, code-fence parity with the English source, rejected terminology, register and gender agreement. Run before opening a translation PR; not wired into CI.
 
 ## Fabric Item Types
 

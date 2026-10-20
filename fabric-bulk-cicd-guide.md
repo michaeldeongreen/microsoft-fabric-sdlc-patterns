@@ -1,3 +1,5 @@
+**English** | [Español](translations/es/fabric-bulk-cicd-guide.md)
+
 # Raw REST Bulk CI/CD Guide
 
 This is the raw REST bulk custom-Python route (`DEPLOY_METHOD=bulk`), not
@@ -333,11 +335,9 @@ with the model ID created in phase 2. Other inventories can need fewer batches.
 
 ### Single-deploy flow (no `$items.*` references, or no config at all)
 
-```
-1. apply_substitutions(parts, rules, workspace_id, item_id_map={})
-2. POST all items at once
-3. PATCH VariableLibrary if value-set activation is configured
-```
+1. Run `apply_substitutions(parts, rules, workspace_id, item_id_map={})`.
+2. Send all items at once using `POST`.
+3. Apply `PATCH` to `VariableLibrary` if value-set activation is configured.
 
 `$workspace.$id`-only rules are applied in this flow because the workspace ID is known up front from the env var.
 This is the no-dynamic-dependency case, not this sample's pipeline deployment.
@@ -346,15 +346,13 @@ This is the no-dynamic-dependency case, not this sample's pipeline deployment.
 
 ### Staged flow (dynamic IDs; third pipeline batch)
 
-```
-1. separate foundations, non-pipeline dependents, and DataPipeline items
-2. POST Lakehouse + Ontology; capture target IDs       Phase 1
-3. substitute foundation IDs into non-pipeline items
-4. POST those items; capture target Semantic Model ID Phase 2
-5. substitute model/workspace/connection IDs in DataPipeline
-6. POST the deferred DataPipeline definition          Phase 3
-7. PATCH VariableLibrary only after all imports succeed
-```
+1. Separate foundations, non-pipeline dependents, and `DataPipeline` items.
+2. Send Lakehouse + Ontology using `POST` and capture target IDs: **Phase 1**.
+3. Substitute foundation IDs into non-pipeline items.
+4. Send those items using `POST` and capture the target Semantic Model ID: **Phase 2**.
+5. Substitute model/workspace/connection IDs in `DataPipeline`.
+6. Send the deferred `DataPipeline` definition using `POST`: **Phase 3**.
+7. Apply `PATCH` to `VariableLibrary` only after all imports succeed.
 
 `DEPENDENCY_TYPES` identifies the phase 1 foundations, currently Lakehouse and
 Ontology. The Semantic Model has a Lakehouse prerequisite and therefore stays

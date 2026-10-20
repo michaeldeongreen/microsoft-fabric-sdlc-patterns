@@ -14,3 +14,4 @@ venv/
 
 # Generated Marp presentation exports
 presentations/*.html
+translations/*/presentations/*.html

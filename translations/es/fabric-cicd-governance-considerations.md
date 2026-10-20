@@ -1,0 +1,150 @@
+[English](../../fabric-cicd-governance-considerations.md) | **Español**
+
+<!-- source: fabric-cicd-governance-considerations.md @ f7f949d | translated: 2026-10-15 -->
+
+> 📄 **La versión en inglés de este documento es la de referencia.** En caso de discrepancia, [el original en inglés](../../fabric-cicd-governance-considerations.md) tiene precedencia.
+
+# Consideraciones de gobernanza para CI/CD en Fabric
+
+> Implementación de referencia: https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns
+
+Consideraciones para partners y clientes que diseñan la gobernanza de los *pipelines* de CI/CD de Microsoft Fabric. Los temas siguientes se limitan al propio pipeline: configuración del workspace, identidades utilizadas, protección de ramas, controles de despliegue y auditoría. Los controles adyacentes que quedan fuera del pipeline —red, clasificación de datos, cifrado y políticas de acceso a datos en tiempo de ejecución— se recogen al final, en «Controles adyacentes gestionados fuera del pipeline de CI/CD». Forman parte de cualquier despliegue maduro de Fabric en producción, pero corresponden a los equipos de plataforma o seguridad, no a quien gestiona el pipeline de CI/CD.
+
+Esta guía añade controles de gobernanza al [Proceso de lanzamiento](fabric-release-process.md) implementado. Conviene leerlo primero si aún no se conoce el trabajo seleccionado de Test o Prod.
+
+Los [Controles de calidad y de lanzamiento de Fabric CI/CD](fabric-cicd-quality-gates-and-release-controls.md) ofrecen ejemplos prácticos de validación, evidencias de lanzamiento, aprobaciones por etapas y reversión. Complementan estos controles de gobernanza, no los sustituyen.
+
+El repositorio no configura todas las recomendaciones siguientes. Quien mantiene el fork debe crear las reglas de rama, las comprobaciones obligatorias, los revisores de los entornos y los permisos de identidad. Los flujos incluidos usan autenticación con secreto de cliente; OIDC y otras demostraciones de lanzamiento son mejoras previstas.
+
+## Modelo de identidad
+
+Confundir el orquestador, las credenciales, la identidad de ejecución y la persona que administra los recursos es una causa habitual de despliegues con permisos excesivos.
+
+| Responsable o credencial | Responsabilidad en la implementación incluida | Gestión |
+|---|---|---|
+| GitHub Actions | Ejecuta el grafo de trabajos revisado; no es una identidad | Administración del repositorio |
+| Service principal de despliegue | Crea o reutiliza y verifica las conexiones de Test y Prod, gestiona sus ACL, publica elementos y envía trabajos de Data Pipeline | Administración de aplicaciones de Entra; quien administra el workspace concede Contributor |
+| PAT para variables del entorno de GitHub | Lee y crea las dos variables de IDs de conexión durante las comprobaciones previas y la persistencia | Administración del repositorio y persona designada para la rotación |
+| Workspace Identity de Fabric | Autentica las actividades de Notebook y de actualización del Semantic Model | Administración del workspace de Fabric; Fabric gestiona la credencial |
+| Grupo administrador de conexiones | Recibe el rol Owner verificado en ambas conexiones de la etapa | Administración de grupos de Entra |
+| Administración del workspace y las conexiones de feature | Crea la Workspace Identity de feature, concede sus accesos a recursos y crea su par de conexiones | Administración de Fabric y conexiones |
+| Desarrollador de feature | Identidad Git propia, Branch Out, cambios locales de referencias, validación de feature y PR de feature a Dev | Organización del usuario |
+| Operador del workspace de Dev | Actualiza Dev conectado a Git, inspecciona las vinculaciones y ejecuta el Data Pipeline de Dev | Persona designada para operar el workspace |
+| UAMI de la carga de trabajo en ejecución | Identidad opcional para cargas de trabajo externas de Azure que llaman a Fabric; no se utiliza en el lanzamiento de este repositorio | Administración de plataforma |
+
+Los flujos actuales usan un secreto de cliente del *Service principal* de despliegue. OIDC puede sustituir ese secreto almacenado, pero no elimina los permisos de Fabric, la credencial para las variables de GitHub, la *Workspace Identity* de ejecución ni la aprobación del lanzamiento. La [demostración de OIDC](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns/issues/84) prevista aún no está implementada.
+
+<a id="configuración-automática-de-conexiones-la-concesión-de-privilegios-del-ejemplo"></a>
+
+## Configuración automática de conexiones: equilibrio entre automatización y privilegios
+
+Las conexiones tienen ACL de ámbito de inquilino y no son elementos sincronizados con Git. El rol Admin del workspace no concede automáticamente visibilidad de las conexiones ni permiso para utilizarlas.
+
+El ciclo de vida de conexiones incluido es el siguiente:
+
+| Etapa | Operación sobre conexiones |
+|---|---|
+| Feature | Una persona crea el par de conexiones de Workspace Identity |
+| Dev | Quien administra el repositorio ejecuta manualmente **Provision Fabric Connections** |
+| Test y Prod | El trabajo de lanzamiento seleccionado crea o reutiliza el par antes de publicar |
+
+En Test y Prod, el trabajo seleccionado:
+
+1. usa el PAT para validar el acceso al entorno de GitHub y los IDs guardados;
+2. usa el Service principal de despliegue para crear o reutilizar las dos conexiones de Workspace Identity;
+3. concede o eleva al rol Owner al grupo configurado y verifica ese rol;
+4. usa el PAT para crear las variables de IDs que falten, sin sobrescribir valores en conflicto;
+5. pasa los IDs de la ejecución actual al publicador;
+6. publica y envía el trabajo del Data Pipeline.
+
+El subproceso publicador fija `FABRIC_CONNECTION_MODE=existing` y `FABRIC_RUNTIME_AUTHENTICATION=WorkspaceIdentity`; valida y utiliza el par en modo de solo lectura. Esto no significa que el trabajo de despliegue completo sea de solo lectura.
+
+Antes de ese proceso, una persona crea cada Workspace Identity y concede los permisos de workspace y recursos. El Service principal no aprovisiona identidades, asigna roles de workspace, cambia opciones del inquilino, crea grupos ni gestiona su pertenencia.
+
+Compartir un único Service principal de despliegue y un grupo administrador de conexiones entre etapas es una simplificación deliberada del ejemplo, no una medida de aislamiento entre entornos. Un `FABRIC_CONNECTION_ADMINS_GROUP_ID` específico de cada entorno permite seleccionar un grupo por etapa. Quienes desarrollan normalmente necesitan User en las dependencias de Dev o feature, no Owner de las conexiones de Test y Prod.
+
+El PAT limitado al repositorio tiene permisos de lectura y escritura en Contents y Environments. En los lanzamientos seleccionados de Test y Prod, solo se utiliza en las comprobaciones previas de GitHub y en la persistencia de IDs. El permiso de escritura en Environments no se limita a esas dos variables y puede permitir otras operaciones de administración del entorno. En producción debe usarse un PAT con vencimiento y una persona responsable de la rotación designada por su nombre, o bien una GitHub App con permisos acotados por separado. El token nunca debe exponerse al código de feature ni a quienes desarrollan sin administrar el repositorio.
+
+Quien administra Fabric debe autorizar al Service principal de despliegue mediante la configuración de inquilino de Service principals, limitada a un grupo aprobado. La configuración de Fabric Git corresponde a quienes realizan las operaciones de Git; no debe usarse la lista de Service principals permitidos como sustituto de un ámbito aprobado de usuarios de Git. Los roles de workspace no anulan las políticas del inquilino.
+
+Una alternativa empresarial consiste en separar las responsabilidades:
+
+| Responsabilidad | Límite habitual de permisos |
+|---|---|
+| Identidad aprobada para la preparación inicial | Autoridad para gestionar conexiones; Workspace Admin al aprovisionar una Workspace Identity y autoridad adecuada para conceder permisos |
+| Identidad de despliegue habitual | Contributor en el workspace de destino y acceso User a conexiones aprovisionadas previamente |
+| Identidad de ejecución independiente o Workspace Identity | Solo los permisos de Notebook, modelo y OneLake que requiera la carga de trabajo; no debe heredar automáticamente la autoridad del publicador |
+
+Esta separación empresarial es una adaptación recomendada, no el trabajo de Test o Prod incluido. El ejemplo combina deliberadamente la gestión de conexiones y la publicación en un único trabajo protegido para que una etapa aún sin preparar se detenga antes de publicar si falla la preparación, en lugar de exigir una inicialización manual independiente.
+
+Los GUID de conexión son referencias no secretas; los tokens de acceso, las credenciales y los tokens del proveedor de Git deben quedar fuera de Git.
+
+El revisor obligatorio (`required reviewer`) de un entorno de GitHub es un control de aprobación útil antes de la preparación con privilegios. La aprobación permite que continúe el trabajo; **no** concede ni eleva permisos de Fabric. Si se requiere una elevación temporal, debe usarse el proceso de gestión de privilegios aprobado por la organización o una identidad privilegiada independiente. Este ejemplo no implementa PIM, no concede Admin silenciosamente al Service principal que despliega ni afirma que una aprobación de Actions sea una operación de RBAC.
+
+Véanse el [contrato de configuración y permisos](SETUP.md#permisos-para-la-actualización-posterior-al-etl) y la documentación oficial de [Create Connection](https://learn.microsoft.com/en-us/rest/api/fabric/core/connections/create-connection), [Provision Identity](https://learn.microsoft.com/en-us/rest/api/fabric/core/workspaces/provision-identity) y [configuración de inquilino para desarrolladores](https://learn.microsoft.com/en-us/fabric/admin/service-admin-portal-developer).
+
+## Seguridad entre workspaces
+
+Aislamiento de entornos, RBAC y límites de identidad.
+
+| Área | Recomendación |
+|---|---|
+| Aislamiento de entornos | <ul><li>Un workspace de Fabric y un entorno de GitHub por etapa —`Dev`, `Test`, `Prod`—, cada uno con su propio ID de workspace y secretos de ámbito limitado</li><li>Los despliegues condicionados por rama mantienen los entornos separados: `dev` corresponde a Dev, `test` a Test y `main` a Prod</li><li>Los filtros de despliegue varían por método; las rutas basadas en planes también observan su código, dependencias y rutas de planes. Las pruebas se ejecutan en todos los PR. Véase la [referencia común de flujos de trabajo](fabric-release-process.md#flujos-de-trabajo-de-github-actions)</li></ul> |
+| Configuración de inquilino (administración de Fabric) | <ul><li>Limitar la configuración de API de Service principals y creación de conexiones a un grupo dedicado que contenga los Service principals de despliegue aprobados, nunca a toda la organización ([configuración de inquilino para desarrolladores](https://learn.microsoft.com/en-us/fabric/admin/service-admin-portal-developer))</li><li>Limitar la integración de Fabric Git y GitHub a quienes realizan operaciones de Git ([configuración de inquilino para la integración de Git](https://learn.microsoft.com/en-us/fabric/admin/git-integration-admin-settings))</li><li>No reutilizar la lista de Service principals permitidos como sustituto del ámbito de usuarios de Git: autorizan a actores diferentes</li></ul> |
+| Control de acceso (RBAC) | <ul><li>El Service principal de despliegue recibe Contributor en Dev, Test y Prod para gestionar conexiones, publicar y enviar trabajos; no recibe permisos sobre las actividades de la carga de trabajo ni crea Workspace Identities ([roles de workspace](https://learn.microsoft.com/en-us/fabric/fundamentals/roles-workspaces#-workspace-roles))</li><li>Quien administra el workspace de Fabric crea cada Workspace Identity y concede los permisos de Notebook, modelo y OneLake que necesita la carga de trabajo</li><li>La persona designada para operar Dev actualiza el workspace conectado a Git y ejecuta su Data Pipeline; los trabajos seleccionados de Test y Prod preparan y verifican las conexiones, publican y envían el Data Pipeline</li></ul> |
+| Identidad de CI/CD (despliega artefactos) | <ul><li>Un Service principal por entorno en producción; la demostración comparte uno por simplicidad</li><li>Cada Service principal limitado a Contributor en su propio workspace: una vulneración de seguridad en Test no permite acceder a Prod</li><li>Los secretos del Service principal residen en el entorno de GitHub correspondiente; `secrets: inherit` resuelve los valores adecuados en cada entorno</li><li>Las acciones de terceros se fijan a SHA de commit completos para reforzar la cadena de suministro</li></ul> |
+| Identidad de cargas de trabajo en ejecución (Container Apps, Functions o AKS que llaman a Fabric) | <ul><li>Usar una identidad administrada asignada por el usuario (UAMI), una por carga de trabajo y entorno. UAMI es la [opción predeterminada recomendada por Microsoft para sus servicios](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/overview#managed-identity-types)</li><li>Varios servicios de Azure en un mismo entorno deben tener <strong>UAMI distintas</strong>, salvo que sean instancias replicadas de la <em>misma</em> carga de trabajo, como réplicas de alta disponibilidad de un servicio. Cargas diferentes —una Function de ingesta y una Container App de informes— no deberían compartir UAMI: necesitan permisos distintos y compartirían el alcance de una vulneración ([recomendaciones sobre recursos replicados](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/managed-identity-best-practice-recommendations#choosing-system-or-user-assigned-managed-identities))</li><li>El ciclo de vida de una UAMI es independiente del recurso de cómputo: se puede crear y concederle acceso al workspace de Fabric <em>antes</em> de que exista el recurso ([prácticas recomendadas](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/managed-identity-best-practice-recommendations#choosing-system-or-user-assigned-managed-identities))</li><li>Conceder privilegio mínimo en el workspace de destino, normalmente Viewer y permisos de elemento —por ejemplo, `ReadAll` en un Lakehouse concreto—, no Contributor</li><li>Usar identidad asignada por el sistema (SAMI) solo si se necesita atribución de auditoría por recurso o revocación automática de permisos al eliminar el recurso</li><li>Advertencia: quien pueda desplegar o ejecutar código en un recurso con UAMI hereda todos sus permisos; una UAMI por carga de trabajo limita el alcance de una vulneración ([advertencia de las prácticas recomendadas](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/managed-identity-best-practice-recommendations#consider-the-effect-of-assigning-managed-identities-to-azure-resources-andor-granting-assign-permissions-to-a-user))</li></ul> |
+
+## Aprobaciones manuales y procesos de revisión
+
+Controles nativos de GitHub: aprobación de la revisión de código antes del merge —PR y protección de ramas—, aprobación del despliegue antes de ejecutar el flujo —protección de entornos— y un registro de auditoría que cubre ambos.
+
+| Área | Recomendación |
+|---|---|
+| Comprobaciones de PR para las revisiones (control previo al merge) | <ul><li>Exigir PR a `dev`, `test` y `main`; sin pushes directos</li><li>Imponer una ruta de promoción con restricciones de rama de origen: los PR a `test` deben proceder de `dev`; los dirigidos a `main`, de `test`. Los PR a `dev` no tienen restricción de origen: las feature branches entran por ahí</li><li>Exigir los nombres de comprobaciones de estado específicos de cada rama enumerados en [Configuración](SETUP.md#3-configurar-github)</li><li>Exigir revisiones aprobatorias y revisión de propietarios del código cuando estén configuradas; descartar aprobaciones obsoletas cuando se suban commits nuevos</li><li>«Require conversation resolution before merging» obliga a atender los comentarios de revisión</li><li>Exigir historial lineal o commits firmados según los requisitos de cumplimiento normativo</li><li>Restringir quién puede subir cambios a la rama de destino o eludir su protección</li><li>Configurar estas opciones en Repository Settings → Rules → Rulesets ([rulesets de protección de ramas](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets)). Exigir la comprobación de estado del [flujo de ruta de promoción](../../.github/workflows/enforce-promotion-path.yml) en `test` y `main`; quien mantiene el fork configura la política por separado</li><li>Quien crea un PR no puede aportar su propia revisión aprobatoria obligatoria. Un fork de una sola persona debe elegir una política de revisión adecuada; la autoaprobación de despliegues es una configuración independiente del entorno</li></ul> |
+| Aprobación del despliegue (control previo a la ejecución) | <ul><li>Configurar reglas de protección de entornos de GitHub para cada entorno: Settings → Environments → `Test` / `Prod`</li><li>Añadir revisores obligatorios: las personas designadas deben hacer clic en «Approve and deploy» antes de que arranque el trabajo; la ejecución permanece en estado «Waiting» hasta entonces</li><li>Un temporizador de espera opcional, por ejemplo de 10 minutos, da margen para cancelar un despliegue no deseado</li><li>Restringir la rama de despliegue: por ejemplo, permitir solo `main` para Prod, de modo que un archivo de flujo subido desde una feature branch no pueda apuntar a Prod</li><li>Quienes aprueban el despliegue son independientes de quienes revisan el PR; esto permite separar funciones: desarrollo aprueba el código y operaciones o el equipo de lanzamientos aprueba el despliegue en Prod</li></ul> |
+| Registro de auditoría e historial de revisiones | <ul><li>GitHub registra cada PR, revisión, merge y aprobación de despliegue con responsable, marca de tiempo y SHA de commit</li><li>El historial de GitHub Actions muestra quién activó y aprobó la ejecución, qué se ejecutó, el estado de salida y los registros completos, que se pueden exportar para auditoría</li><li>El historial de Git registra las revisiones de las definiciones conservadas en el repositorio: deben exigirse PR revisados para esos cambios; `git blame` y `git log` responden a «quién cambió esto y por qué»</li><li>Comprobar por separado la compatibilidad con Git y con la ruta de despliegue. Conservar definiciones y configuración cuando sea posible, también de elementos que no admita el publicador elegido; conservar aprobaciones y evidencias de rutas alternativas para los elementos gestionados fuera de Git</li><li>Revertir las definiciones versionadas revirtiendo el commit y fusionando: el PR de reversión pasa por los mismos controles y también queda revisado y aprobado</li></ul> |
+| Estrategia de reversión (conviene definirla antes de necesitarla) | <ul><li>Revertir el código es la parte sencilla: se revierte el commit y se fusiona. Se aplican los mismos controles de PR, por lo que la reversión queda revisada y auditada como cualquier otro cambio</li><li>Los efectos sobre los datos son más difíciles y muy específicos de cada organización. Conviene analizar con el equipo:<ul><li>Instantáneas o restauración a un momento dado para Lakehouses y Warehouses antes de despliegues arriesgados</li><li>Si los componentes que consumen los datos —informes, agentes, aplicaciones integradas— necesitan una reversión coordinada o basta con revertir el código</li><li>Cómo comunicar las ventanas de inactividad a quienes usan la solución en el negocio</li><li>Qué tipos de elemento necesitan un plan de reversión propio más allá de `git revert`: cualquiera que modifique datos, no solo definiciones</li></ul></li><li>Probar la ruta de reversión en Test antes de necesitarla en Prod. Una reversión que nunca se ha probado es una esperanza, no un plan</li></ul> |
+
+## Gobernanza y cumplimiento
+
+Correspondencia entre los controles anteriores y las tres exigencias de gobernanza: auditoría, separación de funciones y estándares corporativos.
+
+| Área | Recomendación |
+|---|---|
+| Requisitos de auditoría | <ul><li>El historial de Git registra los cambios en definiciones y configuración versionadas; deben exigirse commits revisados y aprobados. Para las definiciones u opciones que no puedan versionarse, conservar por separado el procedimiento aprobado, la persona o identidad responsable, el destino y las evidencias del lanzamiento</li><li>El historial de GitHub Actions recoge quién activó cada despliegue, quién lo aprobó mediante la protección de entornos, el estado de salida y los registros completos, conservados según la política de la organización</li><li>Las conversaciones de los PR, las aprobaciones de revisión y los eventos de merge quedan marcados con fecha y hora y son auditables, sujetos a la retención y gobernanza de la organización</li><li>Esto cubre la auditoría del pipeline de CI/CD. La auditoría de actividad del workspace —quién <em>accedió</em> y qué hizo dentro— se gestiona fuera del pipeline; véanse los controles adyacentes más abajo</li></ul> |
+| Separación de funciones | <ul><li>Quien escribe el código no puede aprobar su propio PR cuando se configuran aprobaciones obligatorias</li><li>Quienes revisan el PR y quienes aprueban el despliegue pueden ser personas o equipos distintos</li><li>Usar una identidad de administración privilegiada para conceder accesos a workspaces y recursos; el Service principal de despliegue con Contributor no puede conceder roles de workspace</li><li>El ejemplo separa el Service principal de despliegue, el PAT de GitHub, la Workspace Identity y la administración humana de conexiones; en producción también pueden usarse instancias independientes por entorno</li><li>Dev utiliza la conexión de Fabric Git de un usuario. Los publicadores y la preparación de conexiones no escriben commits ni hacen push al repositorio</li></ul> |
+| Estándares corporativos de gobernanza | <ul><li>La política de ramas impone la ruta de promoción: nada llega a Prod sin pasar por `dev` → `test` → `main`, con revisiones y aprobaciones de despliegue en cada etapa</li><li>La protección de entornos puede exigir aprobadores de un equipo concreto de GitHub —por ejemplo, `@release-managers`— y dar así a la gestión del cambio un control obligatorio</li><li>El temporizador de espera opcional crea una ventana de cancelación antes de que los cambios lleguen a Prod</li><li>Cuando se exige revisión de propietarios del código, CODEOWNERS dirige las rutas sensibles a las personas designadas</li><li>Conservar CODEOWNERS en el control de versiones, si se utiliza. Las reglas de rama y la protección de entornos son configuraciones externas de GitHub que sus responsables configuran y auditan por separado; clonar el YAML del flujo de trabajo no las establece</li></ul> |
+
+## Controles adyacentes gestionados fuera del pipeline de CI/CD
+
+Estos controles van más allá del pipeline de CI/CD, pero forman parte de cualquier despliegue maduro de Fabric en producción. La combinación adecuada depende del perfil de riesgo, los requisitos normativos y las licencias: algunos controles —Microsoft Purview, claves administradas por el cliente o vínculos privados— requieren SKU concretos de Fabric, Microsoft 365 o Entra ID y pueden no estar disponibles en todos los inquilinos. Se recogen aparte porque corresponden a los equipos de plataforma, seguridad o protección de la información, no a quien gestiona el pipeline. Conviene plantearlos pronto para que las personas especialistas adecuadas definan su alcance y asuman su gestión antes de llegar a Prod.
+
+| Área | Qué plantear al equipo responsable |
+|---|---|
+| Controles de red | El acceso de ámbito de inquilino puede reforzarse con el [acceso condicional de Microsoft Entra para Fabric](https://learn.microsoft.com/en-us/fabric/security/security-conditional-access) —MFA, IP y cumplimiento del dispositivo— y con [vínculos privados](https://learn.microsoft.com/en-us/fabric/security/security-private-links-overview) para bloquear el acceso público. Para ADLS Gen2 protegido por firewall, véase [Trusted Workspace Access](https://learn.microsoft.com/en-us/fabric/security/security-trusted-workspace-access). |
+| Cifrado y residencia de datos | OneLake [cifra los datos en reposo de forma predeterminada](https://learn.microsoft.com/en-us/fabric/security/security-fundamentals#data-at-rest). Para cargas de trabajo reguladas, conviene evaluar las [claves administradas por el cliente en el workspace](https://learn.microsoft.com/en-us/fabric/security/workspace-customer-managed-keys) y las [configuraciones multigeográficas de Fabric Capacity](https://learn.microsoft.com/en-us/fabric/admin/service-admin-premium-multi-geo). Customer Lockbox también figura entre las [capacidades de seguridad de Fabric](https://learn.microsoft.com/en-us/fabric/security/security-overview#capabilities); debe confirmarse su alcance con el equipo de seguridad. |
+| Auditoría de ámbito de workspace | La actividad del workspace de Fabric —acceso a elementos, cambios de uso compartido y asignaciones de rol— se recoge en el registro de auditoría unificado de M365, accesible desde Microsoft Purview. La retención y el acceso por API dependen del nivel de licencia de M365 y Audit ([seguimiento de actividad de usuarios](https://learn.microsoft.com/en-us/fabric/admin/track-user-activities)). Conviene consultar al equipo de cumplimiento o protección de la información qué está habilitado en el inquilino. |
+| Clasificación de datos y DLP | El equipo de protección de la información configura las [etiquetas de confidencialidad](https://learn.microsoft.com/en-us/fabric/governance/information-protection), las [políticas DLP](https://learn.microsoft.com/en-us/power-bi/enterprise/service-security-dlp-policies-for-power-bi-overview) y los [indicadores de Insider Risk Management para Fabric](https://learn.microsoft.com/en-us/purview/insider-risk-management-settings-policy-indicators#microsoft-fabric-indicators) en [Microsoft Purview](https://learn.microsoft.com/en-us/fabric/governance/microsoft-purview-fabric). Un detalle relevante para CI/CD: las etiquetas de confidencialidad se eliminan al exportar a Git ([referencia](https://learn.microsoft.com/en-us/fabric/admin/git-integration-admin-settings#users-can-export-workspace-items-with-applied-sensitivity-labels-to-git-repositories)). |
+| Acceso granular a datos | Los roles de workspace no lo son todo: también hay que configurar la [seguridad de OneLake](https://learn.microsoft.com/en-us/fabric/onelake/security/get-started-onelake-security) —permisos por tabla y carpeta— y la [seguridad por fila, columna y objeto](https://learn.microsoft.com/en-us/fabric/security/permission-model#compute-permissions) en Warehouses y Semantic Models. Esto corresponde a ingeniería de datos, no al pipeline de CI/CD. Desplegar la definición de un elemento puede sobrescribir las reglas de seguridad incluidas en él. |
+| Refuerzo del repositorio y de la cadena de suministro | Medidas habituales para repositorios con credenciales y scripts de despliegue: [análisis de secretos de GitHub y protección de push](https://docs.github.com/en/code-security/secret-scanning/introduction/about-secret-scanning), [análisis de código con CodeQL](https://docs.github.com/en/code-security/code-scanning/introduction-to-code-scanning/about-code-scanning), [Dependabot](https://docs.github.com/en/code-security/dependabot/dependabot-alerts/about-dependabot-alerts) y [revisión de dependencias en PR](https://docs.github.com/en/code-security/supply-chain-security/understanding-your-software-supply-chain/about-dependency-review). Se configuran en la organización o en el repositorio. |
+
+## Referencias de Microsoft relacionadas
+
+- [Introducción a la seguridad de Fabric](https://learn.microsoft.com/en-us/fabric/security/security-overview)
+- [Modelo de permisos de Fabric](https://learn.microsoft.com/en-us/fabric/security/permission-model)
+- [Introducción a CI/CD en Fabric](https://learn.microsoft.com/en-us/fabric/cicd/cicd-overview) y [cómo elegir el mejor flujo de CI/CD](https://learn.microsoft.com/en-us/fabric/cicd/manage-deployment). Este repositorio implementa [despliegues basados en Git con un entorno de compilación](fabric-cicd-release-options.md#opción-3--basada-en-git-con-entornos-de-compilación).
+- [Azure Well-Architected: gestión de identidades y accesos](https://learn.microsoft.com/en-us/azure/well-architected/security/identity-access)
+- [Prácticas recomendadas de identidades administradas: UAMI frente a SAMI](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/managed-identity-best-practice-recommendations)
+- [OIDC de GitHub en Azure](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-azure)
+- [Biblioteca fabric-cicd](https://microsoft.github.io/fabric-cicd)
+
+---
+
+## Sobre esta traducción
+
+Este documento es una traducción de [fabric-cicd-governance-considerations.md](../../fabric-cicd-governance-considerations.md). La versión en inglés es la fuente de referencia y puede estar más actualizada.
+
+La actualización del 15-10-2026 se ha revisado con asistencia de IA y no cuenta con validación de hablantes nativos. Se conservan las decisiones terminológicas anteriores de [`GLOSARIO.md`](GLOSARIO.md) y se aplica [`GUIA-DE-ESTILO.md`](GUIA-DE-ESTILO.md).
+
+Los enlaces externos apuntan a la documentación en inglés para conservar la terminología de la interfaz; si se prefiere otro idioma, puede cambiarse desde el selector de idioma del sitio de destino. Los errores pueden comunicarse mediante una incidencia que indique el idioma. Si el error también existe en inglés, debe corregirse primero allí; véanse [`REVISION.md`](REVISION.md) y [`TRANSLATION.md`](../../TRANSLATION.md).

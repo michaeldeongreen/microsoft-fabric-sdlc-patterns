@@ -1,4 +1,5 @@
 ---
+# Preview in VS Code: Ctrl+Shift+B (Marp: Preview Fabric SDLC CD).
 # Preview locally from the repository root:
 # npx --yes @marp-team/marp-cli@4.5.1 presentations/fabric-sdlc-cd.md --preview --allow-local-files
 marp: true

@@ -120,6 +120,21 @@ def test_correct_cross_file_anchor_passes(repo: Path) -> None:
     assert count == 1
 
 
+def test_explicit_html_anchor_is_a_valid_target(repo: Path) -> None:
+    """English keeps ``<a id>`` anchors for compatibility; links to them must resolve."""
+    es = repo / "translations" / "es"
+    (es / "other.md").write_text(
+        '# Otro\n\n## Tabla\n\n<a id="custom-anchor"></a>\n\nTexto.\n', encoding="utf-8"
+    )
+    (es / "guide.md").write_text(
+        "# Guía\n\nVéase [esto](other.md#custom-anchor) y [lo otro](other.md#no-existe).\n",
+        encoding="utf-8",
+    )
+    count, problems = vt.check_anchors(repo, es)
+    assert count == 2
+    assert problems == [f"{Path('translations') / 'es' / 'guide.md'} -> other.md#no-existe"]
+
+
 def test_cross_file_anchor_to_missing_file_is_left_to_the_link_check(repo: Path) -> None:
     """Avoid reporting the same defect twice under two different names."""
     es = repo / "translations" / "es"
@@ -380,13 +395,32 @@ def test_hardcoded_sense_only_flagged_near_an_id(repo: Path) -> None:
     assert vt.check_terminology(repo, es, repo / "assets" / "es") != []
 
 
-def test_inclusive_variant_is_reported(repo: Path) -> None:
-    """The corpus settled on 'desarrollador(es)'; mixing the two forms is the defect."""
+@pytest.mark.parametrize(
+    "phrase",
+    [
+        "personas desarrolladoras",
+        "persona usuaria",
+        "personas aprobadoras",
+        "persona operadora",
+        "personas revisoras",
+        "persona administradora",
+    ],
+)
+def test_inclusive_variant_is_reported(repo: Path, phrase: str) -> None:
+    """The corpus settled on masculine generics; mixing the two forms is the defect."""
     (repo / "translations" / "es" / "guide.md").write_text(
-        "# Guía\n\nPara la mayoría de las personas desarrolladoras.\n", encoding="utf-8"
+        f"# Guía\n\nPara la mayoría de las {phrase}.\n", encoding="utf-8"
     )
     problems = vt.check_terminology(repo, repo / "translations" / "es", repo / "assets" / "es")
-    assert any("personas desarrolladoras" in p for p in problems)
+    assert any(phrase in p for p in problems)
+
+
+def test_invariable_person_phrases_are_accepted(repo: Path) -> None:
+    (repo / "translations" / "es" / "guide.md").write_text(
+        "# Guía\n\nLa persona designada y la persona responsable de la rotación.\n",
+        encoding="utf-8",
+    )
+    assert vt.check_terminology(repo, repo / "translations" / "es", repo / "assets" / "es") == []
 
 
 def test_standard_form_is_accepted(repo: Path) -> None:

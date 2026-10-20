@@ -53,10 +53,17 @@ REJECTED = (
     "canalización", "canalizaciones", "la *pipeline*", "las *pipelines*",
     "PR fusionado", "Capacidad de Fabric",
     "librería", "identificador", "identificadores", "ambiente", "soporta", "soportan",
-    # Inclusive-language variant that drifted in on two lines. The rest of the
-    # corpus uses "desarrollador(es)", including the reviewed README; mixing the
-    # two reads worse than either used consistently.
+    # Inclusive-language variants that drifted in. The rest of the corpus uses
+    # masculine generics ("desarrollador(es)", "usuario", "aprobadores") or
+    # "quien…", including the reviewed README; mixing the two reads worse than
+    # either used consistently. Invariable adjectives ("persona designada",
+    # "persona responsable") are not part of this family.
     "personas desarrolladoras", "persona desarrolladora",
+    "personas usuarias", "persona usuaria",
+    "personas aprobadoras", "persona aprobadora",
+    "personas operadoras", "persona operadora",
+    "personas revisoras", "persona revisora",
+    "personas administradoras", "persona administradora",
 )
 
 # Rejected only in specific senses; the same stem is fine elsewhere.
@@ -216,7 +223,9 @@ def check_anchors(root: Path, translations: Path) -> tuple[int, list[str]]:
     """Verify anchors point at headings that exist *after* translation.
 
     Covers both same-file (``#anchor``) and cross-file (``guide.md#anchor``)
-    targets. The cross-file case matters most: a relative link from a Spanish
+    targets. Explicit ``<a id="...">`` anchors, which the English source keeps
+    for compatibility and the translations preserve, are valid targets too.
+    The cross-file case matters most: a relative link from a Spanish
     document resolves to its Spanish sibling, whose headings are translated, so
     an anchor copied from the English source silently points at nothing. Five
     such links survived two rounds of human review because only the same-file
@@ -228,10 +237,10 @@ def check_anchors(root: Path, translations: Path) -> tuple[int, list[str]]:
 
     def headings_of(path: Path) -> set[str]:
         if path not in heading_cache:
+            text = path.read_text(encoding="utf-8")
             heading_cache[path] = {
-                slug(m) for m in
-                re.findall(r"(?m)^#{1,6}\s+(.+)$", path.read_text(encoding="utf-8"))
-            }
+                slug(m) for m in re.findall(r"(?m)^#{1,6}\s+(.+)$", text)
+            } | set(re.findall(r'<a\s+(?:id|name)="([^"]+)"', text, re.I))
         return heading_cache[path]
 
     for path in walk_markdown(translations):

@@ -15,8 +15,11 @@ Entries marked **👤 Revisión** in the glossary are decisions by named native 
 ## Terminology
 
 - **Default to English, then justify exceptions.** A literally translated technical term is usually *less* recognizable than the original to someone running the product interface in English. Confirmed independently by two native reviewers for this repository.
+- **The boundary is product names versus general vocabulary.** "When in doubt, English" governs *names of things in a product UI*, not the ordinary vocabulary of software delivery. Ask whether the term names something you would search for in an interface, or a concept that belongs to no product.
 - **Never translated, even in prose:** Fabric item types (*Lakehouse*, *Notebook*, *Semantic Model*, *Variable Library*, *Data Pipeline*, *Data Agent*, *Ontology*), portal objects (*workspace*, *Fabric Capacity*, *Branch Out*), CI/CD vocabulary (*pipeline*, *commit*, *pull request*, *feature branch*, *Trigger*, *Service principal*).
-- **Translate only firmly established equivalents:** *branch* → rama, *repository* → repositorio, *environment* → entorno, *deployment* → despliegue.
+- **Translate general vocabulary:** *branch* → rama, *repository* → repositorio, *environment* → entorno, *deployment* → despliegue, *workflow* → flujo de trabajo. Settled in review; do not re-open.
+- **Literal UI strings stay English inside a Spanish sentence.** The concept is translated, the clickable path is not: «los entornos de GitHub (`Settings → Environments`)». Never translate a navigation path the reader has to find on screen.
+- **Mirror the source's own capitalization distinctions.** The English decks and guides use *branch out* as a verb, ***Branch out*** for the Fabric UI button, and ***Branch Out*** for the named pattern. Preserve that split rather than flattening it.
 - **Native review outranks Microsoft Terminology.** The official term is the starting point, not the final answer.
 - **Never mine `learn.microsoft.com/<locale>/` prose for terminology.** Those pages are machine-translated and internally inconsistent.
 
@@ -27,12 +30,15 @@ Impersonal by default; the formal form (*usted* in Spanish) where direct address
 ## Mechanics
 
 - **Source stamp:** every translated file opens with `<!-- source: <file> @ <short-sha> | translated: <date> -->`. Update it to the English commit the translation is based on; a stale stamp makes the staleness check fire a false positive.
-- **Anchors:** GitHub derives anchors from heading text, so translating a heading changes its anchor. Regenerate every table of contents and cross-reference against the *translated* headings. Never copy anchors from the English source.
+- **Path mirroring:** translations mirror the English **path**, subdirectories included. `presentations/fabric-sdlc-cd.md` becomes `translations/es/presentations/fabric-sdlc-cd.md`, never a flattened or `-es`-suffixed name.
+- **Link depth follows nesting.** From `translations/es/` shared assets are `../../`; from `translations/es/presentations/` they are `../../../`. A wrong depth renders as a broken link that looks fine in the diff — run `python scripts/verify_translations.py` to catch it.
+- **Anchors:** GitHub derives anchors from heading text, so translating a heading changes its anchor. Regenerate every table of contents and cross-reference against the *translated* headings. Never copy anchors from the English source — this applies to `guide.md#anchor` links too, which resolve to the *translated* sibling, not the English file.
 - **Links between translated documents:** bare relative filenames (`fabric-hybrid-cicd-guide.md`), which resolve to the translated sibling automatically.
-- **Links to shared files:** `../../scripts/...`, `../../assets/es/...`. Never root-anchored `/path`.
+- **Links to shared files:** reach the repo root with the depth matching the file's own nesting — `../../` from `translations/es/`, `../../../` from `translations/es/presentations/`. Never root-anchored `/path`.
 - **Links to untranslated documents:** point at the English original and label it, e.g. `*(solo en inglés)*`.
 - **External documentation links stay English** (`/en-us/`), never the localized locale.
-- **Diagrams:** translate `<text>` content only, into `assets/<lang>/` with identical filenames. Keep script names, git commands, workflow filenames and branch names untranslated. Never convert text to curves. Verify no label overflows its box — translated text often runs longer than English.
+- **Diagrams:** translate `<text>` content only, into `assets/<lang>/` with identical filenames. Keep script names, git commands, workflow filenames and branch names untranslated. Never convert text to curves. Leave geometry untouched. Measure rather than estimate — render and compare text width against box width.
+- **Marp decks in `presentations/`:** never translate YAML frontmatter or the `style:` CSS block; do translate `header:` and the slide content. Copy the frontmatter from the source rather than retyping it. Slides have hard space limits, so render and check for overflow. The compiled HTML is a gitignored build artifact — rebuild it locally to check, but do not commit it. Decks get **no language switcher**: anything in the body renders onto a slide.
 
 ## Find-and-replace hazards
 
@@ -44,7 +50,7 @@ Bulk replacement has caused real defects in this repository. After any terminolo
 
 ## Before finishing
 
-- Verify every relative link in changed files resolves.
-- Verify anchors match translated headings.
-- If a diagram changed, render it and check for overflow.
-- If terminology changed, update `GLOSARIO.md` in the same change so the next translator inherits the decision.
+- Run `python scripts/verify_translations.py` from the repository root. It checks links, anchors, code-fence parity, rejected terminology, register and gender agreement, and exits non-zero on failure. It is not wired into CI, so it has to be run deliberately.
+- If a diagram changed, render it and check for overflow — the script does not measure geometry.
+- If a Marp deck changed, rebuild its HTML and check for slide overflow. Wait for fonts to load before measuring; a measurement taken too early reports a few pixels of phantom overflow.
+- If terminology changed, update `GLOSARIO.md` in the same change so the next translator inherits the decision, and add the rejected term to `REJECTED` in the script.

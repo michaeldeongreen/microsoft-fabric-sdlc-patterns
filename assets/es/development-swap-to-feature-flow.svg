@@ -21,13 +21,13 @@
 
   <rect x="330" y="55" width="150" height="50" rx="6" fill="#E8873A" stroke="#d47a30"/>
   <text x="405" y="77" text-anchor="middle" fill="white" font-weight="bold">Entorno de feature</text>
-  <text x="405" y="92" text-anchor="middle" fill="white">Crear WI + par</text>
+  <text x="405" y="92" text-anchor="middle" fill="white">Crear WI + conexiones</text>
 
   <line x1="480" y1="80" x2="505" y2="80" stroke="#4A90D9" stroke-width="2" marker-end="url(#arrow1)"/>
 
   <rect x="505" y="55" width="150" height="50" rx="6" fill="#E8873A" stroke="#d47a30"/>
   <text x="580" y="77" text-anchor="middle" fill="white" font-weight="bold">/swap-to-feature</text>
-  <text x="580" y="92" text-anchor="middle" fill="white">Validar + alternar</text>
+  <text x="580" y="92" text-anchor="middle" fill="white">Validar + cambiar</text>
 
   <line x1="655" y1="80" x2="680" y2="80" stroke="#4A90D9" stroke-width="2" marker-end="url(#arrow1)"/>
 
@@ -52,7 +52,7 @@
 
   <rect x="530" y="150" width="190" height="50" rx="6" fill="#4A90D9" stroke="#3a7bc8"/>
   <text x="625" y="165" text-anchor="middle" fill="white" font-weight="bold">Revisar vinculaciones</text>
-  <text x="625" y="180" text-anchor="middle" fill="white">Ejecutar DataPipeline</text>
+  <text x="625" y="180" text-anchor="middle" fill="white">Ejecutar Data Pipeline</text>
   <text x="625" y="195" text-anchor="middle" fill="white">cargar → validar → actualizar</text>
 
   <line x1="530" y1="175" x2="505" y2="175" stroke="#4A90D9" stroke-width="2" marker-end="url(#arrow1)"/>

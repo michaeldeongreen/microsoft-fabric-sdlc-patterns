@@ -18,15 +18,15 @@ modelo actual de desarrollo, conexiones y lanzamientos:
   [lanzamiento](fabric-release-process.md),
   [Deployment Plan](fabric-deployment-plan-guide.md) y
   [controles de calidad](fabric-cicd-quality-gates-and-release-controls.md);
-- la [presentación mantenida](presentations/fabric-sdlc-cd.md) y un
+- la [presentación vigente](presentations/fabric-sdlc-cd.md) y un
   [aviso de presentación sustituida](presentations/fabric-sdlc-cicd-presentation.md),
   que ya no presenta las diapositivas obsoletas como guía operativa; y
 - siete diagramas.
 
 Las decisiones terminológicas de las revisiones nativas anteriores se
 conservan. **Esta actualización está asistida por IA; no constituye una nueva
-aprobación de un hablante nativo.** Antes de fusionarla, sigue siendo necesaria
-la revisión humana prevista en [`TRANSLATION.md`](../../TRANSLATION.md).
+aprobación de un hablante nativo.** La revisión humana prevista en
+[`TRANSLATION.md`](../../TRANSLATION.md) sigue pendiente.
 
 La entrega conjunta permite evaluar la coherencia del recorrido completo y
 aplicar cada decisión terminológica una sola vez.
@@ -40,6 +40,15 @@ la preparación del destino de la comprobación de referencias para el PR. Las
 nuevas formulaciones se registran como convenciones asistidas por IA en el
 glosario, sin modificar las decisiones de las revisiones humanas anteriores ni
 el alcance técnico del original.
+
+El 20 de octubre de 2026 se hizo una pasada final de revisión crítica, también
+asistida por IA —un especialista en traducción técnica y el agente
+coordinador—, sin validación de hablantes nativos. Unificó la terminología entre
+documentos (*Data Pipeline*, *endpoint*, cambio de referencias, vuelta a la
+publicación estándar, español neutro), añadió a los cuatro documentos nuevos el
+aviso de procedencia asistida por IA y corrigió calcos y matices de fuerza
+(«debería» frente a «debe»). Las decisiones quedan en el
+[glosario](GLOSARIO.md#convenciones-de-la-actualización-del-15-10-2026).
 
 Para la revisión humana se proponen **comprobaciones puntuales**:
 

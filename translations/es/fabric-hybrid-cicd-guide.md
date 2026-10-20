@@ -144,7 +144,7 @@ La referencia común de flujos de trabajo se ha trasladado al [Proceso de lanzam
 
 ### Comprobaciones de pull request
 
-Véase el [Proceso de lanzamiento: comprobaciones de las pull requests](fabric-release-process.md#comprobaciones-de-las-pull-requests).
+Véase el [Proceso de lanzamiento: comprobaciones de pull request](fabric-release-process.md#comprobaciones-de-pull-request).
 
 ### Flujos invocadores de despliegue
 
@@ -268,7 +268,7 @@ Confirme que todos los elementos funcionan en el workspace de destino:
 
 ### El problema del huevo y la gallina: el ID del Lakehouse
 
-En la ruta predeterminada de fabric-cicd sin publicación masiva, la Variable Library y el Semantic Model necesitan un ID de Lakehouse que no existe hasta el primer despliegue. Las sustituciones `$items` se resuelven a partir del inventario de destino, por lo que un elemento dependiente no puede resolver un requisito que aún no se ha desplegado. La ruta masiva de fabric-cicd tiene su propia gestión de dependencias por etapas; el comportamiento del cliente descrito aquí corresponde a la ruta predeterminada sin publicación masiva.
+En la ruta predeterminada de fabric-cicd sin publicación masiva, la Variable Library y el Semantic Model necesitan un ID de Lakehouse que no existe hasta el primer despliegue. Las sustituciones `$items` se resuelven a partir del inventario de destino, por lo que un elemento dependiente no puede resolver un requisito que aún no se ha desplegado. La ruta masiva de fabric-cicd tiene su propia gestión de dependencias por etapas; el comportamiento de las llamadas descrito a continuación corresponde a la ruta predeterminada sin publicación masiva.
 
 **Solución:** la fase 1 publica Lakehouse + Ontology. Una nueva llamada de fase 2 puede resolver sus IDs para la Library, los Notebooks, el modelo, el informe y el Data Agent. El mismo límite de la caché de estado afecta al nuevo pipeline: la fase 3 publica el Data Pipeline después de volver a descubrir sus dependencias de Notebook y modelo de la fase 2. Cada fase debe terminar correctamente antes de que empiece la siguiente; la limpieza se realiza tras una publicación correcta. Son llamadas de publicación, no tres ejecuciones de la carga de trabajo. Si no existe ningún Data Pipeline, se omite la tercera llamada.
 
@@ -340,6 +340,6 @@ Los flujos invocadores de despliegue estándar observan las definiciones de Fabr
 
 Este documento es una traducción de [fabric-hybrid-cicd-guide.md](../../fabric-hybrid-cicd-guide.md). La versión en inglés es la fuente de referencia y puede estar más actualizada.
 
-La actualización del 15-10-2026 se ha revisado con asistencia de IA, sin nueva validación por hablantes nativos. Se conservan las decisiones anteriores de [`GLOSARIO.md`](GLOSARIO.md) y se aplica [`GUIA-DE-ESTILO.md`](GUIA-DE-ESTILO.md).
+La actualización del 15-10-2026 se ha revisado con asistencia de IA y no cuenta con validación de hablantes nativos. Se conservan las decisiones terminológicas anteriores de [`GLOSARIO.md`](GLOSARIO.md) y se aplica [`GUIA-DE-ESTILO.md`](GUIA-DE-ESTILO.md).
 
-Los enlaces externos apuntan a la documentación en inglés. Las citas literales conservan el texto original y, cuando corresponde, se acompañan de una traducción identificada. Los errores pueden comunicarse mediante una incidencia que indique el idioma. Si el error también existe en inglés, debe corregirse primero allí; véanse [`REVISION.md`](REVISION.md) y [`TRANSLATION.md`](../../TRANSLATION.md).
+Los enlaces externos apuntan a la documentación en inglés para conservar la terminología de la interfaz; si se prefiere otro idioma, puede cambiarse desde el selector de idioma del sitio de destino. Las citas literales conservan el texto original y, cuando corresponde, se acompañan de una traducción identificada. Los errores pueden comunicarse mediante una incidencia que indique el idioma. Si el error también existe en inglés, debe corregirse primero allí; véanse [`REVISION.md`](REVISION.md) y [`TRANSLATION.md`](../../TRANSLATION.md).

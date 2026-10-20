@@ -244,8 +244,7 @@ Each language keeps its own glossary and style guide, but the following was lear
 
 <!-- source: README.md @ 9aa6823 | translated: 2026-09-22 -->
 
-> 📄 La versión en inglés de este documento es la autoritativa.
-> Si encuentra una discrepancia, [el original en inglés](../../README.md) tiene precedencia.
+> 📄 **La versión en inglés de este documento es la de referencia.** En caso de discrepancia, [el original en inglés](../../README.md) tiene precedencia.
 
 # Título del documento
 
@@ -253,10 +252,14 @@ Each language keeps its own glossary and style guide, but the following was lear
 
 ---
 
-*Este documento es una traducción de [README.md](../../README.md). Las traducciones
-pueden quedar desactualizadas respecto al original en inglés, que es la fuente
-autorizada. Los errores pueden comunicarse abriendo una incidencia e indicando el idioma.*
+## Sobre esta traducción
+
+Este documento es una traducción de [README.md](../../README.md). La versión en inglés es la fuente de referencia y puede estar más actualizada.
+
+Los enlaces externos apuntan a la documentación en inglés para conservar la terminología de la interfaz; si se prefiere otro idioma, puede cambiarse desde el selector de idioma del sitio de destino. Los errores pueden comunicarse mediante una incidencia que indique el idioma. Si el error también existe en inglés, debe corregirse primero allí; véanse [`REVISION.md`](REVISION.md) y [`TRANSLATION.md`](../../TRANSLATION.md).
 ```
+
+A translation produced or updated with AI assistance and not validated by native speakers must say so in the closing section, between the two paragraphs, and link the glossary and style guide it applies (see `translations/es/fabric-hybrid-cicd-guide.md`).
 
 ---
 

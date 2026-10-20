@@ -336,6 +336,6 @@ La limpieza de archivos de origen que realiza `/swap-to-dev` no autoriza a elimi
 
 Este documento es una traducción de [fabric-development-process.md](../../fabric-development-process.md). La versión en inglés es la fuente de referencia y puede estar más actualizada.
 
-La actualización del 15-10-2026 se ha revisado con asistencia de IA, sin nueva validación por hablantes nativos. Se conservan las decisiones anteriores de [`GLOSARIO.md`](GLOSARIO.md) y se aplica [`GUIA-DE-ESTILO.md`](GUIA-DE-ESTILO.md).
+La actualización del 15-10-2026 se ha revisado con asistencia de IA y no cuenta con validación de hablantes nativos. Se conservan las decisiones terminológicas anteriores de [`GLOSARIO.md`](GLOSARIO.md) y se aplica [`GUIA-DE-ESTILO.md`](GUIA-DE-ESTILO.md).
 
-Los enlaces externos apuntan a la documentación en inglés. Los errores pueden comunicarse mediante una incidencia que indique el idioma. Si el error también existe en inglés, debe corregirse primero allí; véanse [`REVISION.md`](REVISION.md) y [`TRANSLATION.md`](../../TRANSLATION.md).
+Los enlaces externos apuntan a la documentación en inglés para conservar la terminología de la interfaz; si se prefiere otro idioma, puede cambiarse desde el selector de idioma del sitio de destino. Los errores pueden comunicarse mediante una incidencia que indique el idioma. Si el error también existe en inglés, debe corregirse primero allí; véanse [`REVISION.md`](REVISION.md) y [`TRANSLATION.md`](../../TRANSLATION.md).

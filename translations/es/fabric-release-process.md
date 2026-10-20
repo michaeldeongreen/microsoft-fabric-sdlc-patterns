@@ -2,8 +2,7 @@
 
 <!-- source: fabric-release-process.md @ f7f949d | translated: 2026-10-15 -->
 
-> La versión en inglés es la fuente autorizada. Si existe alguna discrepancia,
-> [el original en inglés](../../fabric-release-process.md) tiene precedencia.
+> 📄 **La versión en inglés de este documento es la de referencia.** En caso de discrepancia, [el original en inglés](../../fabric-release-process.md) tiene precedencia.
 
 # Proceso de lanzamiento
 
@@ -19,7 +18,7 @@ Consulte:
 - Las guías de cada método, para el comportamiento específico del publicador:
   [fabric-cicd sin publicación masiva](fabric-hybrid-cicd-guide.md),
   [adaptadores de Deployment Plan](fabric-deployment-plan-guide.md) y
-  [REST directo masivo](fabric-bulk-cicd-guide.md).
+  [REST masivo directo](fabric-bulk-cicd-guide.md).
 
 ## Correspondencia entre ramas, workspaces y entornos
 
@@ -38,7 +37,7 @@ mediante API.
 | Actor | Responsabilidad |
 |---|---|
 | Administrador del repositorio de GitHub | Reglas, entornos, secretos y variables, selección del método de despliegue, ciclo de vida del PAT e inicio manual del aprovisionamiento de Dev |
-| Operador del workspace Dev | Actualización de Dev desde Git, inspección de vinculaciones y ejecución manual del DataPipeline |
+| Operador del workspace Dev | Actualización de Dev desde Git, inspección de vinculaciones y ejecución manual del Data Pipeline |
 | GitHub Actions | Ejecuta el contenido revisado para el lanzamiento y hace cumplir el orden de dependencias entre trabajos |
 | Service principal de despliegue | Crea o reutiliza y verifica las conexiones de Test/Prod, administra sus ACL, publica definiciones y envía trabajos de Fabric |
 | PAT para las variables de los entornos de GitHub | Lee y crea las dos variables de ID de conexión durante las comprobaciones previas y la persistencia del lanzamiento |
@@ -57,8 +56,8 @@ Identity del workspace de destino.
 
 ## Ciclo de vida de un vistazo
 
-1. Se realiza Branch Out desde Dev. Un administrador del workspace de feature
-   crea la Workspace Identity y las conexiones; el desarrollador intercambia
+1. Se hace Branch Out desde Dev. Un administrador del workspace de feature
+   crea la Workspace Identity y las conexiones; el desarrollador cambia
    las referencias y valida el workspace.
 2. Antes del PR, se restauran las referencias canónicas de Dev y se supera
    la comprobación de referencias para el PR.
@@ -67,7 +66,7 @@ Identity del workspace de destino.
    `Patterns_Load_Validate_And_Refresh` manualmente.
 4. Se fusiona un PR revisado de `dev` a `test`. El trabajo seleccionado de
    Test crea o reutiliza y verifica sus dos conexiones, publica las
-   definiciones y ejecuta el DataPipeline de Fabric de la misma revisión.
+   definiciones y ejecuta el Data Pipeline de Fabric de la misma revisión.
 5. El equipo valida Test. Que el trabajo de publicación termine correctamente
    es necesario, pero no sustituye la aceptación de la carga de trabajo, el
    Semantic Model, los informes y los consumidores.
@@ -90,10 +89,10 @@ de lanzamiento es:
 4. Abra un PR a `dev`.
 5. Exija `Check for non-dev IDs in Fabric items` y `Run unit tests`.
 6. Tras el merge, actualice Dev manualmente desde Fabric Git.
-7. Ejecute el DataPipeline de Fabric de Dev y revise sus resultados.
+7. Ejecute el Data Pipeline de Fabric de Dev y revise sus resultados.
 
 No hay publicación en Dev activada por un push ni ejecución automática de su
-DataPipeline. El aprovisionamiento de conexiones de Dev también es una acción
+Data Pipeline. El aprovisionamiento de conexiones de Dev también es una acción
 manual de configuración independiente.
 
 ## De Dev a Test
@@ -108,7 +107,7 @@ Antes de abrir el PR de promoción:
   Identity, los permisos sobre los recursos, el entorno de GitHub, las
   credenciales de despliegue, el PAT y el grupo de administradores de
   conexiones.
-- Ningún otro lanzamiento de Test o Prod debe estar usando un selector o una
+- Ningún otro lanzamiento de Test o Prod debería estar usando un selector o una
   configuración compartida que se esté modificando.
 
 Abra un PR de `dev` a `test`. GitHub ejecuta:
@@ -132,14 +131,14 @@ El trabajo seleccionado realiza esta secuencia:
 5. Concede al grupo configurado de administradores de conexiones el rol
    Owner en ambas conexiones, o lo eleva a ese rol, y vuelve a leer la
    asignación para verificarla.
-6. Crea las variables de entorno `NOTEBOOK_CONNECTION_ID` y
+6. Crea las variables del entorno de GitHub `NOTEBOOK_CONNECTION_ID` y
    `SEMANTIC_MODEL_REFRESH_CONNECTION_ID` que falten y después las verifica.
    Un valor existente distinto provoca un error y nunca se sobrescribe.
 7. Pasa directamente al publicador los IDs resueltos en la ejecución actual.
    El publicador vuelve a validar las dos conexiones y las usa en modo
    `existing`/`WorkspaceIdentity`.
 8. Publica con el método de despliegue seleccionado.
-9. Si la publicación termina correctamente, inicia el DataPipeline de Fabric
+9. Si la publicación termina correctamente, inicia el Data Pipeline de Fabric
    `Patterns_Load_Validate_And_Refresh` de la misma revisión y consulta su
    estado hasta que termina.
 
@@ -161,7 +160,7 @@ El lanzamiento de Prod sigue el mismo contrato técnico que Test:
    Owner
 3. Persistencia de los IDs de Prod solo cuando las variables no existen
 4. Método de publicación seleccionado
-5. DataPipeline de Fabric de Prod de la misma revisión
+5. Data Pipeline de Fabric de Prod de la misma revisión
 
 Cambian las ramas de origen y destino, el entorno de GitHub, el workspace, la
 Workspace Identity, las conexiones, los secretos, la etiqueta de ejecución y
@@ -204,8 +203,8 @@ en el recorrido normal del primer lanzamiento.
 |---|---|
 | PR a `dev` | Comprobación de referencias de Dev y pruebas unitarias |
 | PR a `test` o `main` | Cumplimiento de la ruta de promoción y pruebas unitarias |
-| Push a `test` | Los flujos de Test evalúan `DEPLOY_METHOD`; el método seleccionado despliega y después ejecuta el DataPipeline |
-| Push a `main` | Los flujos de Prod evalúan `DEPLOY_METHOD`; el método seleccionado despliega y después ejecuta el DataPipeline |
+| Push a `test` | Los flujos de Test evalúan `DEPLOY_METHOD`; el método seleccionado despliega y después ejecuta el Data Pipeline |
+| Push a `main` | Los flujos de Prod evalúan `DEPLOY_METHOD`; el método seleccionado despliega y después ejecuta el Data Pipeline |
 | Inicio manual para Test | Debe usar la rama `test` |
 | Inicio manual para Prod | Debe usar la rama `main` y las protecciones configuradas de Prod |
 | Cambio únicamente de `DEPLOY_METHOD` | No hay despliegue hasta que se produce un push que cumpla los filtros o se inicia una ejecución manual |
@@ -215,7 +214,7 @@ Un valor desconocido y no vacío de `DEPLOY_METHOD` no selecciona ningún
 trabajo de despliegue. No use ese comportamiento como un control de lanzamiento
 sin documentar.
 
-### Comprobaciones de las pull requests
+### Comprobaciones de pull request
 
 | Flujo de trabajo | Trigger | Propósito |
 |---|---|---|
@@ -256,15 +255,15 @@ configuradas para ellos.
 Las plantillas reutilizables de despliegue definen el entorno de GitHub de
 destino. Así se mantienen los secretos del entorno, los controles opcionales
 de revisión, la concurrencia, las comprobaciones previas de conexiones, la
-publicación y el DataPipeline dependiente en un único grafo de trabajos
-visible. Las acciones compuestas no sustituyen los controles de entorno y
-dependencias entre trabajos definidos a nivel de flujo de trabajo.
+publicación y el Data Pipeline dependiente en un único grafo de trabajos
+visible. Las acciones compuestas no pueden sustituir los controles de entorno
+ni de dependencias entre trabajos que se definen en el flujo de trabajo.
 
 ### Flujos de trabajo que invocan el ETL y traspaso de control
 
 | Flujo de trabajo | Trigger | Propósito |
 |---|---|---|
-| Trabajo `run-etl` del flujo de despliegue seleccionado | Finalización con éxito del trabajo de despliegue, mediante `needs` | Ejecuta el DataPipeline desde la misma revisión de la rama |
+| Trabajo `run-etl` del flujo de despliegue seleccionado | Finalización con éxito del trabajo de despliegue, mediante `needs` | Ejecuta el Data Pipeline desde la misma revisión de la rama |
 | [etl-test.yml](../../.github/workflows/etl-test.yml) | Manual, rama `test` | Recuperación de Test sin volver a publicar |
 | [etl-prod.yml](../../.github/workflows/etl-prod.yml) | Manual, rama `main` | Recuperación de Prod con su entorno y las protecciones configuradas |
 
@@ -276,7 +275,7 @@ publicación falla, el ETL no se ejecuta.
 ### Actualización del Semantic Model posterior al ETL
 
 El trabajo reutilizable de ETL inicia `Patterns_Load_Validate_And_Refresh`
-como DataPipeline de Fabric y espera a su estado final:
+como Data Pipeline de Fabric y espera a su estado final:
 
 1. `Import_Patterns_Data` escribe las tablas Delta del ejemplo.
 2. `Validate_Patterns_Data` realiza comprobaciones de solo lectura sobre el
@@ -286,7 +285,7 @@ como DataPipeline de Fabric y espera a su estado final:
    validación termina correctamente, con ejecución transaccional y espera
    hasta la finalización habilitadas.
 
-El DataPipeline de Fabric es el único responsable de la actualización.
+El Data Pipeline de Fabric es el único responsable de la actualización.
 GitHub no realiza una segunda actualización del Semantic Model.
 
 `minimum_patient_count` es un Integer positivo que procede del conjunto de
@@ -295,7 +294,7 @@ que proporciona el flujo que invoca la ejecución cuando se requiere. Una
 entrada no válida no se sustituye por un valor predeterminado que simule un
 resultado correcto.
 
-El Service principal de despliegue envía el trabajo de DataPipeline. Sus
+El Service principal de despliegue envía el trabajo de Data Pipeline. Sus
 actividades de Notebook y de actualización se autentican mediante las
 conexiones de Workspace Identity de la etapa. Un despliegue correcto no
 demuestra la propiedad del Semantic Model, el acceso al origen, los resultados
@@ -309,7 +308,7 @@ DAX, la visualización de informes ni el acceso de los consumidores.
 | Creación o reutilización y verificación de conexiones | Puede dejar una conexión correctamente creada o un rol verificado; corrija el error y vuelva a ejecutar, ya que se concilian los nombres y los IDs |
 | Persistencia de IDs | Nunca sobrescribe un valor existente distinto; revise el recurso previsto antes de eliminar o cambiar una variable |
 | Publicación | El ETL no se inicia; inspeccione el resultado por elemento del publicador seleccionado |
-| Fallo al iniciar el DataPipeline o finalización con error | Las definiciones ya están publicadas; inspeccione la ejecución exacta de Fabric y los diagnósticos de las actividades |
+| Fallo al iniciar el Data Pipeline o finalización con error | Las definiciones ya están publicadas; inspeccione la ejecución exacta de Fabric y los diagnósticos de las actividades |
 | Se agota el tiempo de espera de GitHub al consultar el estado | No cancela el trabajo de Fabric; inspeccione Fabric antes de reintentar |
 | Recuperación manual del ETL | Usa la revisión actual de la rama y las definiciones publicadas existentes; no repara una publicación fallida |
 
@@ -322,19 +321,19 @@ reutilícela y verifíquela en lugar de crear otro recurso con un nombre similar
 La tabla distingue la implementación versionada de las evidencias de
 ejecuciones reales.
 
-| Ruta | Contrato versionado | Evidencia de ejecución real para esta revisión |
+| Ruta | Contrato versionado | Verificación en un entorno real para esta revisión |
 |---|---|---|
-| `fabric-cicd` predeterminado, Test | Preparación de conexiones, tres fases de publicación y DataPipeline de la misma revisión | Verificado el 2026-10-14 mediante la [ejecución 38581072000](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns/actions/runs/38581072000) |
-| `fabric-cicd-plan`, Test | Misma preparación de conexiones, grupos secuenciales del plan y DataPipeline de la misma revisión | Sin verificar mediante una ejecución real |
-| `fabric-cicd-bulk`, Test | Misma preparación de conexiones, publicación masiva estricta agrupada y DataPipeline de la misma revisión | Sin verificar mediante una ejecución real |
-| REST directo `bulk`, Test | Misma preparación de conexiones, tres lotes REST y DataPipeline de la misma revisión | Sin verificar mediante una ejecución real |
+| `fabric-cicd` predeterminado, Test | Preparación de conexiones, tres fases de publicación y Data Pipeline de la misma revisión | Verificado el 14 de octubre de 2026 mediante la [ejecución 38581072000](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns/actions/runs/38581072000) |
+| `fabric-cicd-plan`, Test | Misma preparación de conexiones, grupos secuenciales del plan y Data Pipeline de la misma revisión | Sin verificar mediante una ejecución real |
+| `fabric-cicd-bulk`, Test | Misma preparación de conexiones, publicación masiva estricta agrupada y Data Pipeline de la misma revisión | Sin verificar mediante una ejecución real |
+| REST directo `bulk`, Test | Misma preparación de conexiones, tres lotes REST y Data Pipeline de la misma revisión | Sin verificar mediante una ejecución real |
 | Cualquier ruta de Prod | Equivalente de su ruta de Test con configuración específica de Prod | Sin verificar mediante una ejecución real |
-| Revisión actual de Branch Out de feature | Conexiones creadas por una persona, preparación, intercambio, actualización desde Fabric Git y DataPipeline manual | Sin verificar mediante un ciclo completo de la revisión actual |
+| Revisión actual de Branch Out de feature | Conexiones creadas por una persona, preparación, cambio de referencias, actualización desde Fabric Git y Data Pipeline manual | Sin verificar mediante un ciclo completo de la revisión actual |
 
 La ejecución `38581072000` completó las comprobaciones previas de GitHub, la
 creación o reutilización y verificación de conexiones de Workspace Identity,
 la verificación del rol Owner del grupo de administradores de conexiones, la
-persistencia de IDs, la publicación predeterminada y el DataPipeline de Fabric
+persistencia de IDs, la publicación predeterminada y el Data Pipeline de Fabric
 de la misma revisión. No certifica los tres métodos alternativos, Prod, el
 comportamiento con recursos nuevos frente a su reutilización ni la aceptación
 del Semantic Model, los informes y los consumidores de cada carga de trabajo.
@@ -346,7 +345,7 @@ candidata y el destino:
 
 - comprobaciones y revisiones obligatorias de PR;
 - `DEPLOY_METHOD` seleccionado;
-- URL de las ejecuciones del despliegue de Test y del DataPipeline;
+- URL de las ejecuciones del despliegue de Test y del Data Pipeline;
 - resultados de publicación por elemento;
 - conjunto de valores activo de Variable Library y comprobaciones de
   vinculaciones físicas;
@@ -366,11 +365,20 @@ los límites de identidad y aprobación.
 
 ---
 
-*Este documento es una traducción de
-[fabric-release-process.md](../../fabric-release-process.md). El original en
-inglés es la fuente autorizada. Los errores pueden comunicarse mediante una
-incidencia, indicando el idioma.*
+## Sobre esta traducción
 
-*Los enlaces a documentación externa apuntan al inglés para conservar la
-referencia y la terminología de la interfaz. Si se prefiere otro idioma, puede
-cambiarse desde el selector de idioma del sitio de destino.*
+Este documento es una traducción de
+[fabric-release-process.md](../../fabric-release-process.md). La versión en
+inglés es la fuente de referencia y puede estar más actualizada.
+
+Esta traducción, nueva en la actualización del 15-10-2026, se ha elaborado con
+asistencia de IA y no cuenta con validación de hablantes nativos. Se aplican las
+decisiones de [`GLOSARIO.md`](GLOSARIO.md) y
+[`GUIA-DE-ESTILO.md`](GUIA-DE-ESTILO.md).
+
+Los enlaces externos apuntan a la documentación en inglés para conservar la
+terminología de la interfaz; si se prefiere otro idioma, puede cambiarse desde
+el selector de idioma del sitio de destino. Los errores pueden comunicarse
+mediante una incidencia que indique el idioma. Si el error también existe en
+inglés, debe corregirse primero allí; véanse [`REVISION.md`](REVISION.md) y
+[`TRANSLATION.md`](../../TRANSLATION.md).

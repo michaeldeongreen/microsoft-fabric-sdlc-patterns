@@ -13,7 +13,7 @@
 
   <!-- Arrow: Git → Dev -->
   <line x1="150" y1="100" x2="205" y2="100" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
-  <text x="178" y="90" text-anchor="middle" font-size="9" fill="#555">sincroniza</text>
+  <text x="178" y="90" text-anchor="middle" font-size="9" fill="#555">sincronizar</text>
 
   <!-- Dev Workspace -->
   <rect x="210" y="70" width="140" height="60" rx="8" fill="#28a745" stroke="#1e7e34" stroke-width="1.5"/>
@@ -22,7 +22,7 @@
 
   <!-- Arrow: Dev → Test -->
   <line x1="350" y1="100" x2="425" y2="100" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
-  <text x="388" y="90" text-anchor="middle" font-size="9" fill="#555">despliega</text>
+  <text x="388" y="90" text-anchor="middle" font-size="9" fill="#555">desplegar</text>
 
   <!-- Test Workspace -->
   <rect x="430" y="70" width="140" height="60" rx="8" fill="#fd7e14" stroke="#e8590c" stroke-width="1.5"/>
@@ -31,7 +31,7 @@
 
   <!-- Arrow: Test → Prod -->
   <line x1="570" y1="100" x2="645" y2="100" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
-  <text x="608" y="90" text-anchor="middle" font-size="9" fill="#555">despliega</text>
+  <text x="608" y="90" text-anchor="middle" font-size="9" fill="#555">desplegar</text>
 
   <!-- Prod Workspace -->
   <rect x="650" y="70" width="140" height="60" rx="8" fill="#dc3545" stroke="#bd2130" stroke-width="1.5"/>
@@ -47,7 +47,7 @@
   <text x="270" y="222" text-anchor="middle" font-size="13" font-weight="bold" fill="#0078d4">Manual (interfaz)</text>
   <text x="270" y="244" text-anchor="middle" font-size="10" fill="#333">1. Abrir Deployment Pipelines en el portal de Fabric</text>
   <text x="270" y="260" text-anchor="middle" font-size="10" fill="#333">2. Comparar los cambios entre etapas</text>
-  <text x="270" y="276" text-anchor="middle" font-size="10" fill="#333">3. Seleccionar elementos y pulsar Deploy</text>
+  <text x="270" y="276" text-anchor="middle" font-size="10" fill="#333">3. Seleccionar elementos y hacer clic en Deploy</text>
   <text x="270" y="292" text-anchor="middle" font-size="10" fill="#333">4. Configurar reglas de despliegue por etapa</text>
 
   <!-- Automated (API) path -->

@@ -192,7 +192,7 @@ Estos elementos no se traducen en ningún contexto, ni siquiera dentro de prosa:
 
 ## Convenciones de la actualización del 15-10-2026
 
-Acuerdos de redacción de la actualización asistida por IA, **sin atribuirlos a una revisión de hablantes nativos**. Se aplican a la documentación nueva o actualizada; no autorizan a cambiar citas, cadenas de interfaz, claves ni identificadores.
+Acuerdos de redacción de la actualización asistida por IA, **sin atribuirlos a una revisión de hablantes nativos**. Se aplican a la documentación nueva o actualizada; no autorizan a cambiar citas, cadenas de interfaz, claves ni identificadores. Las filas desde «endpoint» proceden de la pasada final del 20-10-2026, igualmente asistida por IA.
 
 | Inglés o contexto | Forma acordada | Criterio |
 |---|---|---|
@@ -200,7 +200,7 @@ Acuerdos de redacción de la actualización asistida por IA, **sin atribuirlos a
 | Deployment Plan / DeploymentPlan | **Deployment Plan** / `DeploymentPlan` | Nombre de producto frente a identificador del tipo de elemento. No es un Data Pipeline ni un Pipeline de despliegue. |
 | client-read plan | **plan interpretado por el adaptador** | El adaptador del repositorio lee el plan y calcula el orden de publicación; Fabric no ejecuta el plan de forma nativa en estas rutas. Se evita confundir «cliente» con la empresa cliente. Los sentidos válidos de «cliente REST», «cliente OAuth» y «cliente de Microsoft» no cambian. |
 | non-bulk | **sin publicación masiva**; **no masivo** como forma breve | Ambas formas designan el mismo modo de publicación. La forma breve es válida cuando el contexto es claro, especialmente en diapositivas y diagramas; no se alteran valores como `fabric-cicd`. |
-| Data Pipeline / DataPipeline | **Data Pipeline** / `DataPipeline` | Tipo de elemento en prosa frente a identificador de API, ruta o configuración. Ejecuta la carga de trabajo; no promueve contenido entre workspaces. |
+| Data Pipeline / DataPipeline | **Data Pipeline** / `DataPipeline` | Tipo de elemento en prosa frente a identificador de API, ruta o configuración. Ejecuta la carga de trabajo; no promueve contenido entre workspaces. Los rótulos de diagramas con espacio limitado, como «Fabric DataPipeline» en `fabric-git-actions-deployments-flow.svg`, conservan la grafía del original. |
 | Environment *(tipo de elemento de Fabric)* | **Environment** | Se conserva como tipo de producto. El concepto general y los entornos de GitHub siguen siendo «entorno»; los nombres `Dev`, `Test` y `Prod` no cambian. |
 | Owner / Contributor / Admin / Member / Viewer / User | **Se conservan cuando nombran roles literales** | En instrucciones de interfaz y tablas de permisos se mantienen las etiquetas que hay que localizar. No se traducen rutas de navegación ni tipos de conector como `Power BI datasets`. |
 | fine-grained PAT | ***fine-grained PAT*** (PAT de permisos específicos) | Categoría de token de GitHub; se mantiene el término reconocible con una glosa en la primera aparición. |
@@ -222,9 +222,16 @@ Acuerdos de redacción de la actualización asistida por IA, **sin atribuirlos a
 | fail closed | **detener la operación si falla una comprobación** | Indicar qué no se publica o sobrescribe. No implica deshacer escrituras anteriores ni que todas las fases sean de solo lectura. |
 | tenant-level connections | **conexiones de ámbito de inquilino** | No se presupone que eliminarlas forme parte de borrar un workspace. |
 | skill *(Copilot)* | ***skill*** | Función de Copilot; se conserva por correspondencia con el producto. No debe describirse como un antiguo archivo de prompt ni atribuirle acciones que no realiza. |
-| fallback *(publicación masiva de fabric-cicd)* | **vuelta a la publicación estándar** | Expresa el cambio concreto de modo. En otras situaciones debe describirse la alternativa real; se evita «repliegue». |
+| fallback *(publicación masiva de fabric-cicd)* | **vuelta a la publicación estándar** | Expresa el cambio concreto de modo. En otras situaciones debe describirse la alternativa real; se evitan «repliegue» y «retorno». |
 | foundations *(dependencias de publicación)* | **elementos base** / **dependencias previas** | No «fundaciones». Se refiere a los elementos que deben existir antes de publicar sus dependientes. |
 | compromise *(seguridad)* | **vulneración de seguridad** | No «un compromiso en Test». En *sample compromise* el sentido es distinto: «simplificación deliberada del ejemplo». Esa simplificación no implica aislamiento de entornos ni una recomendación de producción. |
+| endpoint | ***endpoint*** | Término técnico habitual; se escribe en cursiva en la primera aparición de cada documento. No se usa el calco «extremo». Los nombres literales, como *SQL analytics endpoint*, no cambian. |
+| swap *(de referencias)* | **cambio** / **cambiar** | Reescribir las referencias físicas de Dev por las de feature y a la inversa. No se usa «intercambiar», que sugiere un intercambio mutuo. Los nombres literales, como `/swap-to-feature` o `workspace_swap.py`, no cambian. |
+| live *(verificación)* | **en un entorno real** / **verificación en un entorno real** | Distingue lo comprobado en una ejecución real de lo verificado solo sin conexión. «Evidencia» se reserva para registros de auditoría o de pruebas; no se emplea como calco de *evidence* cuando basta «verificación» o «demuestra». |
+| shortcut *(OneLake)* | ***Shortcut*** | Función de Fabric; se conserva el nombre de la interfaz en inglés. Los identificadores, como `ShortcutConfig`, no cambian. |
+| desdoblamientos con «persona» | «usuario», «aprobadores», «operadores» o «quien…» | Se evitan formas como «persona usuaria» o «personas aprobadoras», igual que «persona desarrolladora»: mezcladas con el masculino genérico del resto del corpus resultan forzadas. Siguen siendo válidas las construcciones con adjetivos invariables, como «persona designada» o «persona responsable». |
+| variantes regionales | **encabezado**, **costo**, **hacer clic en** / **seleccionar**, **vencimiento** | Español neutro: no se usan «cabecera», «coste» ni «pulsar», marcados regionalmente. Para *expiration* de credenciales se usa «vencimiento», la forma dominante del corpus. |
+| fechas en prosa | **14 de octubre de 2026** | Forma larga y sin ambigüedad. Las marcas de procedencia (`2026-10-15`) y los valores de configuración conservan el formato ISO. Las etiquetas «actualización del 15-10-2026» y «20-10-2026» designan revisiones asistidas por IA. |
 
 Estas decisiones son contextuales, no reglas de sustitución ciega. «Contenido codificado en base64» y «conocimiento codificado en un contrato» conservan el sentido correcto de *encoded*; no deben confundirse con el falso amigo de *hardcoded*.
 

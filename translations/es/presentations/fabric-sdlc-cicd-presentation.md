@@ -9,12 +9,15 @@ size: 16:9
 
 # Presentación sustituida
 
-Este archivo mantiene los enlaces existentes. **No describe el modelo actual
-de identidades, conexiones y lanzamientos.**
+Esta presentación anterior se conserva para que los enlaces existentes sigan
+funcionando. Ya no describe el modelo actual de identidades, conexiones y
+lanzamientos del repositorio.
 
-- [Presentación vigente](fabric-sdlc-cd.md)
-- [Configurar un nuevo fork](../SETUP.md)
-- [Desarrollo](../fabric-development-process.md): Branch Out y feature → Dev.
-- [Lanzamientos](../fabric-release-process.md): Dev → Test y Test → `main`/Prod.
+En su lugar:
 
-**No usar diapositivas anteriores como guía operativa.**
+- [Entrega continua en Microsoft Fabric](fabric-sdlc-cd.md): presentación vigente.
+- [Configuración](../SETUP.md): para un fork nuevo.
+- [Proceso de desarrollo](../fabric-development-process.md): Branch Out y trabajo de feature a Dev.
+- [Proceso de lanzamiento](../fabric-release-process.md): de Dev a Test y de Test a `main`/Prod.
+
+No use diapositivas de la versión anterior de este archivo como guía operativa.

@@ -42,9 +42,9 @@ El [Proceso de lanzamiento](fabric-release-process.md) describe los límites ent
 
 La variable de repositorio `DEPLOY_METHOD` selecciona el trabajo de despliegue para Test y Prod. Si no se define, se selecciona `fabric-cicd`. La tabla describe las implementaciones incluidas aquí, no todas las funciones de las API subyacentes. «Sí» y «No» indican si el método usa esa capacidad; no indican si un método es mejor que otro.
 
-Los valores exactos y su ubicación en la interfaz de GitHub están en [Configuración: variables del método de despliegue](SETUP.md#variables-del-método-de-despliegue). El mismo apartado incluye la [configuración de fabric-cicd-bulk](SETUP.md#variables-del-método-de-despliegue).
+Los valores exactos y su ubicación en la interfaz de GitHub están en [Configuración: variables del método de despliegue](SETUP.md#variables-del-método-de-despliegue). Para fabric-cicd masivo en concreto, véase la [configuración de fabric-cicd-bulk](SETUP.md#fabric-cicd-bulk-settings).
 
-| `DEPLOY_METHOD` | Publicador | Definiciones en bloque | Orden y tratamiento del plan | Archivo de sustituciones | Evidencia en un entorno real para esta revisión |
+| `DEPLOY_METHOD` | Publicador | Definiciones en bloque | Orden y tratamiento del plan | Archivo de sustituciones | Verificación en un entorno real para esta revisión |
 |---|---|---|---|---|---|
 | [`fabric-cicd`](fabric-hybrid-cicd-guide.md): opción predeterminada, sin publicación masiva | fabric-cicd | No | Fases propias en Python + orden de fabric-cicd | [parameter.yml](../../data/fabric/parameter.yml) | Ruta predeterminada en Test verificada |
 | [`fabric-cicd-plan`](fabric-deployment-plan-guide.md#cómo-funciona) | fabric-cicd | No | Deployment Plan interpretado por el adaptador | [parameter.yml](../../data/fabric/parameter.yml) | Aún sin verificar en un entorno real |
@@ -60,7 +60,7 @@ Significado de las modalidades de ordenación:
 - La biblioteca de Python fabric-cicd también llama a API REST. «REST directo» significa que el repositorio se encarga de la publicación y las sustituciones sin fabric-cicd.
 - Ninguna de estas rutas utiliza los **Pipelines de despliegue de Fabric** nativos: son un servicio de promoción entre workspaces, distinto de los Deployment Plans y del **Data Pipeline** que ejecuta la carga de trabajo del ejemplo.
 - **Híbrido** describe una arquitectura opcional que combina publicadores según las necesidades de la carga de trabajo; no es otro valor de `DEPLOY_METHOD` ni la recomendación predeterminada.
-- La ruta de fabric-cicd sin publicación masiva es el punto de partida recomendado en este repositorio. Ambos adaptadores basados en planes usan el despliegue selectivo experimental. La documentación actual de Microsoft muestra el extremo v1 de Bulk Import sin `?beta=true`, mientras que el cliente REST directo del repositorio sigue enviando ese parámetro antiguo y no se ha verificado en un entorno real. Debe ajustarse a la documentación actual antes de usarlo.
+- La ruta de fabric-cicd sin publicación masiva es el punto de partida recomendado en este repositorio. Ambos adaptadores basados en planes usan el despliegue selectivo experimental. La documentación actual de Microsoft muestra el *endpoint* v1 de Bulk Import sin `?beta=true`, mientras que el cliente REST directo del repositorio sigue enviando ese parámetro antiguo y no se ha verificado en un entorno real. Debe ajustarse a la documentación actual antes de usarlo.
 - Los flujos de trabajo de fabric-cicd usan `fabric-cicd>=1.4.0,<1.5.0` y Python 3.12. La publicación masiva de fabric-cicd admite las sustituciones dinámicas filtradas de este repositorio; la ruta REST directa tiene su propio motor de sustituciones.
 - Las dos rutas basadas en planes requieren `DEPLOYMENT_PLAN_PATH`. Cambiar de ruta no inicia una ejecución por sí solo; véanse los [eventos que activan los flujos de trabajo](fabric-release-process.md#qué-activa-cada-ejecución).
 
@@ -68,15 +68,15 @@ Significado de las modalidades de ordenación:
 
 Los flujos de trabajo actuales usan secretos de cliente de *Service principals*. Quien mantiene el fork debe configurar las reglas de rama y la protección de entornos de GitHub; el YAML de los flujos de trabajo no crea esas políticas. Completar la carga, la validación del origen y la actualización nativa del modelo no equivale a disponer de todos los controles de calidad de una organización. Las [recomendaciones de lanzamiento](fabric-cicd-quality-gates-and-release-controls.md) describen las evidencias y los controles adicionales que deben diseñarse para cada carga de trabajo. Se han registrado como trabajo futuro ejemplos específicos de [aprobación](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns/issues/82), [reversión](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns/issues/81), [OIDC](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns/issues/84) y [Azure DevOps](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns/issues/85).
 
-El 14-10-2026, el lanzamiento predeterminado de fabric-cicd en Test completó las comprobaciones previas de GitHub, la creación o reutilización y verificación de conexiones de Workspace Identity, la verificación del rol Owner del grupo administrador de conexiones, la persistencia de IDs, la publicación y la ejecución del Data Pipeline de Fabric de la misma revisión en la [ejecución 38581072000](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns/actions/runs/38581072000). Ese resultado no certifica Prod, los tres métodos alternativos, un ciclo completo de Branch Out con la revisión actual, el comportamiento con recursos nuevos frente a reutilizados, la propiedad del modelo, los resultados de DAX o de los informes, ni los permisos de quienes consumen los datos. Véase la [matriz de verificación](fabric-release-process.md#estado-de-la-verificación).
+El 14 de octubre de 2026, el lanzamiento predeterminado de fabric-cicd en Test completó las comprobaciones previas de GitHub, la creación o reutilización y verificación de conexiones de Workspace Identity, la verificación del rol Owner del grupo administrador de conexiones, la persistencia de IDs, la publicación y la ejecución del Data Pipeline de Fabric de la misma revisión en la [ejecución 38581072000](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns/actions/runs/38581072000). Ese resultado no certifica Prod, los tres métodos alternativos, un ciclo completo de Branch Out con la revisión actual, el comportamiento con recursos nuevos frente a reutilizados, la propiedad del modelo, los resultados de DAX o de los informes, ni los permisos de quienes consumen los datos. Véase la [matriz de verificación](fabric-release-process.md#estado-de-la-verificación).
 
 ---
 
 ## Arquitectura
 
-El diagrama siguiente muestra la ruta predeterminada de fabric-cicd sin publicación masiva. Los otros métodos sustituyen su implementación de despliegue y comparten la plantilla de ETL de la misma revisión. GitHub inicia `Patterns_Load_Validate_And_Refresh` y consulta el estado de su trabajo. Fabric controla las actividades que dependen del éxito de las anteriores y la única actualización del modelo.
+El diagrama siguiente muestra la ruta predeterminada de fabric-cicd sin publicación masiva. Los otros métodos sustituyen su implementación de despliegue y comparten la plantilla de ETL de la misma revisión. GitHub inicia `Patterns_Load_Validate_And_Refresh` y consulta periódicamente el estado del trabajo del pipeline. Fabric controla las actividades que dependen del éxito de las anteriores y la única actualización del modelo.
 
-En este ejemplo, la publicación predeterminada sin modo masivo hace tres llamadas: Lakehouse + Ontology → elementos dependientes distintos de Data Pipeline → Data Pipeline. La tercera llamada descubre los nuevos IDs de los Notebooks y del modelo a partir de un estado actualizado del workspace. Publicar las definiciones no ejecuta las actividades del pipeline.
+En este ejemplo, la publicación predeterminada, no masiva, usa tres llamadas: Lakehouse + Ontology → elementos dependientes distintos de Data Pipeline → Data Pipeline. La tercera llamada descubre los nuevos IDs de los Notebooks y del modelo a partir de un estado actualizado del workspace. Publicar las definiciones no ejecuta las actividades del pipeline.
 
 ```
 Feature branch (feature/*)
@@ -154,7 +154,7 @@ La ilustración incluye una extensión opcional con Pipelines de despliegue nati
 | [Guía de CI/CD con Deployment Plan](fabric-deployment-plan-guide.md) | Adaptadores independientes de ordenación sin publicación masiva y con publicación masiva agrupada, descubrimiento de elementos restantes, configuración y límites de validación. |
 | [Consideraciones de gobernanza para CI/CD](fabric-cicd-governance-considerations.md) | Identidades, RBAC, protección de ramas y controles de aprobación del pipeline de CI/CD. Incluye referencias a controles de seguridad y cumplimiento gestionados fuera del pipeline. |
 | [Controles de calidad y de lanzamiento de Fabric CI/CD](fabric-cicd-quality-gates-and-release-controls.md) | Ejemplos prácticos de validación automatizada de artefactos, evidencias de pruebas, aprobaciones por etapas, etiquetas de lanzamiento, comprobaciones de compatibilidad y reversión. Complementa los controles de gobernanza. |
-| [Presentación mantenida](presentations/fabric-sdlc-cd.md) | Resumen listo para presentar, derivado de las guías de referencia. |
+| [Presentación vigente](presentations/fabric-sdlc-cd.md) | Resumen listo para presentar, derivado de las guías de referencia. |
 
 ---
 
@@ -201,7 +201,7 @@ Al diseñar los procesos de desarrollo y CI/CD, hay que identificar qué element
 
 ### Configuración
 
-Quien mantenga el fork debe seguir la [Guía de configuración](SETUP.md), que ofrece un recorrido ordenado por los accesos necesarios, la creación de workspaces, la inicialización de Git, la sustitución de IDs de referencia, la configuración de GitHub y el primer despliegue.
+Quien mantenga el fork debería seguir la [Guía de configuración](SETUP.md), que ofrece un recorrido ordenado por los accesos necesarios, la creación de workspaces, la inicialización de Git, la sustitución de IDs de referencia, la configuración de GitHub y el primer despliegue.
 
 Una vez completada la configuración, se usa el [Proceso de desarrollo](fabric-development-process.md) para el trabajo de features y el [Proceso de lanzamiento](fabric-release-process.md) para la promoción.
 
@@ -209,7 +209,7 @@ La acción explícita **Provision Fabric Connections** crea o reutiliza dos cone
 
 El PAT interviene en la ruta de lanzamiento de Test y Prod, limitado a las comprobaciones previas de GitHub y a los pasos de persistencia de variables. El Service principal de despliegue realiza las operaciones de Fabric sobre conexiones, roles de conexión, publicación y envío de trabajos. Después, el subproceso publicador valida y utiliza el par resuelto en modo de solo lectura.
 
-Los IDs locales de Dev se registran en las reglas de parametrización existentes, no en un manifiesto JSON adicional ni en un artefacto descargado. Los cambios de referencias posteriores y la comprobación de referencias para el PR (`--check-ready`) siguen funcionando sin conexión. Véase [Aprovisionar las conexiones de Dev](SETUP.md#4-aprovisionar-las-conexiones-de-dev). Quienes desarrollan nunca necesitan los secretos del Service principal de despliegue. Compartir la administración entre etapas y reutilizar un PAT sin caducidad son simplificaciones deliberadas del ejemplo, no recomendaciones para producción.
+Los IDs locales de Dev se registran en las reglas de parametrización existentes, no en un manifiesto JSON adicional ni en un artefacto descargado. Los cambios de referencias posteriores y la comprobación de referencias para el PR (`--check-ready`) siguen funcionando sin conexión. Véase [Aprovisionar las conexiones de Dev](SETUP.md#4-aprovisionar-las-conexiones-de-dev). Quienes desarrollan nunca necesitan los secretos del Service principal de despliegue. Compartir la administración entre etapas y reutilizar un PAT sin vencimiento son simplificaciones deliberadas del ejemplo, no recomendaciones para producción.
 
 La [matriz de métodos](#elegir-un-método-de-despliegue) sirve para evaluar alternativas una vez comprobada la ruta predeterminada sin publicación masiva. La [guía de planes](fabric-deployment-plan-guide.md) documenta las comprobaciones que detectan y rechazan la vuelta a la publicación estándar en la ruta masiva de fabric-cicd y sus límites de validación. No debe deducirse que una ruta está lista para producción a partir de pruebas del código fuente ni de la verificación de la ruta predeterminada en Test.
 

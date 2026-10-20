@@ -177,7 +177,7 @@ Octubre de 2026
 [Implementación de referencia](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns)
 
 Estado operativo: Dev `a417191`; lanzamiento de Test verificado en `e87f435`
-el 2026-10-14.
+el 14 de octubre de 2026.
 
 <!--
 Presentar la sesión como la continuación sobre CD de la presentación anterior sobre CI e introducir a quien expone.
@@ -238,8 +238,8 @@ La idea no es que no se pueda cambiar, sino que migrar es un programa estratégi
 |---|---|
 | **¿Qué forma parte de la solución?** | Inventariar los elementos de Fabric y la configuración o el estado necesarios para que funcione. |
 | **¿Qué puede mover cada mecanismo?** | Registrar por separado la compatibilidad con Git, el publicador o API, los pipelines nativos y la identidad para cada elemento o subtipo. |
-| **¿Cómo de portables son las referencias?** | Distinguir entre valores de ejecución, IDs lógicos e IDs físicos que hay que sustituir. |
-| **¿Qué hay que aprovisionar?** | Inventariar las instancias de Fabric Capacity, los workspaces, vínculos privados, accesos directos y conexiones, roles y configuración de inquilino; elegir Bicep, Terraform o API según la cobertura. |
+| **¿Qué grado de portabilidad tienen las referencias?** | Distinguir entre valores de ejecución, IDs lógicos e IDs físicos que hay que sustituir. |
+| **¿Qué hay que aprovisionar?** | Inventariar las instancias de Fabric Capacity, los workspaces, vínculos privados, shortcuts y conexiones, roles y configuración de inquilino; elegir Bicep, Terraform o API según la cobertura. |
 | **¿Qué se mueve más allá de las definiciones?** | Planificar datos, credenciales, permisos, conexiones, programaciones, vinculaciones y configuración del destino. |
 | **¿Quién es responsable del destino y del resultado?** | Establecer una única vía activa de actualización de definiciones, el ETL o la actualización posterior al despliegue, la validación y las evidencias del lanzamiento. |
 
@@ -250,7 +250,7 @@ Esta lista resume los conceptos clave del README sobre las capacidades de seguim
 Las listas de elementos compatibles evolucionan, así que conviene enlazar a las oficiales en lugar de congelar una matriz detallada en la presentación.
 El seguimiento en Git y la compatibilidad del publicador son independientes: una carencia de publicación no implica que no haya Git o historial de versiones.
 Bicep y ARM cubren sobre todo el plano de control de Azure, incluida la Fabric Capacity. El proveedor de Terraform para Fabric tiene más cobertura del plano de Fabric, pero también evoluciona.
-Los accesos directos, las conexiones y la red privada pueden cruzar las superficies de contenido, workspace, administración de Fabric y red de Azure; conviene verificar la cobertura actual del proveedor o del API antes de elegir la ruta de IaC.
+Los shortcuts, las conexiones y la red privada pueden cruzar las superficies de contenido, workspace, administración de Fabric y red de Azure; conviene verificar la cobertura actual del proveedor o de la API antes de elegir la ruta de IaC.
 -->
 
 ---
@@ -263,20 +263,20 @@ Dentro de los problemas generales de CD, las dependencias muestran por qué copi
 
 | Referencias portables o lógicas | Referencias físicas que hay que sustituir |
 |---|---|
-| *Report* → *Semantic Model* mediante [`definition.pbir`](../../../data/fabric/Patterns_Report.Report/definition.pbir)<br><br>*Ontology* → ID lógico del *Lakehouse* mediante su [vinculación de datos](../../../data/fabric/Patterns_Ontology.Ontology/EntityTypes/2525121373138/DataBindings/6e4524f9-ea6d-4535-ab49-a72f73fc08a0.json)<br><br>*Data Agent* → ID lógico de la *Ontology* mediante [`datasource.json`](../../../data/fabric/Patterns_Data_Agent.DataAgent/Files/Config/draft/ontology-Patterns_Ontology/datasource.json) | Modelo Direct Lake → ruta física de OneLake en [`expressions.tmdl`](../../../data/fabric/Patterns_Semantic_Model.SemanticModel/definition/expressions.tmdl)<br><br>*Notebook* → IDs de workspace y *Lakehouse* en [`notebook-content.py`](../../../data/fabric/Import_Patterns_Data.Notebook/notebook-content.py)<br><br>DataPipeline → IDs físicos de modelo y conexiones |
+| *Report* → *Semantic Model* mediante [`definition.pbir`](../../../data/fabric/Patterns_Report.Report/definition.pbir)<br><br>*Ontology* → ID lógico del *Lakehouse* mediante su [vinculación de datos](../../../data/fabric/Patterns_Ontology.Ontology/EntityTypes/2525121373138/DataBindings/6e4524f9-ea6d-4535-ab49-a72f73fc08a0.json)<br><br>*Data Agent* → ID lógico de la *Ontology* mediante [`datasource.json`](../../../data/fabric/Patterns_Data_Agent.DataAgent/Files/Config/draft/ontology-Patterns_Ontology/datasource.json) | Modelo Direct Lake → ruta física de OneLake en [`expressions.tmdl`](../../../data/fabric/Patterns_Semantic_Model.SemanticModel/definition/expressions.tmdl)<br><br>*Notebook* → IDs de workspace y *Lakehouse* en [`notebook-content.py`](../../../data/fabric/Import_Patterns_Data.Notebook/notebook-content.py)<br><br>*Data Pipeline* → IDs físicos de modelo y conexiones |
 
 ```text
 Fase 1:   Lakehouse ──▶ Variable Library / Notebooks / Semantic Model
           Ontology  ──▶ Data Agent
 
-Fase 2:   Publicar los elementos dependientes salvo el DataPipeline
-Fase 3:   Consultar de nuevo los IDs de Notebook/SemanticModel → publicar DataPipeline
+Fase 2:   Publicar los elementos dependientes salvo el Data Pipeline
+Fase 3:   Consultar de nuevo los IDs de Notebook/SemanticModel → publicar Data Pipeline
 ```
 
 <!--
 Abrir los archivos enlazados si resulta útil. El Data Agent referencia directamente la Ontology, no el Lakehouse.
 El Lakehouse y la Ontology son elementos base de la fase 1 para cadenas de dependencia distintas.
-El SDK conserva el estado en caché durante una llamada; la fase 3 vuelve a consultar los IDs de las dependencias del DataPipeline creadas en la fase 2.
+El SDK conserva el estado en caché durante una llamada; la fase 3 vuelve a consultar los IDs de las dependencias del Data Pipeline creadas en la fase 2.
 Este es un ejemplo concreto de los retos generales de la diapositiva anterior, no un tema nuevo.
 -->
 
@@ -304,9 +304,9 @@ Este es un ejemplo concreto de los retos generales de la diapositiva anterior, n
 **Puntos fuertes**
 
 - Interfaz del portal, automatización por API REST, comparación e historial
-- El menor coste de configuración
+- El menor costo de configuración
 - Despliegue completo o selectivo
-- Reglas de despliegue y enlace automático
+- Reglas de despliegue y vinculación automática
 
 **Contrapartidas**
 
@@ -342,14 +342,14 @@ Conviene tratar las API como la superficie de automatización de esta opción, n
 
 - La sincronización con Fabric Git pasa a formar parte de la ruta de despliegue a producción
 - Todos los workspaces de destino deben estar conectados a Fabric Git y gobernados
-- Algunos clientes reportan cambios de definición generados por la plataforma o sin significado semántico («*ghost commits*»)
+- Algunos clientes informan de cambios de definición generados por la plataforma o sin significado semántico («*ghost commits*»)
 - Las ramas de larga duración, la desviación y las vías de actualización en conflicto aumentan la complejidad operativa
 
 **Encaje ideal:** equipos cómodos operando todas las etapas con la integración de Git de Fabric.
 
 <!--
 Presentar los «ghost commits» como una preocupación comunicada por clientes y equipos de campo, no como una afirmación oficial universal de la plataforma:
-algunos clientes reportan cambios de definición sin significado semántico o generados por la plataforma en el control de código fuente.
+algunos clientes informan de cambios de definición sin significado semántico o generados por la plataforma en el control de código fuente.
 -->
 
 ---
@@ -375,7 +375,7 @@ algunos clientes reportan cambios de definición sin significado semántico o ge
 - La mayor responsabilidad de ingeniería
 - El equipo se hace cargo de la identidad, el diagnóstico y la gestión de fallos
 - La compatibilidad de herramientas y API sigue variando
-- Desplegar el estado completo puede ser más lento que una diferencia pequeña
+- Desplegar el estado completo puede ser más lento que aplicar solo una diferencia pequeña
 
 **Encaje ideal:** equipos que necesitan repetibilidad y control de la configuración.
 
@@ -399,7 +399,7 @@ Otro publicador solo es una ampliación arquitectónica opcional si se ha verifi
 | Transformación en compilación | Reglas limitadas | No | **Sí** |
 | Conexión de Fabric Git en Test y Prod | No | **Sí** | No |
 | Esfuerzo de ingeniería | Bajo | Medio | Alto |
-| Quién opera la publicación | Personas operadoras del workspace y la publicación | Responsables de la solución + de mantener el repositorio | DevOps/DevSecOps + responsables de la solución |
+| Quién opera la publicación | Operadores del workspace y de la publicación | Responsables de la solución + de mantener el repositorio | DevOps/DevSecOps + responsables de la solución |
 | Evidencia del despliegue | Historial de despliegues de Fabric; Git si se usa | Historial de Git + estado de Fabric Git del workspace | Historial de Git + registros de ejecución de CI/CD |
 
 **Elegir según la fuente de verdad, la configuración, los elementos compatibles, la gobernanza y cuánto código de despliegue quiera mantener el equipo.**
@@ -407,7 +407,7 @@ Otro publicador solo es una ampliación arquitectónica opcional si se ha verifi
 > La automatización no elimina la necesidad de conocer Fabric: cambia dónde se codifica ese conocimiento y quién lo mantiene.
 
 <!--
-Pipelines de despliegue: reglas de Fabric, enlaces y conocimiento operativo.
+Pipelines de despliegue: reglas de Fabric, vinculaciones y conocimiento operativo.
 Fabric Git: definiciones, ramas y estado de Git del workspace.
 Compilación y API: parametrización, fases del despliegue, validación y procedimientos.
 La comparación integrada no es igual en todas las columnas: los pipelines de despliegue comparan etapas adyacentes, mientras que Fabric Git compara un workspace con su rama conectada.
@@ -418,15 +418,15 @@ El historial de Git sirve para cualquier opción respaldada por Git; la fila de 
 
 <!-- _class: dense -->
 
-# Opción 3: `fabric-cicd` frente a las API masivas
+# Dentro de la opción 3: `fabric-cicd` frente a las API masivas
 
 | Aspecto | `fabric-cicd` no masivo | `fabric-cicd` masivo | API masivas directas |
 |---|---|---|---|
-| Transporte | API por elemento, en orden | **Masivo estricto; sustituciones dinámicas filtradas (1.4.x)** | Llamadas Bulk Import gestionadas por el cliente |
+| Transporte | API por elemento, en orden | **Masivo estricto; sustituciones dinámicas filtradas (1.4.x)** | Una o varias llamadas Bulk Import gestionadas por el cliente |
 | Vinculación y parámetros | Todas las funciones de `parameter.yml` | fabric-cicd: sustituciones de `parameter.yml` y activación del conjunto de valores | Sin configuración incorporada; el cliente reescribe y configura tras importar |
 | Dependencias | Orden de la biblioteca + fases del cliente | Dependencias de fabric-cicd + grupos del plan en adaptador independiente | Grafo lógico admitido; cliente: IDs físicos y orden explícito |
 | Limpieza de huérfanos | `unpublish_all_orphan_items()` | Limpieza aparte; Bulk Import solo publica | Llamadas Delete Item aparte |
-| Este repositorio | Tres llamadas con DataPipeline; estado actualizado | Grupos del plan; un fallo detiene las llamadas posteriores | Tres lotes: base → dependientes → DataPipeline |
+| Este repositorio | Tres llamadas con Data Pipeline; estado actualizado | Grupos del plan; un fallo detiene las llamadas posteriores | Tres lotes: base → dependientes → Data Pipeline |
 
 **Predeterminado y recomendado:** `fabric-cicd` no masivo.
 
@@ -436,10 +436,10 @@ REST aún lo usa y no está verificado con una ejecución real.
 **Vincular ≠ eliminar:** corregir referencias no borra elementos ausentes del origen.
 
 <!--
-El repositorio limita fabric-cicd a >=1.4.0,<1.5.0. El retorno a la publicación estándar por variables dinámicas anterior a 1.4 es histórico; la mera presencia de un archivo de parámetros no provoca ese retorno en 1.4.0.
-Las pruebas sin conexión con fabric-cicd real y HTTP simulado comprueban las sustituciones, los resultados masivos y la ausencia de POST de definiciones estándar. No son evidencia real de las rutas masivas o con plan.
-La ordenación masiva es un adaptador independiente del repositorio, no un plan nativo adjunto. Library, Import, Validation y Model son requisitos previos explícitos del DataPipeline. La muestra actual de 11 elementos tiene lotes declarados de [1,5,2] elementos y otros 3 restantes: cuatro selecciones y cuatro POST masivos de importación de definiciones esperados en el contrato sin conexión, no cuatro solicitudes HTTP totales ni evidencia real. Debe previsualizarse tras cambiar el plan o inventario. Las vinculaciones byPath del Report aún necesitan validación real.
-El script REST directo obtiene primero los IDs de Lakehouse/Ontology, después el ID del modelo y, por último, publica el DataPipeline. Estos tres lotes gestionan las referencias físicas; las dependencias por ID lógico admitidas son otra capacidad del servicio.
+El repositorio limita fabric-cicd a >=1.4.0,<1.5.0. La vuelta a la publicación estándar por variables dinámicas anterior a 1.4 es histórica; la mera presencia de un archivo de parámetros no provoca esa vuelta en 1.4.0.
+Las pruebas sin conexión con fabric-cicd real y HTTP simulado comprueban las sustituciones, los resultados masivos y la ausencia de POST de definiciones estándar. No demuestran el funcionamiento real de las rutas masivas o con plan.
+La ordenación masiva es un adaptador independiente del repositorio, no un plan nativo adjunto. Library, Import, Validation y Model son requisitos previos explícitos del Data Pipeline. La muestra actual de 11 elementos tiene lotes declarados de [1,5,2] elementos y otros 3 restantes: cuatro selecciones y cuatro POST masivos de importación de definiciones esperados en el contrato sin conexión, no cuatro solicitudes HTTP totales ni una verificación real. Debe previsualizarse tras cambiar el plan o el inventario. Las vinculaciones byPath del Report aún necesitan validación real.
+El script REST directo obtiene primero los IDs de Lakehouse/Ontology, después el ID del modelo y, por último, publica el Data Pipeline. Estos tres lotes gestionan las referencias físicas; las dependencias por ID lógico admitidas son otra capacidad del servicio.
 -->
 
 ---
@@ -473,7 +473,7 @@ Una única vía activa de actualización de definiciones por workspace
 - Las definiciones de Test y Prod se gestionan por API.
 - Los trabajos seleccionados de Test/Prod crean o reutilizan las conexiones
   de Workspace Identity antes de publicar.
-- GitHub inicia un único DataPipeline de Fabric: carga → validación →
+- GitHub inicia un único Data Pipeline de Fabric: carga → validación →
   actualización nativa.
 
 ---
@@ -486,19 +486,19 @@ Una única vía activa de actualización de definiciones por workspace
 |---|---|---|
 | Se aplica | En tiempo de ejecución | Antes de subir |
 | Se ocupa de | Valores que las cargas de trabajo pueden resolver de forma dinámica | IDs físicos y metadatos que no se pueden diferir |
-| Ejemplos | Valores de la carga; vinculación del mínimo de pacientes en la Library | IDs de Notebook/Direct Lake; modelo y conexiones del DataPipeline |
+| Ejemplos | Valores de la carga; vinculación del mínimo de pacientes en la Library | IDs de Notebook/Direct Lake; modelo y conexiones del Data Pipeline |
 
 ```text
 Publicación 1: Lakehouse + Ontology
 Publicación 2: Variable Library + Notebooks + Semantic Model + Report + Data Agent
-Publicación 3: DataPipeline (nueva consulta de IDs de Notebook/SemanticModel)
+Publicación 3: Data Pipeline (nueva consulta de IDs de Notebook/SemanticModel)
           ↓ limpieza de los huérfanos que corresponda
-Después: un DataPipeline — carga → validación → actualización nativa
+Después: un Data Pipeline — carga → validación → actualización nativa
 ```
 
 También queda codificado: el ámbito de elementos, la creación o reutilización
 de conexiones de Workspace Identity, la verificación de Owner, la persistencia
-de IDs solo si faltan, la búsqueda del DataPipeline por nombre, las dependencias
+de IDs solo si faltan, la búsqueda del Data Pipeline por nombre, las dependencias
 de éxito y el comportamiento ante fallos. Un DeploymentPlan ordena la
 publicación, no las actividades de la carga de trabajo ni la configuración de conexiones.
 
@@ -517,7 +517,7 @@ publicación, no las actividades de la carga de trabajo ni la configuración de 
 |---|---|
 | sin definir o `fabric-cicd` | No masivo: predeterminado y recomendado |
 | `fabric-cicd-bulk` | Masivo experimental + plan interpretado por el adaptador; exige `DEPLOYMENT_PLAN_PATH` |
-| `bulk` | REST directo de Bulk Import; revalidar el endpoint actual |
+| `bulk` | REST directo de Bulk Import; revalidar el *endpoint* actual |
 | `fabric-cicd-plan` | Adaptador secuencial no masivo + plan; independiente y experimental |
 | cualquier otro valor | Se omiten todos los trabajos de despliegue |
 
@@ -562,18 +562,18 @@ SP: crear/reutilizar el par WI; verificar Owner del grupo
 PAT: crear variables ausentes → IDs actuales al publicador
 Plantilla: revisión + autenticación → script + parameter.yml → API
 3 llamadas de publicación → limpieza de huérfanos
-Éxito → ETL inicia/sondea DataPipeline; controles de lanzamiento aparte
+Éxito → ETL inicia/sondea Data Pipeline; controles de lanzamiento aparte
 ```
 
 ### Archivos que seguir
 
-1. [`enforce-promotion-path.yml`](../../../.github/workflows/enforce-promotion-path.yml): exige `test → main`.
+1. [`enforce-promotion-path.yml`](../../../.github/workflows/enforce-promotion-path.yml): permite únicamente `test → main`.
 2. [`run-tests.yml`](../../../.github/workflows/run-tests.yml): dependencias y pytest en cada PR.
 3. [`deploy-prod.yml`](../../../.github/workflows/deploy-prod.yml): ruta estándar seleccionada, destino Prod.
 4. [`reusable-deploy-fabric-cicd.yml`](../../../.github/workflows/reusable-deploy-fabric-cicd.yml): comprobaciones, conexiones, IDs y publicación.
 5. [`deploy_fabric_cicd_non_bulk.py`](../../../scripts/deploy_fabric_cicd_non_bulk.py): fases y limpieza de huérfanos.
    - [`parameter.yml`](../../../data/fabric/parameter.yml): sustituye IDs de workspace/elementos antes de publicar.
-6. [`reusable-fabric-etl.yml`](../../../.github/workflows/reusable-fabric-etl.yml): `run-etl` dependiente; inicia el DataPipeline solo tras publicar con éxito.
+6. [`reusable-fabric-etl.yml`](../../../.github/workflows/reusable-fabric-etl.yml): `run-etl` dependiente; inicia el Data Pipeline solo tras publicar con éxito.
 
 ---
 
@@ -618,16 +618,16 @@ la misma revisión del flujo de trabajo.
 
 - Fabric se encarga de **carga → validación de solo lectura → actualización nativa**. No hay una segunda actualización.
 - `minimum_patient_count` de la Library: política Integer positiva, valor de referencia `5`.
-- `run_label` del DataPipeline: entrada String independiente, `manual` de forma predeterminada, sustituible desde CI.
+- `run_label` del Data Pipeline: entrada String independiente, `manual` de forma predeterminada, sustituible desde CI.
 
 ```text
 Publicar definiciones + vinculaciones de destino
-  → éxito final del DataPipeline, incluida la actualización nativa
+  → éxito final del Data Pipeline, incluida la actualización nativa
   → comprobaciones aparte de fechas del modelo, DAX y consumidores
 ```
 
-> Verificado el 2026-10-14: conexiones de Test del método predeterminado,
-> publicación y DataPipeline de la misma revisión. Prod, los publicadores
+> Verificado el 14 de octubre de 2026: conexiones de Test del método predeterminado,
+> publicación y Data Pipeline de la misma revisión. Prod, los publicadores
 > alternativos y el ciclo Branch Out completo de la revisión actual aún
 > necesitan verificación real.
 
@@ -637,7 +637,7 @@ de los consumidores siguen siendo independientes. La cadena needs de la misma
 revisión sustituye a los flujos workflow_run de la rama predeterminada.
 Los flujos ETL independientes siguen siendo herramientas manuales de recuperación;
 los nombres actualizados de los flujos de despliegue evitan que los flujos
-antiguos que recibían esos eventos inicien trabajos duplicados del DataPipeline
+antiguos que recibían esos eventos inicien trabajos duplicados del Data Pipeline
 durante la transición.
 -->
 
@@ -692,7 +692,7 @@ La reversión conserva el historial y usa los mismos controles que cualquier otr
 
 Git no puede deshacer las modificaciones de un *Lakehouse*, el estado de una actualización, los efectos colaterales aguas abajo ni las escrituras en sistemas externos.
 
-Hay que planificar el reprocesamiento, las instantáneas, la retención, las capacidades de restauración a un momento dado o los procedimientos de marcha atrás propios de cada carga de trabajo.
+Hay que planificar el reprocesamiento, las instantáneas, la retención, las capacidades de restauración a un momento dado o los procedimientos de reversión propios de cada carga de trabajo.
 
 ---
 
@@ -723,10 +723,10 @@ Es reproducir una solución de Fabric que funcione, entre tipos de elemento cuya
 
 # Apéndice: prácticas recomendadas y referencias
 
-### Prácticas que conviene llevarse
+### Prácticas que conviene mantener
 
 - Establecer una única fuente de verdad y una única vía activa de actualización de definiciones por workspace.
-- Preferir despliegues completos y repetibles; usar el despliegue selectivo solo con conciencia de las dependencias.
+- Preferir despliegues completos y repetibles; usar el despliegue selectivo solo si se tienen en cuenta las dependencias.
 - Separar la entrega de elementos, la vinculación de entorno, la identidad y los permisos, y la validación de datos.
 - Usar identidades de ámbito de entorno, controles de aprobación y el SHA del *commit* como hilo del lanzamiento.
 

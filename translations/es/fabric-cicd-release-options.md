@@ -44,7 +44,7 @@ Los workspaces de Microsoft Fabric contienen elementos —*Notebooks*, *Data Pip
 - **Conectar un workspace:** quien administra el workspace lo conecta a un repositorio, una rama y una carpeta concretos. Después, cualquier persona con los permisos necesarios puede confirmar y actualizar.
 - **Definiciones guardadas como archivos:** los elementos de Fabric se serializan en definiciones basadas en archivos del repositorio —JSON, Python y otros formatos—. La estructura de carpetas del workspace se conserva en Git.
 - **Los elementos no compatibles se ignoran:** permanecen en el workspace, pero no se sincronizan ni se eliminan.
-- **Branch Out:** se pueden crear una rama y un workspace nuevos a partir de un workspace conectado para desarrollar de forma aislada.
+- **Branch out:** se pueden crear una rama y un workspace nuevos a partir de un workspace conectado para desarrollar de forma aislada.
 - **Se requiere configuración del inquilino:** la sincronización con Git, la sincronización con GitHub y la creación de workspaces deben estar habilitadas en el portal de administración de Fabric.
 - **Se requiere Fabric Capacity:** la integración de Git necesita una *Fabric Capacity* o una capacidad de Power BI Premium.
 
@@ -62,7 +62,7 @@ La [documentación oficial](https://learn.microsoft.com/en-us/fabric/cicd/git-in
 
 ### Entornos aislados
 
-El proceso de desarrollo es el mismo con independencia de la opción de despliegue elegida. Se debe trabajar de forma aislada, nunca directamente en el workspace compartido del equipo.
+El proceso de desarrollo es el mismo con independencia de la opción de despliegue elegida. Quienes desarrollan deberían trabajar siempre de forma aislada, nunca directamente en el workspace compartido del equipo.
 
 En Fabric, el enfoque recomendado para la mayoría de quienes desarrollan es **hacer Branch Out a un workspace independiente**:
 
@@ -101,7 +101,7 @@ En esta opción, Git se conecta únicamente al workspace de **Dev**. Desde ahí,
 
 1. Abrir **Deployment Pipelines** en el portal de Fabric.
 2. Comparar los cambios entre etapas.
-3. Seleccionar los elementos que se van a desplegar y pulsar **Deploy**.
+3. Seleccionar los elementos que se van a desplegar y hacer clic en **Deploy**.
 4. Opcionalmente, configurar **reglas de despliegue** para ajustar los valores propios de cada etapa, como cadenas de conexión y orígenes de datos.
 
 ---
@@ -154,7 +154,7 @@ Todos los despliegues parten del repositorio Git y utilizan la integración de G
 
 - El repositorio Git es la **única fuente de verdad** de todas las etapas.
 - Cada etapa —Dev, Test y Prod— tiene una rama principal propia que alimenta su workspace.
-- El workspace se sincroniza desde su rama mediante la API de **Actualización desde Git**, el mismo mecanismo que pulsar **Update all** en el panel **Source control** de Fabric.
+- El workspace se sincroniza desde su rama mediante la API de **Actualización desde Git**, el mismo mecanismo que hacer clic en **Update all** en el panel **Source control** de Fabric.
 - No hace falta un entorno de compilación: los archivos se suben directamente del repositorio al workspace.
 - Después del despliegue pueden llamarse otras API de Fabric para cambiar la configuración o ingerir datos.
 
@@ -220,7 +220,7 @@ Esta es la arquitectura genérica de la opción 3. El repositorio la adapta: Dev
 - Git es la **única fuente de verdad** de todas las etapas. Cada una —Dev, Test y Prod— tiene una rama principal propia, como `dev`, `test` y `main`.
 - El merge de un PR en la rama de una etapa activa su pipeline de compilación.
 - El entorno ejecuta **pruebas unitarias** y aplica **cambios de configuración propios del entorno** antes del despliegue. Con **fabric-cicd**, se declaran en `parameter.yml`, sin un motor de sustituciones propio. El archivo define reglas de búsqueda y sustitución, sustituciones por clave con JSONPath, correspondencias de grupos de Spark y vinculaciones de Semantic Model por entorno.
-- El contenido modificado se sube mediante fabric-cicd o un cliente directo de API. La documentación actual de Microsoft muestra el extremo v1 de Bulk Import sin el antiguo contrato Preview/`?beta=true`; las API de exportación son mecanismos independientes cuya madurez debe comprobarse por separado.
+- El contenido modificado se sube mediante fabric-cicd o un cliente directo de API. La documentación actual de Microsoft muestra el *endpoint* v1 de Bulk Import sin el antiguo contrato Preview/`?beta=true`; las API de exportación son mecanismos independientes cuya madurez debe comprobarse por separado.
 - **fabric-cicd realiza un despliegue completo en cada ejecución:** no calcula diferencias entre commits. Se publica cada elemento del ámbito en cada ejecución.
 - Tras validar el despliegue de Dev, un PR `dev` → `test` activa el pipeline de Test. El mismo patrón promueve a Prod mediante un PR `test` → `main`.
 
@@ -268,7 +268,7 @@ La opción 3 tiene dos implementaciones de herramientas viables. Ambas despliega
   - Variables `$ENV:`: toman valores de las variables de entorno del pipeline de CI/CD.
   - Plantillas: dividen archivos de parámetros grandes en otros menores mediante `extend`.
   - El [tutorial de fabric-cicd con Azure DevOps](https://learn.microsoft.com/en-us/fabric/cicd/tutorial-fabric-cicd-azure-devops) ofrece un ejemplo de principio a fin.
-- **[API Bulk Import Item Definitions](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions):** solicitud de importación de definiciones de ámbito de workspace. La documentación actual muestra el extremo v1 sin `?beta=true`. La exportación masiva es una API independiente cuyo estado debe comprobarse por separado. Véase el [tutorial de Bulk Import](https://learn.microsoft.com/en-us/fabric/cicd/tutorial-bulkapi-cicd).
+- **[API Bulk Import Item Definitions](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions):** solicitud de importación de definiciones de ámbito de workspace. La documentación actual muestra el endpoint v1 sin `?beta=true`. La exportación masiva es una API independiente cuyo estado debe comprobarse por separado. Véase el [tutorial de Bulk Import](https://learn.microsoft.com/en-us/fabric/cicd/tutorial-bulkapi-cicd).
 - **[API Update Item Definition](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/update-item-definition):** operación de menor nivel para actualizar la definición de un elemento. fabric-cicd y las API masivas encapsulan esta y otras API de elementos; solo se usaría directamente si ninguna opción de mayor nivel encaja.
 
 ---
@@ -308,7 +308,7 @@ Ambas implementaciones pertenecen a la opción 3: rama y entorno de compilación
 - Se mueven muchos elementos y se busca reducir los intercambios de solicitudes y respuestas.
 - Se necesita exportación de ámbito de workspace mediante la API Bulk Export, por ejemplo para instantáneas de recuperación ante desastres.
 
-La recomendación actual es fabric-cicd. Bulk Import directo no ofrece compatibilidad con `parameter.yml` ni limpieza de huérfanos en la API, por lo que el cliente debe implementar las sustituciones, la activación de conjuntos y la eliminación. El repositorio demuestra ese coste, pero su cliente con el parámetro antiguo no está verificado en un entorno real frente a la documentación v1 actual.
+La recomendación actual es fabric-cicd. Bulk Import directo no ofrece compatibilidad con `parameter.yml` ni limpieza de huérfanos en la API, por lo que el cliente debe implementar las sustituciones, la activación de conjuntos y la eliminación. El repositorio demuestra ese costo, pero su cliente con el parámetro antiguo no está verificado en un entorno real frente a la documentación v1 actual.
 
 > El repositorio muestra ambas alternativas. El punto de partida recomendado es fabric-cicd sin publicación masiva; los flujos de REST masivo directo y fabric-cicd masivo se incluyen para evaluación. `DEPLOY_METHOD` selecciona la ruta. La publicación masiva de fabric-cicd ahora usa 1.4.x con el archivo de parámetros existente; si vuelve de forma inesperada a la publicación estándar, el despliegue falla. Véase el [inicio rápido del README](README.md#inicio-rápido).
 
@@ -334,9 +334,9 @@ Todos los intervalos de dependencias de fabric-cicd son `>=1.4.0,<1.5.0`; Action
 - **Mayor complejidad inicial:** hay que construir y mantener pipelines de compilación y lanzamiento por etapa. Requiere más ingeniería que las opciones 1 y 2, aunque `parameter.yml` reduce el código propio.
 - **Mantenimiento de parámetros:** `parameter.yml` debe mantenerse alineado con las definiciones. Si cambian los IDs de Lakehouse, conexiones o nombres de elementos, hay que actualizarlo.
 - **Despliegue completo siempre:** se publica cada elemento del ámbito, sin calcular diferencias; puede alargar las ejecuciones en workspaces grandes.
-- **Sin interfaz nativa de Fabric:** no hay comparación visual entre etapas ni historial de despliegue de esta ruta en Fabric. La visibilidad la aporta la herramienta de CI/CD.
-- **Coste del entorno de compilación:** cada despliegue lo crea y añade tiempo y coste de cómputo.
-- **Varias ramas de larga duración:** mantenerlas sincronizadas añade complejidad. Un commit defectuoso puede propagarse al workspace de esa etapa en el siguiente despliegue.
+- **Sin interfaz nativa de Fabric:** como en la opción 2, no hay comparación visual entre etapas ni historial de despliegue en Fabric. Toda la visibilidad la aporta la herramienta de CI/CD.
+- **Costo del entorno de compilación:** cada despliegue lo crea y añade tiempo y costo de cómputo.
+- **Varias ramas de larga duración:** como en la opción 2, mantenerlas sincronizadas añade complejidad. Un commit defectuoso puede propagarse al workspace de esa etapa en el siguiente despliegue.
 
 ---
 
@@ -391,7 +391,7 @@ Técnicamente puede *crear* elementos, como Notebooks, en un destino. Sin embarg
 
 | | **Opción 1 – Pipelines de despliegue** | **Opción 2 – Integración de Git de Fabric** | **Opción 3 – Git con entorno de compilación** |
 |---|---|---|---|
-| **Fuente de verdad** | Git solo para Dev y los workspaces | Git para todas las etapas | Git para todas las etapas |
+| **Fuente de verdad** | Git (solo Dev) y los workspaces | Git para todas las etapas | Git para todas las etapas |
 | **Estrategia de ramas** | Cualquiera; Git solo para Dev | Gitflow, una rama por etapa | Una rama y un entorno de compilación por etapa |
 | **Mecanismo de despliegue** | Pipelines de despliegue de Fabric, interfaz o API | API de Actualización desde Git | fabric-cicd sin publicación masiva, recomendado, o cliente directo de API verificado por separado |
 | **Configuración** | Reglas y vinculaciones automáticas | API posteriores o parametrización | `parameter.yml` declarativo o scripts propios previos al despliegue |
@@ -476,7 +476,7 @@ Los GUID se guardan en dos variables del entorno de GitHub, no en secretos. El S
 - **Git como fuente de verdad** de las definiciones de la carga de trabajo conservadas y desplegadas en cada etapa.
 - **`parameter.yml` de fabric-cicd** para sustituciones del despliegue sin un motor propio.
 - **Un publicador para el ámbito actual** evita promoción y coordinación innecesarias entre herramientas.
-- **Variable Libraries** para la configuración en tiempo de ejecución de los elementos que las consumen, reduciendo la parametrización del despliegue.
+- **Variable Libraries** para la configuración en tiempo de ejecución de los elementos que las consumen, lo que reduce la parametrización del despliegue.
 - **Un proceso posterior explícito** inicia un único pipeline de Fabric; la carga y la validación de solo lectura deben terminar correctamente antes de completar la actualización nativa. GitHub no actualiza dos veces.
 
 La ruta predeterminada de fabric-cicd en Test está verificada en un entorno real hasta la preparación de conexiones, la publicación y el Data Pipeline de la misma revisión. Prod, los otros tres métodos y un ciclo completo de Branch Out con la revisión actual siguen sin verificar. Véase el [estado de la verificación](fabric-release-process.md#estado-de-la-verificación).
@@ -577,6 +577,6 @@ Gracias a **Ted Pattison** por sus excelentes presentaciones de CI/CD en Fabric 
 
 Este documento es una traducción de [fabric-cicd-release-options.md](../../fabric-cicd-release-options.md). La versión en inglés es la fuente de referencia y puede estar más actualizada.
 
-La actualización del 15-10-2026 se ha revisado con asistencia de IA, sin nueva validación por hablantes nativos. Se conservan las decisiones anteriores de [`GLOSARIO.md`](GLOSARIO.md) y se aplica [`GUIA-DE-ESTILO.md`](GUIA-DE-ESTILO.md).
+La actualización del 15-10-2026 se ha revisado con asistencia de IA y no cuenta con validación de hablantes nativos. Se conservan las decisiones terminológicas anteriores de [`GLOSARIO.md`](GLOSARIO.md) y se aplica [`GUIA-DE-ESTILO.md`](GUIA-DE-ESTILO.md).
 
-Los enlaces externos apuntan a la documentación en inglés. Los errores pueden comunicarse mediante una incidencia que indique el idioma. Si el error también existe en inglés, debe corregirse primero allí; véanse [`REVISION.md`](REVISION.md) y [`TRANSLATION.md`](../../TRANSLATION.md).
+Los enlaces externos apuntan a la documentación en inglés para conservar la terminología de la interfaz; si se prefiere otro idioma, puede cambiarse desde el selector de idioma del sitio de destino. Los errores pueden comunicarse mediante una incidencia que indique el idioma. Si el error también existe en inglés, debe corregirse primero allí; véanse [`REVISION.md`](REVISION.md) y [`TRANSLATION.md`](../../TRANSLATION.md).

@@ -14,7 +14,7 @@ cuyas dependencias ya se hayan satisfecho. Cada adaptador sustituye las fases
 definidas directamente en su propio método.
 **fabric-cicd no masivo** (`fabric-cicd`) sigue siendo el método predeterminado
 y el punto de partida recomendado de este repositorio; véase la
-[Guía de CI/CD no masivo con fabric-cicd](fabric-hybrid-cicd-guide.md).
+[Guía de CI/CD con fabric-cicd sin publicación masiva](fabric-hybrid-cicd-guide.md).
 El método REST directo `bulk` es otro ejemplo alternativo.
 
 Son aceleradores de soluciones que solo controlan el orden de publicación,
@@ -107,9 +107,9 @@ Lakehouse -> Patterns_Semantic_Model ───────────┐
           -> Ontology -> Data Agent
 ```
 
-Las definiciones que necesita el DataPipeline deben existir antes de
+Las definiciones que necesita el Data Pipeline deben existir antes de
 publicarlo. Estas dependencias **no** ejecutan la carga, validan datos ni
-actualizan el modelo. Las dependencias de éxito del DataPipeline controlan
+actualizan el modelo. Las dependencias de éxito del Data Pipeline controlan
 esa secuencia independiente en tiempo de ejecución.
 El plan guardado en Git tiene ocho grupos declarados. Su orden secuencial
 determinista es `Lakehouse_Group` → `Import_Group` → `Ontology_Group` →
@@ -131,7 +131,7 @@ los publica en una llamada adicional a la biblioteca, con el orden estándar
 de fabric-cicd.
 Actualmente quedan tres elementos: `Patterns_Demo`, `Patterns_Patients_Data`
 y `Patterns_Report`. La Variable Library, la carga, la validación y el
-DataPipeline tienen ahora grupos explícitos en lugar de pertenecer a los
+Data Pipeline tienen ahora grupos explícitos en lugar de pertenecer a los
 elementos restantes. Un plan personalizado puede producir otro inventario;
 debe previsualizarse el grafo.
 Para este ejemplo de 11 elementos, la publicación no masiva con plan hace nueve
@@ -152,7 +152,7 @@ publicación, pero el código de Python está separado deliberadamente.
 Solo las entradas explícitas `dependsOn` determinan si un grupo está listo.
 Los grupos independientes que ya tienen satisfechas sus dependencias se
 combinan en una selección exacta de fabric-cicd; no se envían en paralelo.
-El plan actual da al DataPipeline dependencias explícitas de
+El plan actual da al Data Pipeline dependencias explícitas de
 `Patterns_Variables`, `Import_Patterns_Data`, `Validate_Patterns_Data` y
 `Patterns_Semantic_Model`.
 Para el ejemplo de 11 elementos guardado en Git, la planificación de solo
@@ -170,7 +170,7 @@ El contrato de transporte comprobado sin conexión espera cuatro POST de
 importación masiva de definiciones para este ejemplo; los GET de inventario,
 los PATCH de activación de conjuntos de valores y los DELETE de limpieza son
 solicitudes HTTP adicionales.
-Estas cifras no son evidencia de un despliegue real ni un orden de tipos
+Estas cifras no demuestran un despliegue real ni son un orden de tipos
 definido directamente: al cambiar las dependencias o el inventario, cambia la
 planificación. Debe previsualizarse el plan guardado en Git después de cambiarlo.
 Cada llamada vuelve a consultar el inventario del workspace y usa tipos de
@@ -184,7 +184,7 @@ fijo de solicitudes HTTP.
 El código y los flujos de trabajo actualizados deben promoverse mediante los
 controles existentes antes de cambiar el método para todo el repositorio.
 Copie los valores de las dos variables del repositorio indicadas en
-[Configuración: variables del método de despliegue](SETUP.md#variables-del-método-de-despliegue)
+[Configuración: variables del método de despliegue](SETUP.md#fabric-cicd-bulk-settings)
 y use los secretos de entorno compartidos que se describen allí. Esta ruta
 solo debe seleccionarse cuando esté preparada para una validación autorizada
 en Test.
@@ -223,11 +223,11 @@ publicación masiva habilitada. fabric-cicd se encarga de las sustituciones y
 de activar los conjuntos de valores de Test/Prod. La ruta masiva no incorpora
 el motor de búsqueda y reemplazo de REST directo ni lee
 [bulk-parameter.yml](../../data/fabric/bulk-parameter.yml).
-Las reglas del DataPipeline sustituyen los IDs de referencia de Dev del modelo
+Las reglas del Data Pipeline sustituyen los IDs de referencia de Dev del modelo
 y las conexiones. Los scripts habilitan la sustitución `$ENV:` y validan
 `NOTEBOOK_CONNECTION_ID` y `SEMANTIC_MODEL_REFRESH_CONNECTION_ID` antes de
 publicar. Son
-[variables de entorno](SETUP.md#variables-de-entorno-y-del-repositorio),
+[variables del entorno de GitHub](SETUP.md#variables-del-entorno-de-github-y-del-repositorio),
 no credenciales ni instrucciones para crear conexiones.
 Antes de la autenticación en línea, el adaptador exige que cada Variable Library
 seleccionada declare el nombre exacto del entorno y contenga el archivo de
@@ -267,8 +267,8 @@ parcial, así como los desconocidos, ausentes o mal formados, detienen las
 selecciones dependientes, la publicación de los elementos restantes y la
 limpieza de huérfanos.
 La comprobación del modo se ejecuta después de que termine `publish_all_items`:
-las causas conocidas de retorno a la publicación estándar se rechazan antes
-de publicar, pero un retorno inesperado puede haber realizado ya escrituras
+las causas conocidas de vuelta a la publicación estándar se rechazan antes
+de publicar, pero una vuelta inesperada puede haber realizado ya escrituras
 estándar. Que la ejecución falle no las deshace.
 Se han eliminado `FAIL_IF_BULK_USED` y `fail_if_bulk_used`; elegir esta ruta
 exige una publicación realmente masiva. Para publicar de forma estándar debe
@@ -278,7 +278,7 @@ Solo después de publicar correctamente, el adaptador ejecuta una vez la
 limpieza de huérfanos existente de fabric-cicd. Lakehouse, Ontology y
 DeploymentPlan siguen excluidos. Los GET de inventario, los PATCH de acciones
 posteriores o activación de fabric-cicd y los DELETE de limpieza son solicitudes
-independientes legítimas, no un retorno a la publicación estándar de definiciones.
+independientes legítimas, no una vuelta a la publicación estándar de definiciones.
 
 ### Comportamiento verificado del cliente y comprobaciones pendientes del servicio
 
@@ -320,12 +320,12 @@ exacto 1.4.0.
 | Cambio de la versión | Tratamiento en este repositorio |
 |---|---|
 | Variables dinámicas masivas y validación temprana de sintaxis | Ejercitar las sustituciones reales de fabric-cicd y rechazar la sintaxis no válida antes de escribir definiciones; probar por separado los recursos ausentes. |
-| Eliminación del atributo `contains_param_vars` | Eliminar la dependencia anterior para informar del modo; la presencia de variables de elemento no demuestra un retorno a la publicación estándar. |
+| Eliminación del atributo `contains_param_vars` | Eliminar la dependencia anterior para informar del modo; la presencia de variables de elemento no demuestra una vuelta a la publicación estándar. |
 | Compatibilidad con GraphModel y CosmosDBDatabase | No hay elementos independientes de estos tipos aquí. No debe ampliarse el ámbito de publicación o limpieza ni eliminarse las advertencias de configuración de Ontology. |
 | Compatibilidad con Python 3.14 | Es una capacidad heredada de la biblioteca, no un motivo para cambiar la versión de Python usada en Actions en este repositorio. |
 | Correcciones de KQLQueryset, PaginatedReport y Activator | Se heredan las correcciones; estos tipos no están en el inventario. `Report` no es `PaginatedReport`. |
 | Corrección de la barra final en conexiones de Semantic Model | Se aplica a las solicitudes `bindConnection` de fabric-cicd; aquí no se configura `semantic_model_binding`. No implica que toda la configuración de conexiones esté resuelta. |
-| Tratamiento de nombres `$ENV:` | Usar los nombres exactos en mayúsculas de las variables de conexión de Notebook y actualización en las reglas del DataPipeline; los scripts habilitan la sustitución de variables de entorno. REST directo conserva su motor de sustituciones independiente. |
+| Tratamiento de nombres `$ENV:` | Usar los nombres exactos en mayúsculas de las variables de conexión de Notebook y actualización en las reglas del Data Pipeline; los scripts habilitan la sustitución de variables de entorno. REST directo conserva su motor de sustituciones independiente. |
 | Límite por una regresión de jsonpath-ng | Respetar la restricción transitiva `>=1.7.0,<1.8.0` de fabric-cicd, sin fijar otra dependencia directa redundante. No se añaden reglas activas `key_value_replace`. |
 | Nuevo tutorial de principio a fin | Material de referencia, no un sustituto de la arquitectura del repositorio. |
 
@@ -361,10 +361,10 @@ de origen. Sus trabajos ETL dependientes usan la misma revisión;
 no ejecuta por sí mismo el ETL ni la actualización del modelo.
 Ambos métodos con plan usan el mismo
 [proceso posterior al ETL](fabric-release-process.md#actualización-del-semantic-model-posterior-al-etl)
-que las rutas predeterminada no masiva y REST directa: GitHub inicia y sondea
-un único DataPipeline; Fabric ejecuta carga → validación de solo lectura →
-actualización nativa y espera a que termine. CI no es un segundo responsable
-de la actualización.
+que la ruta predeterminada sin publicación masiva y la de REST directo: GitHub
+inicia y sondea un único Data Pipeline; Fabric ejecuta carga → validación de
+solo lectura → actualización nativa y espera a que termine. CI no es un segundo
+responsable de la actualización.
 
 ## Habilitar el método
 
@@ -498,7 +498,7 @@ guarda los GUID que falten. El publicador usa después esas conexiones en modo
 de solo lectura. Véase
 [Proceso de lanzamiento](fabric-release-process.md#de-dev-a-test).
 Que el ID lógico de DeploymentPlan sea portable no hace portables los GUID
-físicos del modelo y las conexiones del DataPipeline.
+físicos del modelo y las conexiones del Data Pipeline.
 Los nombres de entorno y de conjunto de valores deben coincidir exactamente.
 Si no hay un nombre coincidente, fabric-cicd avisa y usa el conjunto de valores
 predeterminado; deben conservarse los conjuntos `Test` y `Prod` guardados en
@@ -530,8 +530,8 @@ esto cambia el método de las ejecuciones futuras, no el estado ya desplegado.
 
 El recopilador Bulk de REST directo excluye las carpetas de control
 DeploymentPlan para que el nuevo elemento sincronizado con Git no altere la
-carga útil de trabajo de ese método anterior. No adjunta ni ejecuta el plan.
-El script estándar sin plan usa sus propias fases de publicación; la
+carga útil de definiciones de ese método anterior. No adjunta ni ejecuta el
+plan. El script estándar sin plan usa sus propias fases de publicación; la
 ordenación no masiva con plan y la planificación masiva de la biblioteca
 siguen siendo adaptadores independientes.
 
@@ -542,9 +542,9 @@ Debe usarse un destino Test autorizado y comprobarse lo siguiente:
 - El registro indica la versión de fabric-cicd instalada y el modo seleccionado:
   publicación estándar o masiva estricta.
 - Todos los elementos declarados y restantes, incluidos el nuevo Notebook de
-  validación y el DataPipeline, se despliegan sin duplicados en el orden
+  validación y el Data Pipeline, se despliegan sin duplicados en el orden
   previsualizado.
-- Los campos de destino de Notebook, Semantic Model y DataPipeline —modelo
+- Los campos de destino de Notebook, Semantic Model y Data Pipeline —modelo
   y conexiones— y el ID del Lakehouse de la Variable Library contienen las
   sustituciones esperadas. Los valores predeterminados de Dev que un conjunto
   de valores activo sobrescribe de forma intencionada no tienen que desaparecer
@@ -554,13 +554,13 @@ Debe usarse un destino Test autorizado y comprobarse lo siguiente:
   del cliente.
 - El conjunto de valores correcto está activo antes de que el flujo ETL
   existente se ejecute una sola vez.
-- El Service principal de CI puede publicar e iniciar el DataPipeline; sus
+- El Service principal de CI puede publicar e iniciar el Data Pipeline; sus
   actividades con Workspace Identity completan carga → validación →
   actualización nativa. Después del despliegue de CI se verifican la transmisión
   del umbral y la etiqueta, y la propiedad del modelo.
 - Se verifican por separado los campos de fecha necesarios del modelo, los
   cálculos y las rutas de acceso de los consumidores; la validación del origen
-  y una actualización correcta no son evidencia de consultas.
+  y una actualización correcta no demuestran que las consultas funcionen.
 - Un segundo despliegue actualiza los mismos IDs de elemento en lugar de crear
   duplicados.
 - La limpieza afecta solo a los elementos y tipos huérfanos esperados.
@@ -570,7 +570,7 @@ Siguen aplicándose las
 incluida la inicialización de Ontology/Graph Model.
 Desplegar un Notebook no carga las tablas; publicar `SemanticModel_Group`
 no lo actualiza después de las escrituras de la carga.
-El orden por sí solo no sustituye la ejecución del DataPipeline, el
+El orden por sí solo no sustituye la ejecución del Data Pipeline, el
 *framing* de Direct Lake ni la configuración de conexiones. El proceso
 posterior no adjunta un plan nativo ni cambia el orden de publicación de
 ninguno de los adaptadores.
@@ -578,8 +578,8 @@ Las pruebas sin conexión cubren la planificación y parametrización de
 fabric-cicd con un transporte simulado; no demuestran que la ruta con plan
 se haya desplegado correctamente en el inquilino.
 La ruta Test no masiva predeterminada está verificada con una ejecución real,
-pero ninguno de los adaptadores con plan tiene evidencia real de la revisión
-actual. Véase la
+pero ninguno de los adaptadores con plan se ha verificado en un entorno real
+con la revisión actual. Véase la
 [matriz compartida de verificación](fabric-release-process.md#estado-de-la-verificación).
 
 ## Relación con los Deployment Plans nativos
@@ -618,8 +618,17 @@ e
 ## Sobre esta traducción
 
 Este documento es una traducción de
-[fabric-deployment-plan-guide.md](../../fabric-deployment-plan-guide.md).
-El original en inglés es la fuente autorizada y puede recibir cambios antes
-que esta traducción. Las incidencias pueden comunicarse indicando el idioma.
-Los enlaces a documentación externa apuntan al inglés para mantener la
-terminología de referencia; el idioma puede cambiarse en el sitio de destino.
+[fabric-deployment-plan-guide.md](../../fabric-deployment-plan-guide.md). La
+versión en inglés es la fuente de referencia y puede estar más actualizada.
+
+Esta traducción, nueva en la actualización del 15-10-2026, se ha elaborado con
+asistencia de IA y no cuenta con validación de hablantes nativos. Se aplican las
+decisiones de [`GLOSARIO.md`](GLOSARIO.md) y
+[`GUIA-DE-ESTILO.md`](GUIA-DE-ESTILO.md).
+
+Los enlaces externos apuntan a la documentación en inglés para conservar la
+terminología de la interfaz; si se prefiere otro idioma, puede cambiarse desde
+el selector de idioma del sitio de destino. Los errores pueden comunicarse
+mediante una incidencia que indique el idioma. Si el error también existe en
+inglés, debe corregirse primero allí; véanse [`REVISION.md`](REVISION.md) y
+[`TRANSLATION.md`](../../TRANSLATION.md).

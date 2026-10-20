@@ -10,11 +10,11 @@ Esta es la ruta masiva de REST directo con código Python propio (`DEPLOY_METHOD
 
 Esta ruta publica la carga de trabajo del ejemplo mediante la [API Bulk Import Item Definitions](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions). La implementación predeterminada se documenta en la [Guía de CI/CD con fabric-cicd sin publicación masiva](fabric-hybrid-cicd-guide.md).
 
-Las [Opciones de lanzamiento de CI/CD](fabric-cicd-release-options.md#herramientas-dentro-de-la-opción-3-fabric-cicd-frente-a-las-api-masivas) comparan estratégicamente fabric-cicd con las API masivas y explican la recomendación.
+Para la comparación estratégica entre fabric-cicd y las API masivas, y para la recomendación, véanse las [Opciones de lanzamiento de CI/CD](fabric-cicd-release-options.md#herramientas-dentro-de-la-opción-3-fabric-cicd-frente-a-las-api-masivas).
 
 La API Bulk Import no aplica la parametrización de este repositorio, no activa el conjunto de valores de destino de la *Variable Library* ni elimina elementos huérfanos. El cliente propio implementa los dos primeros comportamientos. Sigue siendo un ejemplo cuyo mantenimiento corresponde a quien lo adopta, no una corrección de la plataforma.
 
-La referencia actual de la API de Microsoft muestra el extremo v1 sin `?beta=true`. El cliente versionado todavía envía ese parámetro antiguo y no se ha verificado en un entorno real con el contrato actual. Antes de seleccionar `bulk`, hay que volver a validar y actualizar el cliente. La ruta predeterminada sin publicación masiva está verificada en Test; REST masivo directo no lo está.
+La referencia actual de la API de Microsoft muestra el *endpoint* v1 sin `?beta=true`. El cliente versionado todavía envía ese parámetro antiguo y no se ha verificado en un entorno real con el contrato actual. Antes de seleccionar `bulk`, hay que volver a validar y actualizar el cliente. La ruta predeterminada sin publicación masiva está verificada en Test; REST masivo directo no lo está.
 
 ---
 
@@ -160,7 +160,7 @@ Después de los pasos comunes de preparación de conexiones, cada flujo de despl
 2. Recorre `data/fabric/` y construye un array `definitionParts[]`: una entrada por archivo con la ruta y el contenido codificado en base64.
 3. Carga `bulk-parameter.yml` para obtener las reglas de sustitución y la configuración de activación del conjunto de valores.
 4. Valida los GUID de las conexiones de destino antes de publicar y organiza por fases las dependencias de IDs dinámicos; pospone los Data Pipelines hasta que se conocen los IDs de sus modelos.
-5. Envía tres lotes mediante POST a la URL masiva versionada. El script actual todavía añade el parámetro antiguo `?beta=true`; debe ajustarse al extremo v1 documentado actualmente antes de usarlo.
+5. Envía tres lotes mediante POST a la URL masiva versionada. El script actual todavía añade el parámetro antiguo `?beta=true`; debe ajustarse al endpoint v1 documentado actualmente antes de usarlo.
 6. Realiza un PATCH sobre la VariableLibrary desplegada para establecer el conjunto de valores activo.
 
 La API Bulk Import puede devolver `200 OK` con el cuerpo del resultado en la propia respuesta, o `202 Accepted` con una operación de larga duración (LRO). El script gestiona ambos casos de forma transparente; véanse los [problemas habituales](#sondeo-de-operaciones-de-larga-duración-lro).
@@ -244,7 +244,7 @@ variable_library:
 
 **Filtro `item_types`:** una regla solo se aplica a los archivos cuyo tipo de elemento figure en su lista `item_types`. El script extrae el tipo de elemento de la convención de ruta `<DisplayName>.<Type>/<file>`. Los archivos de tipos no incluidos pasan sin cambios.
 
-La referencia del modelo para la actualización nativa usa `$items.SemanticModel.Patterns_Semantic_Model.$id`, no el ID físico de Dev. El cliente también sustituye los GUID de las conexiones canónicas de Dev por las [variables del entorno](SETUP.md#variables-de-entorno-y-del-repositorio) de destino `NOTEBOOK_CONNECTION_ID` y `SEMANTIC_MODEL_REFRESH_CONNECTION_ID`. Las comprobaciones previas de GUID y las sustituciones no crean conexiones ni demuestran que su Workspace Identity tenga acceso.
+La referencia del modelo para la actualización nativa usa `$items.SemanticModel.Patterns_Semantic_Model.$id`, no el ID físico de Dev. El cliente también sustituye los GUID de las conexiones canónicas de Dev por las [variables del entorno](SETUP.md#variables-del-entorno-de-github-y-del-repositorio) de destino `NOTEBOOK_CONNECTION_ID` y `SEMANTIC_MODEL_REFRESH_CONNECTION_ID`. Las comprobaciones previas de GUID y las sustituciones no crean conexiones ni demuestran que su Workspace Identity tenga acceso.
 
 **Por qué un archivo separado de `parameter.yml`:** los dos formatos coexisten deliberadamente. fabric-cicd usa `parameter.yml` y la ruta masiva utiliza `bulk-parameter.yml`. Mantenerlos separados evita que la ruta masiva tenga que ignorar en silencio —o fallar ante— funciones exclusivas de fabric-cicd: `key_value_replace`, `spark_pool` y `semantic_model_binding`. Los dos archivos residen en la raíz de `data/fabric/` y `scripts/deploy_fabric_rest_bulk.py` los excluye de la carga útil de las solicitudes masivas.
 
@@ -318,8 +318,8 @@ Primero debe completarse la [Configuración](SETUP.md). La ruta masiva directa a
 
 1. Todo workspace que reciba tipos de elemento de Fabric debe usar una SKU F o Fabric Trial. Power BI Premium solo es suficiente si todas las definiciones importadas son elementos de Power BI.
 2. Todos los tipos de elemento de una solicitud deben admitir el Service principal de despliegue. Un único tipo no compatible puede hacer fallar toda la solicitud masiva.
-3. Se debe establecer la variable de repositorio `DEPLOY_METHOD=bulk`.
-4. Hay que ajustar la solicitud versionada con el parámetro antiguo `?beta=true` al extremo v1 documentado actualmente y, después, verificar la ruta en un entorno real de Test.
+3. Debe establecerse la variable de repositorio `DEPLOY_METHOD=bulk`.
+4. Debe ajustarse la solicitud versionada con el parámetro antiguo `?beta=true` al endpoint v1 documentado actualmente y, después, verificarse la ruta en un entorno real de Test.
 
 El lanzamiento seleccionado de Test o Prod sigue necesitando los cinco secretos del entorno, incluido `GH_ENV_VARIABLES_TOKEN`, y ejecuta la preparación y verificación automáticas de conexiones antes del publicador REST directo. Véase el [Proceso de lanzamiento](fabric-release-process.md#ciclo-de-vida-de-las-conexiones-por-etapa).
 
@@ -396,13 +396,13 @@ La publicación estándar de fabric-cicd hace solicitudes por elemento; la publi
 La API Bulk Import puede devolver:
 
 - **`200 OK`** con el cuerpo completo del resultado, `importItemDefinitionsDetails[]`, en la propia respuesta: caso síncrono.
-- **`202 Accepted`** con las cabeceras `x-ms-operation-id` y `Retry-After`: caso asíncrono, en el que el cliente consulta una operación de larga duración.
+- **`202 Accepted`** con los encabezados `x-ms-operation-id` y `Retry-After`: caso asíncrono, en el que el cliente consulta una operación de larga duración.
 
 `scripts/deploy_fabric_rest_bulk.py` gestiona ambos casos de forma transparente. En el caso asíncrono, consulta `GET /v1/operations/{id}` hasta que la operación llega a `Succeeded`, `Failed` o `Undefined`; después obtiene `GET /v1/operations/{id}/result` con la misma estructura `importItemDefinitionsDetails[]` que el caso síncrono devuelve directamente.
 
 ### Acotación de Retry-After
 
-El script acota la cabecera `Retry-After` al intervalo de 5 a 600 segundos y usa 30 segundos si falta o no puede interpretarse. Sin el límite superior, un valor anómalo podría causar una única espera más larga que el tiempo de espera global del sondeo, de 20 minutos, y dejarlo sin efecto. Sin la validación de entrada, un valor no entero haría fallar el script con un `ValueError` no controlado.
+El script acota el encabezado `Retry-After` al intervalo de 5 a 600 segundos y usa 30 segundos si falta o no puede interpretarse. Sin el límite superior, un valor anómalo podría causar una única espera más larga que el tiempo de espera global del sondeo, de 20 minutos, y dejarlo sin efecto. Sin la validación de entrada, un valor no entero haría fallar el script con un `ValueError` no controlado.
 
 ### El token de portador no se escribe en los registros
 
@@ -416,7 +416,7 @@ También se excluyen las carpetas de elementos `*.DeploymentPlan` sincronizadas 
 
 ### Peculiaridad de `workflow_run`: las reejecuciones usan el archivo congelado
 
-Se conserva este título para mantener los enlaces anteriores. El antiguo diseño de receptor automático se ha sustituido por una cadena `needs` dentro del mismo flujo de trabajo. Una ejecución antigua sigue utilizando su revisión original; reejecutarla no sirve para probar código nuevo. Debe lanzarse un despliegue nuevo o utilizar el flujo de recuperación manual en la rama prevista. Los flujos invocadores renombrados como `Deploy and Run Pipeline` tampoco coinciden con los receptores antiguos de la rama predeterminada durante la transición, lo que evita ETL automáticos duplicados.
+Se conserva este título para mantener los enlaces anteriores. El antiguo diseño de receptor automático se ha sustituido por una cadena `needs` dentro del mismo flujo de trabajo. Una ejecución antigua sigue utilizando su revisión original; reejecutarla no sirve para probar código nuevo. Debe lanzarse un despliegue nuevo o utilizar el flujo de recuperación manual en la rama prevista. Además, los flujos invocadores renombrados como `Deploy and Run Pipeline` no coinciden con los receptores antiguos de la rama predeterminada durante la transición, lo que evita ETL automáticos duplicados.
 
 ### Ajustar el parámetro antiguo `?beta=true`
 
@@ -430,7 +430,7 @@ La [referencia actual de la API](https://learn.microsoft.com/en-us/rest/api/fabr
 
 Esta corrección documental no demuestra que el cliente versionado sea compatible con el servicio actual. Antes de usar `DEPLOY_METHOD=bulk`, hay que actualizar el cliente y verificarlo en un entorno real.
 
-### Extremo del tutorial de Microsoft
+### Endpoint del tutorial de Microsoft
 
 El tutorial actual y la referencia de la API coinciden en `/items/bulkImportDefinitions`. Las implementaciones nuevas no deben conservar la antigua solución alternativa con el singular `/importItemDefinitions`.
 
@@ -452,7 +452,7 @@ substitutions:
     item_types: [Notebook, SemanticModel]
 ```
 
-No hace falta cambiar el código. La regla nueva se recoge automáticamente en el siguiente despliegue.
+No hace falta cambiar el código. La regla nueva se aplica automáticamente en el siguiente despliegue.
 
 Si la regla referencia `$items.<Type>.<Name>.$id` para un tipo de elemento nuevo, amplíe también `DEPENDENCY_TYPES` en `scripts/deploy_fabric_rest_bulk.py` para que ese tipo se despliegue en la fase 1.
 
@@ -526,9 +526,9 @@ Estas funciones quedan deliberadamente fuera del alcance de este repositorio de 
 - [Proceso de lanzamiento](fabric-release-process.md): contrato común de promoción, conexiones y Data Pipeline.
 - [Guía de CI/CD con fabric-cicd sin publicación masiva](fabric-hybrid-cicd-guide.md): mecánica del publicador predeterminado.
 - [Consideraciones de gobernanza para CI/CD](fabric-cicd-governance-considerations.md): identidad, RBAC, protección de ramas y controles de aprobación.
-- [API Bulk Import Item Definitions de Fabric](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions): referencia actual del extremo.
+- [API Bulk Import Item Definitions de Fabric](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/bulk-import-item-definitions): referencia actual del endpoint.
 - [Operaciones de larga duración de Fabric](https://learn.microsoft.com/en-us/rest/api/fabric/articles/long-running-operation): semántica de `?async=true` y patrón de sondeo.
-- [Update Variable Library de Fabric](https://learn.microsoft.com/en-us/rest/api/fabric/variablelibrary/items/update-variable-library): extremo PATCH usado para activar el conjunto de valores.
+- [Update Variable Library de Fabric](https://learn.microsoft.com/en-us/rest/api/fabric/variablelibrary/items/update-variable-library): endpoint PATCH usado para activar el conjunto de valores.
 - [Tutorial de Bulk Import de Microsoft](https://learn.microsoft.com/en-us/fabric/cicd/tutorial-bulkapi-cicd): recorrido actual de Microsoft.
 - [API Create Item de Fabric: permisos](https://learn.microsoft.com/en-us/rest/api/fabric/core/items/create-item): requisito del rol Contributor.
 - [Flujos de trabajo reutilizables de GitHub](https://docs.github.com/en/actions/sharing-automations/reusing-workflows): `workflow_call`, entradas y secretos.
@@ -539,6 +539,6 @@ Estas funciones quedan deliberadamente fuera del alcance de este repositorio de 
 
 Este documento es una traducción de [fabric-bulk-cicd-guide.md](../../fabric-bulk-cicd-guide.md). La versión en inglés es la fuente de referencia y puede estar más actualizada.
 
-La actualización del 15-10-2026 se ha revisado con asistencia de IA, sin nueva validación por hablantes nativos. Se conservan las decisiones anteriores de [`GLOSARIO.md`](GLOSARIO.md) y se aplica [`GUIA-DE-ESTILO.md`](GUIA-DE-ESTILO.md).
+La actualización del 15-10-2026 se ha revisado con asistencia de IA y no cuenta con validación de hablantes nativos. Se conservan las decisiones terminológicas anteriores de [`GLOSARIO.md`](GLOSARIO.md) y se aplica [`GUIA-DE-ESTILO.md`](GUIA-DE-ESTILO.md).
 
-Los enlaces externos apuntan a la documentación en inglés. Los errores pueden comunicarse mediante una incidencia que indique el idioma. Si el error también existe en inglés, debe corregirse primero allí; véanse [`REVISION.md`](REVISION.md) y [`TRANSLATION.md`](../../TRANSLATION.md).
+Los enlaces externos apuntan a la documentación en inglés para conservar la terminología de la interfaz; si se prefiere otro idioma, puede cambiarse desde el selector de idioma del sitio de destino. Los errores pueden comunicarse mediante una incidencia que indique el idioma. Si el error también existe en inglés, debe corregirse primero allí; véanse [`REVISION.md`](REVISION.md) y [`TRANSLATION.md`](../../TRANSLATION.md).

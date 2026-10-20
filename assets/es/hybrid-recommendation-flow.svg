@@ -52,7 +52,7 @@
 
   <!-- Step 2 -->
   <rect x="300" y="184" width="190" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
-  <text x="310" y="203" font-size="9" fill="#333"><tspan font-weight="bold">2.</tspan> Ejecutar DataPipeline (manual)</text>
+  <text x="310" y="203" font-size="9" fill="#333"><tspan font-weight="bold">2.</tspan> Ejecutar Data Pipeline (manual)</text>
 
   <!-- Step 3 -->
   <rect x="300" y="218" width="190" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
@@ -75,7 +75,7 @@
   <text x="575" y="203" font-size="9" fill="#333"><tspan font-weight="bold">2.</tspan> Publicar con fabric-cicd</text>
 
   <rect x="565" y="218" width="190" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
-  <text x="575" y="237" font-size="9" fill="#333"><tspan font-weight="bold">3.</tspan> DataPipeline + aceptación</text>
+  <text x="575" y="237" font-size="9" fill="#333"><tspan font-weight="bold">3.</tspan> Data Pipeline + aceptación</text>
 
   <!-- Arrow: Dev → Test -->
   <line x1="510" y1="175" x2="565" y2="175" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
@@ -97,13 +97,13 @@
   <text x="845" y="203" font-size="9" fill="#333"><tspan font-weight="bold">2.</tspan> Publicar con fabric-cicd</text>
 
   <rect x="835" y="218" width="210" height="28" rx="4" fill="#fff" stroke="#ccc" stroke-width="1"/>
-  <text x="845" y="237" font-size="9" fill="#333"><tspan font-weight="bold">3.</tspan> DataPipeline + validar Prod</text>
+  <text x="845" y="237" font-size="9" fill="#333"><tspan font-weight="bold">3.</tspan> Data Pipeline + validar Prod</text>
 
   <!-- Arrow: Test → Prod -->
   <line x1="775" y1="175" x2="835" y2="175" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
 
   <rect x="280" y="295" width="790" height="80" rx="6" fill="#e8f5e9" stroke="#28a745"/>
-  <text x="675" y="313" text-anchor="middle" font-size="11" font-weight="bold" fill="#1e7e34">Un único DataPipeline para la carga de trabajo: Patterns_Load_Validate_And_Refresh</text>
+  <text x="675" y="313" text-anchor="middle" font-size="11" font-weight="bold" fill="#1e7e34">Un único Data Pipeline para la carga de trabajo: Patterns_Load_Validate_And_Refresh</text>
   <rect x="300" y="324" width="205" height="26" rx="4" fill="#fff" stroke="#28a745"/>
   <text x="402" y="341" text-anchor="middle" font-size="10" fill="#333">Import_Patterns_Data</text>
   <line x1="505" y1="337" x2="537" y2="337" stroke="#28a745" stroke-width="1.5" marker-end="url(#arrowGreen)"/>
@@ -112,12 +112,12 @@
   <line x1="742" y1="337" x2="774" y2="337" stroke="#28a745" stroke-width="1.5" marker-end="url(#arrowGreen)"/>
   <rect x="774" y="324" width="276" height="26" rx="4" fill="#fff" stroke="#28a745"/>
   <text x="912" y="341" text-anchor="middle" font-size="10" fill="#333">Actualización nativa del Semantic Model y espera</text>
-  <text x="675" y="365" text-anchor="middle" font-size="9" fill="#555">Solo tras éxito; conexiones de Workspace Identity. Una única actualización.</text>
+  <text x="675" y="365" text-anchor="middle" font-size="9" fill="#555">Solo tras éxito; se requieren conexiones de Workspace Identity. Un único responsable de la actualización.</text>
 
   <!-- ==================== OPTIONAL PUBLISHER EXTENSION (conceptual) ==================== -->
   <rect x="545" y="385" width="525" height="68" rx="6" fill="none" stroke="#6f42c1" stroke-width="2" stroke-dasharray="6,3"/>
   <text x="807" y="408" text-anchor="middle" font-size="11" fill="#6f42c1" font-weight="bold">Publicador opcional con Pipelines de despliegue nativos</text>
-  <text x="807" y="425" text-anchor="middle" font-size="9" fill="#6f42c1">No implementado; verificar elemento/subtipo e identidad antes de usarlo</text>
+  <text x="807" y="425" text-anchor="middle" font-size="9" fill="#6f42c1">No implementado; verificar la compatibilidad de elemento/subtipo e identidad antes de usarlo</text>
   <text x="807" y="442" text-anchor="middle" font-size="9" fill="#6f42c1">Requiere bloqueo compartido del workspace y coordinación de dependencias</text>
 
   <!-- ==================== CONFIGURATION ==================== -->
@@ -127,7 +127,7 @@
   <rect x="45" y="498" width="240" height="70" rx="5" fill="#fff" stroke="#ccc" stroke-width="1"/>
   <text x="165" y="518" text-anchor="middle" font-size="11" font-weight="bold" fill="#333">Variable Libraries (en ejecución)</text>
   <text x="165" y="534" text-anchor="middle" font-size="9" fill="#555">El conjunto activo aporta los IDs de destino</text>
-  <text x="165" y="548" text-anchor="middle" font-size="9" fill="#555">y el mínimo de validación (Integer, base 5).</text>
+  <text x="165" y="548" text-anchor="middle" font-size="9" fill="#555">y el mínimo de validación (Integer, valor base 5).</text>
   <text x="165" y="562" text-anchor="middle" font-size="9" fill="#555">run_label es una entrada aparte.</text>
 
   <rect x="300" y="498" width="240" height="70" rx="5" fill="#fff" stroke="#ccc" stroke-width="1"/>
@@ -157,7 +157,7 @@
   <rect x="550" y="645" width="14" height="14" rx="2" fill="none" stroke="#6f42c1" stroke-width="1.5" stroke-dasharray="3,2"/>
   <text x="572" y="657" font-size="10" fill="#333">Publicador nativo opcional (verificar compatibilidad; no implementado)</text>
 
-  <text x="50" y="681" font-size="10" fill="#555">Test predeterminado verificado: conexiones, publicación y DataPipeline de la misma revisión.</text>
+  <text x="50" y="681" font-size="10" fill="#555">fabric-cicd predeterminado verificado en Test: conexiones, publicación y Data Pipeline de la misma revisión.</text>
   <text x="50" y="697" font-size="10" fill="#555">Prod, los publicadores alternativos y el ciclo Branch Out completo actual siguen sin verificarse.</text>
 
   <!-- Arrow markers -->

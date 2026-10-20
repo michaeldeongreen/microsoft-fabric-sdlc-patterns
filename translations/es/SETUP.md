@@ -2,8 +2,7 @@
 
 <!-- source: SETUP.md @ f7f949d | translated: 2026-10-15 -->
 
-> La versión en inglés es la fuente autorizada. Si existe alguna discrepancia,
-> [el original en inglés](../../SETUP.md) tiene precedencia.
+> 📄 **La versión en inglés de este documento es la de referencia.** En caso de discrepancia, [el original en inglés](../../SETUP.md) tiene precedencia.
 
 # Configuración de este repositorio
 
@@ -11,7 +10,7 @@ Esta guía explica cómo configurar un *fork* nuevo para disponer de un flujo de
 trabajo funcional de Dev a Test y a Prod. Se recomienda empezar con
 `fabric-cicd`, el método de despliegue predeterminado, que no usa publicación
 masiva. Los demás métodos comparten la configuración y el ciclo de lanzamiento,
-pero requieren validaciones adicionales.
+pero tienen límites de validación adicionales.
 
 Para aprender el patrón, deben usarse workspaces dedicados al ejemplo y datos
 que no sean de producción.
@@ -33,7 +32,7 @@ Cada workspace tiene:
 - un conjunto de valores de Variable Library y vinculaciones físicas de
   elementos específicos de la etapa.
 
-El DataPipeline de Fabric del ejemplo carga datos de demostración, los valida
+El Data Pipeline de Fabric del ejemplo carga datos de demostración, los valida
 y realiza la única actualización del Semantic Model.
 
 ## Quién realiza cada paso
@@ -45,9 +44,9 @@ y realiza la única actualización del Semantic Model.
 | Administrador del inquilino de Fabric | Configuración del inquilino para la integración de Git y los Service principals, limitada a los grupos adecuados |
 | Administrador de workspaces de Fabric | Fabric Capacity, workspaces Dev/Test/Prod, Workspace Identities, roles de workspace y acceso de las Workspace Identities a los recursos |
 | Administrador del workspace de feature o de conexiones | Workspace Identity de feature, su acceso a los recursos y sus dos conexiones |
-| Desarrollador de feature | Credencial propia de Git, Branch Out, `.env` local, intercambios de referencias, pruebas de feature y PR de feature a Dev |
-| Operador del workspace Dev | Actualización de Dev desde Fabric Git, inspección de vinculaciones y ejecución manual del DataPipeline de Dev |
-| GitHub Actions | Creación o reutilización y verificación de las conexiones de Test/Prod, publicación y ejecución del DataPipeline de Fabric |
+| Desarrollador de feature | Credencial propia de Git, Branch Out, `.env` local, cambios de referencias, pruebas de feature y PR de feature a Dev |
+| Operador del workspace Dev | Actualización de Dev desde Fabric Git, inspección de vinculaciones y ejecución manual del Data Pipeline de Dev |
+| GitHub Actions | Creación o reutilización y verificación de las conexiones de Test/Prod, publicación y ejecución del Data Pipeline de Fabric |
 | Responsable de verificación del lanzamiento o revisor de Prod | Aceptación en Test y autorización para Prod cuando se haya configurado la protección |
 
 El *Service principal* de despliegue y la Workspace Identity tienen funciones
@@ -94,7 +93,7 @@ Confirme que los administradores designados puedan:
   reglas; y
 - crear y administrar conexiones de Fabric.
 
-Para el método masivo de REST directo, la importación de tipos de elemento de
+Para el método REST masivo directo, la importación de tipos de elemento de
 Fabric requiere una SKU F o Fabric Trial. Verifique los requisitos actuales de
 Fabric Capacity para cualquier otra ruta y para los tipos de elemento que se
 añadan.
@@ -274,7 +273,7 @@ Para un fork de producción, es preferible una credencial con vencimiento y un
 responsable designado de su rotación, o una GitHub App con el ámbito adecuado.
 Cada desarrollador usa su propia credencial de Fabric Git.
 
-### Variables de entorno y del repositorio
+### Variables del entorno de GitHub y del repositorio
 
 <a id="environment-variables"></a>
 
@@ -285,11 +284,10 @@ repositorio:
 |---|---|
 | `FABRIC_CONNECTION_ADMINS_GROUP_ID` | ID de objeto del grupo Connections-Admins |
 
-Una variable de entorno con el mismo nombre puede sustituirla para usar
-grupos específicos de cada etapa.
+Una variable del entorno de GitHub con el mismo nombre puede sustituirla
+para usar grupos específicos de cada etapa.
 
-Deje que el flujo correspondiente cree estas variables de los entornos con los
-IDs verificados:
+No invente manualmente estas variables del entorno de GitHub:
 
 | Variable | Quién la crea | Significado |
 |---|---|---|
@@ -310,13 +308,13 @@ Empiece por el método predeterminado:
 | fabric-cicd sin publicación masiva | Sin definir o `fabric-cicd` | No se usa | Recomendado; Test verificado con una ejecución real del método predeterminado |
 | fabric-cicd sin publicación masiva, con plan interpretado por el adaptador | `fabric-cicd-plan` | `data/fabric/DeploymentPlan.DeploymentPlan/plan.yml` | Experimental; sin verificación mediante una ejecución real |
 | fabric-cicd masivo, con plan interpretado por el adaptador | `fabric-cicd-bulk` | La misma ruta del plan | Experimental; sin verificación mediante una ejecución real |
-| REST directo masivo | `bulk` | No se usa | Revalidar el comportamiento actual de la API y los requisitos de Fabric Capacity; sin verificación mediante una ejecución real |
+| REST masivo directo | `bulk` | No se usa | Revalidar el comportamiento actual de la API y los requisitos de Fabric Capacity; sin verificación mediante una ejecución real |
 
 <a id="fabric-cicd-bulk-settings"></a>
 
 Los métodos de fabric-cicd usan `parameter.yml`. REST directo usa
 `bulk-parameter.yml`. Los cuatro comparten la preparación de conexiones y el
-mismo traspaso de control al DataPipeline de Fabric.
+mismo traspaso de control al Data Pipeline de Fabric.
 
 <a id="before-switching-methods"></a>
 
@@ -365,12 +363,12 @@ En el recorrido normal de configuración, ejecútelo solo para Dev:
 3. Seleccione la operación `provision`.
 4. Confirme que el destino sea el entorno de GitHub `Dev` y ejecute el flujo
    de trabajo.
-5. Verifique que:
+5. Verifique que el flujo de trabajo:
    - valida la Workspace Identity de Dev, que debe existir previamente;
    - crea o reutiliza conexiones distintas de Notebook y de Power BI datasets
      con autenticación Workspace Identity;
    - concede al grupo Connections-Admins el rol Owner, o lo eleva a ese rol,
-     y vuelve a leerlo para comprobarlo;
+     y vuelve a leer la asignación para comprobarla;
    - crea y verifica ambas variables de ID de conexión de Dev; y
    - no realiza operaciones sobre roles de workspace, publicación de
      elementos ni actividades del pipeline.
@@ -401,7 +399,7 @@ El repositorio contiene referencias físicas reales de su workspace Dev de
 origen. Sustitúyalas una sola vez por las referencias canónicas de Dev del fork
 antes del trabajo habitual de feature.
 
-### Excluir temporalmente el DataPipeline de la primera importación desde Git
+### Excluir temporalmente el Data Pipeline de la primera importación desde Git
 
 Desde `dev`:
 
@@ -409,10 +407,10 @@ Desde `dev`:
 python scripts\prepare_fabric_workspace.py --stage-initial-pipeline
 ```
 
-Revise el traslado temporal de la carpeta de definición del DataPipeline de
+Revise el traslado temporal de la carpeta de definición del Data Pipeline de
 `data/fabric` a `data/fabric-initialization`. Después, haga commit y push. Así se
 evita que la primera importación de toda la rama desde Fabric Git cree un
-DataPipeline cuyos IDs físicos del Semantic Model y de las conexiones todavía
+Data Pipeline cuyos IDs físicos del Semantic Model y de las conexiones todavía
 apunten al inquilino del repositorio de origen.
 
 ### Conectar y configurar Dev
@@ -474,7 +472,7 @@ python scripts\workspace_swap.py --check-ready
 ```
 
 El primer comando actualiza conjuntamente las referencias de ambos archivos
-de reglas de parámetros y el DataPipeline trasladado temporalmente. No llama
+de reglas de parámetros y el Data Pipeline trasladado temporalmente. No llama
 a Fabric. Revise los cambios exactos, limitados a GUID; no acepte reglas de
 parámetros mal formadas ni discrepancias entre ellas.
 
@@ -495,17 +493,17 @@ El control de Dev se completa cuando:
 Siga el [Proceso de desarrollo](fabric-development-process.md). El recorrido
 resumido es:
 
-1. Realice Branch Out desde Dev con todos los elementos.
+1. Haga Branch Out desde Dev con todos los elementos.
 2. Cree la Workspace Identity de feature y sus dos conexiones con
    autenticación Workspace Identity.
 3. Complete los valores de feature en `.env`.
 4. Ejecute `/swap-to-feature`, haga commit y push, y actualice el workspace de
    feature.
-5. Active el conjunto de valores de feature y ejecute el DataPipeline de
+5. Active el conjunto de valores de feature y ejecute el Data Pipeline de
    Fabric.
 6. Ejecute `/swap-to-dev`, revise la restauración y abra el PR a `dev`.
 7. Tras el merge, actualice Dev manualmente y vuelva a ejecutar su
-   DataPipeline.
+   Data Pipeline.
 
 No use fabric-cicd para publicar en un workspace de feature conectado a Git.
 
@@ -531,7 +529,7 @@ seleccionado de Test:
 3. verifica que Connections-Admins tenga el rol Owner;
 4. guarda las variables de ID que faltan, sin sustituir valores distintos;
 5. publica con fabric-cicd;
-6. inicia el DataPipeline de Fabric de la misma revisión y consulta su estado
+6. inicia el Data Pipeline de Fabric de la misma revisión y consulta su estado
    hasta que termina.
 
 Los flujos de trabajo de los otros métodos pueden aparecer con sus trabajos
@@ -542,7 +540,7 @@ En un destino limpio, configure la vinculación local del Graph Model de
 Ontology al Lakehouse si Fabric lo requiere. Después, verifique:
 
 - las tablas esperadas del Lakehouse y los resultados de validación;
-- las conexiones de destino del DataPipeline y su vinculación al Semantic
+- las conexiones de destino del Data Pipeline y su vinculación al Semantic
   Model;
 - la actualización del Semantic Model, su propiedad y el acceso al origen,
   los campos de fecha y los cálculos necesarios;
@@ -567,7 +565,7 @@ Antes de la promoción:
 
 Tras el merge y la aprobación, el trabajo seleccionado de Prod sigue la misma
 secuencia automática de creación o reutilización y verificación de conexiones,
-publicación y DataPipeline, con la configuración específica de Prod.
+publicación y Data Pipeline, con la configuración específica de Prod.
 
 Esta revisión del repositorio no se ha verificado mediante una ejecución real
 en Prod. La primera promoción debe tratarse como un lanzamiento controlado,
@@ -580,9 +578,9 @@ despliegue.
 |---|---|
 | Separación de actores | Usuarios, GitHub Actions, Service principal de despliegue, PAT, Workspace Identity y grupo de administradores de conexiones tienen responsabilidades distintas y documentadas |
 | Conexiones | Dos conexiones distintas por etapa con autenticación Workspace Identity; rol Owner verificado para el grupo previsto |
-| Dev | Conectado a Git, referencias locales canónicas, actualización y DataPipeline manuales |
+| Dev | Conectado a Git, referencias locales canónicas, actualización y Data Pipeline manuales |
 | Feature | Conexiones creadas por el administrador del workspace de feature o de conexiones, destinos físicos exclusivos de feature y conjunto de valores de feature activo |
-| Test/Prod | El lanzamiento seleccionado prepara y verifica las conexiones antes de publicar y usa la misma revisión para el DataPipeline |
+| Test/Prod | El lanzamiento seleccionado prepara y verifica las conexiones antes de publicar y usa la misma revisión para el Data Pipeline |
 | Persistencia | Se crean las variables de ID de conexión que faltan; los valores en conflicto provocan un fallo |
 | Ejecución | Carga -> validación -> actualización nativa, sin un segundo responsable de la actualización |
 | Protección | Comprobaciones obligatorias de PR y aprobación configurada en el entorno Prod |
@@ -601,7 +599,7 @@ despliegue.
 | Discrepancia en la configuración de referencia de Dev | Administrador del repositorio: comparar ambos archivos de parámetros, `.env` y los elementos canónicos de Dev; volver a ejecutar el comando explícito de configuración de referencia |
 | Fallo de publicación | Operador del lanzamiento: resultado por elemento del publicador seleccionado; el ETL no debería haberse iniciado |
 | GitHub agotó el tiempo de espera, pero Fabric sigue ejecutándose | Operador del lanzamiento: inspeccionar la ejecución exacta de Fabric antes de reintentar |
-| Fallo del DataPipeline | Responsable de la carga de trabajo: actividad fallida, conjunto de valores activo, vinculaciones, permisos del origen y del Semantic Model, Fabric Capacity e historial de actualización |
+| Fallo del Data Pipeline | Responsable de la carga de trabajo: actividad fallida, conjunto de valores activo, vinculaciones, permisos del origen y del Semantic Model, Fabric Capacity e historial de actualización |
 | El informe o los cálculos son incorrectos tras una ejecución correcta | Propietario del Semantic Model o responsable de pruebas de negocio: autorización sobre el origen, propiedad, DAX/cálculos y acceso de los consumidores |
 
 ## Forks existentes y conexiones heredadas
@@ -661,10 +659,19 @@ completa de un entorno.
 
 ---
 
-*Este documento es una traducción de [SETUP.md](../../SETUP.md). El original en
-inglés es la fuente autorizada. Los errores pueden comunicarse mediante una
-incidencia, indicando el idioma.*
+## Sobre esta traducción
 
-*Los enlaces a documentación externa apuntan al inglés para conservar la
-referencia y la terminología de la interfaz. Si se prefiere otro idioma, puede
-cambiarse desde el selector de idioma del sitio de destino.*
+Este documento es una traducción de [SETUP.md](../../SETUP.md). La versión en
+inglés es la fuente de referencia y puede estar más actualizada.
+
+Esta traducción, nueva en la actualización del 15-10-2026, se ha elaborado con
+asistencia de IA y no cuenta con validación de hablantes nativos. Se aplican las
+decisiones de [`GLOSARIO.md`](GLOSARIO.md) y
+[`GUIA-DE-ESTILO.md`](GUIA-DE-ESTILO.md).
+
+Los enlaces externos apuntan a la documentación en inglés para conservar la
+terminología de la interfaz; si se prefiere otro idioma, puede cambiarse desde
+el selector de idioma del sitio de destino. Los errores pueden comunicarse
+mediante una incidencia que indique el idioma. Si el error también existe en
+inglés, debe corregirse primero allí; véanse [`REVISION.md`](REVISION.md) y
+[`TRANSLATION.md`](../../TRANSLATION.md).

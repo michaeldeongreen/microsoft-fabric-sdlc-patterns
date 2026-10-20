@@ -38,8 +38,8 @@
   <line x1="830" y1="80" x2="855" y2="80" stroke="#4A90D9" stroke-width="2" marker-end="url(#arrow2)"/>
 
   <rect x="855" y="55" width="90" height="50" rx="6" fill="#5BA88B" stroke="#4a9a7a"/>
-  <text x="900" y="77" text-anchor="middle" fill="white" font-weight="bold">Merge del PR</text>
-  <text x="900" y="92" text-anchor="middle" fill="white">a dev</text>
+  <text x="900" y="77" text-anchor="middle" fill="white" font-weight="bold">Merge</text>
+  <text x="900" y="92" text-anchor="middle" fill="white">del PR a dev</text>
 
   <!-- What the swap-to-dev does -->
   <rect x="20" y="135" width="450" height="75" rx="6" fill="#f0f0f0" stroke="#ccc"/>
@@ -50,10 +50,10 @@
   <!-- What the action checks -->
   <rect x="490" y="135" width="450" height="75" rx="6" fill="#f0f0f0" stroke="#ccc"/>
   <text x="500" y="157" font-weight="bold" fill="#333">check-pr-ready.yml comprueba:</text>
-  <text x="500" y="177" fill="#555">• Campos físicos registrados coinciden con las referencias de Dev/origen</text>
-  <text x="500" y="197" fill="#555">• Sin archivos de conjuntos de valores de feature; solo Test/Prod</text>
+  <text x="500" y="177" fill="#555">• Los campos físicos registrados coinciden con la referencia de Dev/origen</text>
+  <text x="500" y="197" fill="#555">• No existen archivos de conjuntos de valores de feature; solo Test/Prod</text>
 
   <!-- Post merge -->
   <rect x="20" y="235" width="920" height="30" rx="6" fill="#e8f4fd" stroke="#b8daef"/>
-  <text x="480" y="255" text-anchor="middle" fill="#1a5276" font-weight="bold">Tras el Merge: actualizar Dev desde Git en Fabric, esperar y ejecutar su DataPipeline manualmente.</text>
+  <text x="480" y="255" text-anchor="middle" fill="#1a5276" font-weight="bold">Tras el Merge: actualizar Dev desde Git en Fabric, esperar y ejecutar su Data Pipeline manualmente.</text>
 </svg>

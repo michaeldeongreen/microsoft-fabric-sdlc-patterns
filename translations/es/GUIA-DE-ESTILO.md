@@ -188,6 +188,9 @@ Las [convenciones del 15-10-2026](GLOSARIO.md#convenciones-de-la-actualización-
 - **Plan interpretado por el adaptador** cuando la ordenación la calcula el código del repositorio, no Fabric. No se sustituye «cliente» en sus sentidos válidos de cliente REST, cliente OAuth o cliente empresarial.
 - **Vía de actualización de definiciones** para el mecanismo que modifica las definiciones de un workspace. No se confunde con un autor humano ni con un proceso de escritura de datos. La regla mantiene una única vía activa por workspace.
 - **Registro impersonal también en presentaciones y notas de ponente.** Un título como «Elegir el método» o una nota como «Mostrar la ejecución» evita el tuteo sin alargar la diapositiva.
+- **Infinitivo en los rótulos de acciones de los diagramas** («Ejecutar pruebas», «Ajustar la config.»): la forma «Ejecuta» puede leerse como imperativo de tuteo y el verificador no revisa el registro del texto de los SVG.
+- **Fechas en prosa en forma larga** («14 de octubre de 2026»). Las marcas de procedencia y los valores de configuración conservan el formato ISO.
+- **Español neutro en las variantes regionales:** «encabezado», «costo», «hacer clic en» o «seleccionar» y «vencimiento», en lugar de «cabecera», «coste», «pulsar» y «caducidad».
 
 Las marcas de fuente y las notas de revisión deben distinguir una actualización asistida por IA de las decisiones humanas anteriores. Nunca se inventa aprobación nativa.
 

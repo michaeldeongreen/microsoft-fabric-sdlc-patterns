@@ -2,9 +2,7 @@
 
 <!-- source: fabric-cicd-quality-gates-and-release-controls.md @ f7f949d | translated: 2026-10-15 -->
 
-> La versión en inglés es la fuente autorizada. Si existe alguna discrepancia,
-> [el original en inglés](../../fabric-cicd-quality-gates-and-release-controls.md)
-> tiene precedencia.
+> 📄 **La versión en inglés de este documento es la de referencia.** En caso de discrepancia, [el original en inglés](../../fabric-cicd-quality-gates-and-release-controls.md) tiene precedencia.
 
 # Controles de calidad y de lanzamiento de Fabric CI/CD
 
@@ -152,7 +150,7 @@ manuales o una excepción aprobada.
   físicas del Semantic Model y del workspace, el mínimo de tipo Integer
   positivo de la Variable Library activa y la etiqueta de ejecución
   independiente de tipo String. El Service principal de despliegue publica
-  e inicia el DataPipeline, pero no es la identidad de ejecución de las
+  e inicia el Data Pipeline, pero no es la identidad de ejecución de las
   actividades.
 
 ### Notebooks y entornos de Spark
@@ -312,7 +310,7 @@ básicas de funcionamiento verifican el resultado en producción.
 ### Ejecución y finalización
 
 - En el
-  [seguimiento compartido de Test/Prod](fabric-release-process.md#actualización-del-semantic-model-posterior-al-etl)
+  [proceso posterior compartido de Test/Prod](fabric-release-process.md#actualización-del-semantic-model-posterior-al-etl)
   de este repositorio, GitHub solo inicia y consulta el estado de
   `Patterns_Load_Validate_And_Refresh`. Fabric controla la carga -> validación
   de solo lectura -> actualización nativa; si falla la validación, se omite
@@ -367,7 +365,7 @@ pipeline escribe en las tablas del ejemplo.
 Esto demuestra la diferencia entre una política de entorno y una entrada por
 ejecución, no una certificación empresarial. El lanzamiento predeterminado
 de fabric-cicd en Test se ha verificado con una ejecución real que abarca la
-preparación de conexiones, la publicación y el DataPipeline de la misma
+preparación de conexiones, la publicación y el Data Pipeline de la misma
 revisión. Prod, los tres publicadores alternativos, Branch Out de la revisión
 actual, los resultados de negocio del Semantic Model y los informes, y el
 acceso de los consumidores siguen siendo controles independientes. Véase la
@@ -457,11 +455,20 @@ admita el despliegue de sus definiciones.
 
 ---
 
-*Este documento es una traducción de
-[fabric-cicd-quality-gates-and-release-controls.md](../../fabric-cicd-quality-gates-and-release-controls.md).
-El original en inglés es la fuente autorizada. Los errores pueden comunicarse
-mediante una incidencia, indicando el idioma.*
+## Sobre esta traducción
 
-*Los enlaces a documentación externa apuntan al inglés para conservar la
-referencia y la terminología de la interfaz. Si se prefiere otro idioma, puede
-cambiarse desde el selector de idioma del sitio de destino.*
+Este documento es una traducción de
+[fabric-cicd-quality-gates-and-release-controls.md](../../fabric-cicd-quality-gates-and-release-controls.md).
+La versión en inglés es la fuente de referencia y puede estar más actualizada.
+
+Esta traducción, nueva en la actualización del 15-10-2026, se ha elaborado con
+asistencia de IA y no cuenta con validación de hablantes nativos. Se aplican las
+decisiones de [`GLOSARIO.md`](GLOSARIO.md) y
+[`GUIA-DE-ESTILO.md`](GUIA-DE-ESTILO.md).
+
+Los enlaces externos apuntan a la documentación en inglés para conservar la
+terminología de la interfaz; si se prefiere otro idioma, puede cambiarse desde
+el selector de idioma del sitio de destino. Los errores pueden comunicarse
+mediante una incidencia que indique el idioma. Si el error también existe en
+inglés, debe corregirse primero allí; véanse [`REVISION.md`](REVISION.md) y
+[`TRANSLATION.md`](../../TRANSLATION.md).

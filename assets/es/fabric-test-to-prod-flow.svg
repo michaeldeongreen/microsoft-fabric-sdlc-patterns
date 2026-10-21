@@ -1,0 +1,232 @@
+<!-- source: assets/fabric-test-to-prod-flow.svg @ 137df6d | translated: 2026-10-20 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="820" viewBox="0 0 1600 820" role="img" aria-labelledby="title description">
+  <title id="title">Arquitectura del lanzamiento y flujo numerado: de test a main y a Prod</title>
+  <desc id="description">La ruta predeterminada seleccionada, fabric-cicd sin publicación masiva, no lee ningún archivo de ordenación plan.yml; el script define tres fases de publicación y la biblioteca fabric-cicd aplica las vinculaciones de destino de parameter.yml. Las comprobaciones paralelas 1 y 2 del PR condicionan el merge de test en main. El paso 3 inicia el trabajo de despliegue. El paso 4 prepara las conexiones de actividad: el PAT GH_ENV_VARIABLES_TOKEN valida los IDs guardados, el Service principal de despliegue crea o reutiliza las conexiones y concede o verifica el rol Owner del grupo en cada una, y el PAT guarda y verifica las variables de ID que falten. El ID de objeto del grupo de seguridad procede de la variable de repositorio FABRIC_CONNECTION_ADMINS_GROUP_ID, no de una búsqueda por nombre. Los IDs de conexión de la ejecución actual pasan de 4b al publicador del paso 5, que es independiente; 4c los guarda pero no genera salidas de ID. El paso 5 publica Lakehouse y Ontology, después los elementos dependientes y, por último, el Data Pipeline tras volver a leer el workspace; a continuación se hace la limpieza de huérfanos que corresponda. El paso 6 es un trabajo hospedado independiente, de la misma revisión, que solo se inicia cuando el despliegue termina con éxito. En 6a el Service principal inicia y supervisa un único Data Pipeline; la búsqueda por nombre que hace el código no es un paso independiente de la presentación. La flecha directa lleva al marco diferenciado de ejecución del Data Pipeline 6b, dentro del workspace de Prod y separado del marco de elementos publicados del paso 5. Las actividades de carga, validación y actualización nativa del modelo se autentican como Workspace Identity, no como el Service principal de despliegue. Las conexiones de Notebook y de actualización de Power BI son recursos de Fabric independientes, fuera del límite de elementos del workspace. Connections-Admins es expresamente un grupo de seguridad con el rol Owner en cada conexión, no la propiedad del workspace ni del Data Pipeline.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="12" markerHeight="12" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M1 1 L11 6 L1 11 Z" fill="#605e5c"/>
+    </marker>
+    <marker id="data-arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="12" markerHeight="12" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M1 1 L11 6 L1 11 Z" fill="#0078d4"/>
+    </marker>
+    <marker id="identity-arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="12" markerHeight="12" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M1 1 L11 6 L1 11 Z" fill="#8a6d1d"/>
+    </marker>
+    <marker id="owner-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M1 1 L8 4 L1 7 Z" fill="#8a6d1d"/>
+    </marker>
+    <symbol id="branch" viewBox="0 0 24 24">
+      <path d="M6 6v12M6 12h7a5 5 0 0 0 5-5V6" fill="none" stroke="currentColor" stroke-width="2"/>
+      <circle cx="6" cy="4" r="2" fill="none" stroke="currentColor" stroke-width="2"/>
+      <circle cx="6" cy="20" r="2" fill="none" stroke="currentColor" stroke-width="2"/>
+      <circle cx="18" cy="4" r="2" fill="none" stroke="currentColor" stroke-width="2"/>
+    </symbol>
+    <symbol id="runner" viewBox="0 0 24 24">
+      <rect x="2" y="3" width="20" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
+      <path d="M8 21h8M12 17v4M6 8l3 2-3 2M12 12h5" fill="none" stroke="currentColor" stroke-width="2"/>
+    </symbol>
+    <symbol id="key" viewBox="0 0 24 24">
+      <circle cx="7" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2"/>
+      <path d="M10 11l10 10M14 15l3-3M17 18l3-3" fill="none" stroke="currentColor" stroke-width="2"/>
+    </symbol>
+    <symbol id="identity" viewBox="0 0 24 24">
+      <rect x="2" y="3" width="20" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
+      <circle cx="8" cy="9" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/>
+      <path d="M4 17c0-5 8-5 8 0M14 8h5M14 12h5M14 16h5" fill="none" stroke="currentColor" stroke-width="2"/>
+    </symbol>
+    <symbol id="people" viewBox="0 0 24 24">
+      <circle cx="9" cy="7" r="3" fill="none" stroke="currentColor" stroke-width="2"/>
+      <circle cx="18" cy="8" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/>
+      <path d="M2 21v-3a7 7 0 0 1 14 0v3M16 13a6 6 0 0 1 7 6v2" fill="none" stroke="currentColor" stroke-width="2"/>
+    </symbol>
+    <symbol id="plug" viewBox="0 0 24 24">
+      <path d="M8 2v6M16 2v6M5 8h14v4a7 7 0 0 1-14 0zM12 19v4" fill="none" stroke="currentColor" stroke-width="2"/>
+    </symbol>
+    <symbol id="workspace" viewBox="0 0 24 24">
+      <path d="M2 5h8l2 3h10v13H2zM2 5V2h8l2 3h10v3" fill="none" stroke="currentColor" stroke-width="2"/>
+    </symbol>
+    <style>
+      text { font-family: "Segoe UI", Arial, sans-serif; font-size: 28px; fill: #201f1e; }
+      .heading { font-size: 30px; font-weight: 700; fill: #004578; }
+      .node-title { font-size: 28px; font-weight: 700; }
+      .small { font-size: 26px; }
+      .blue { fill: #004578; }
+      .gold { fill: #795b14; }
+      .teal { fill: #006b60; }
+      .muted { fill: #605e5c; }
+      .flow { fill: none; stroke: #605e5c; stroke-width: 3; marker-end: url(#arrow); }
+      .data { fill: none; stroke: #0078d4; stroke-width: 3; marker-end: url(#data-arrow); }
+      .config { fill: none; stroke: #0078d4; stroke-width: 2.5; stroke-dasharray: 8 6; marker-end: url(#data-arrow); }
+      .identity-link { fill: none; stroke: #8a6d1d; stroke-width: 2.5; stroke-dasharray: 8 6; marker-end: url(#identity-arrow); }
+      .ownership { fill: none; stroke: #8a6d1d; stroke-width: 2.5; stroke-dasharray: 8 6; marker-end: url(#owner-arrow); }
+    </style>
+  </defs>
+
+  <rect width="1600" height="820" fill="#ffffff"/>
+  <text x="20" y="34" class="heading">Ruta no masiva predeterminada (DEPLOY_METHOD=fabric-cicd): fases por script; sin leer plan.yml</text>
+
+  <g data-box="github">
+    <rect x="20" y="54" width="1560" height="420" rx="14" fill="#f6f9fc" stroke="#0078d4" stroke-width="2"/>
+    <use href="#branch" x="38" y="66" width="28" height="28" style="color:#004578"/>
+    <text x="80" y="91" class="heading">GitHub</text>
+    <text x="710" y="91" class="node-title blue">Flujo de trabajo de Prod / 2 trabajos / 2 ejecutores hospedados</text>
+
+    <g data-box="pull-request">
+      <rect x="38" y="114" width="260" height="80" rx="8" fill="#ffffff" stroke="#d2d0ce"/>
+      <text x="54" y="147">rama test</text>
+      <text x="54" y="183" class="small">PR a main</text>
+    </g>
+    <g data-box="source-check">
+      <rect x="328" y="106" width="350" height="44" rx="8" fill="#ffffff" stroke="#d2d0ce"/>
+      <circle cx="351" cy="128" r="15" fill="#004578"/>
+      <text x="351" y="137" text-anchor="middle" class="small" style="fill:#ffffff">1</text>
+      <text x="377" y="137" class="small">Enforce promotion path</text>
+    </g>
+    <g data-box="tests">
+      <rect x="328" y="158" width="350" height="44" rx="8" fill="#ffffff" stroke="#d2d0ce"/>
+      <circle cx="351" cy="180" r="15" fill="#004578"/>
+      <text x="351" y="189" text-anchor="middle" class="small" style="fill:#ffffff">2</text>
+      <text x="377" y="189" class="small">Run unit tests</text>
+    </g>
+    <path d="M298 154 H314 V128 H326 M314 154 V180 H326" class="flow"/>
+    <path d="M678 128 H694 V154 M678 180 H694 V154 H708" class="flow"/>
+    <g data-box="merge">
+      <rect x="710" y="132" width="150" height="44" rx="8" fill="#e5f1fb" stroke="#0078d4"/>
+      <text x="735" y="164" class="small blue">Merge</text>
+    </g>
+    <path d="M785 178 V192" class="flow"/>
+
+    <g data-box="prod-environment">
+      <rect x="38" y="212" width="532" height="162" rx="8" fill="#ffffff" stroke="#0078d4"/>
+      <use href="#key" x="54" y="223" width="26" height="26" style="color:#004578"/>
+      <text x="92" y="244" class="node-title blue">Entorno Prod</text>
+      <text x="54" y="282" class="small">GH_ENV_VARIABLES_TOKEN [PAT]</text>
+      <text x="54" y="318" class="small">AZURE_CLIENT_ID + inquilino + secreto</text>
+      <text x="54" y="354" class="small">Variables: IDs de Notebook/actualización</text>
+    </g>
+    <g data-box="repo-variable">
+      <rect x="38" y="386" width="532" height="76" rx="8" fill="#ffffff" stroke="#0078d4"/>
+      <text x="54" y="417" class="small blue">Variable de repositorio / ID de objeto</text>
+      <text x="54" y="453" class="small">FABRIC_CONNECTION_ADMINS_GROUP_ID</text>
+    </g>
+
+    <g data-box="deploy-job">
+      <rect x="710" y="194" width="530" height="268" rx="10" fill="#ffffff" stroke="#0078d4" stroke-width="2"/>
+      <use href="#runner" x="726" y="206" width="26" height="26" style="color:#004578"/>
+      <text x="764" y="228" class="node-title blue">3 Deploy via fabric-cicd (Prod)</text>
+      <g data-box="connection-preparation">
+        <rect x="726" y="242" width="498" height="156" rx="8" fill="#faf9f8" stroke="#d2d0ce"/>
+        <text x="742" y="274" class="node-title">4 Preparar conexiones de actividad</text>
+        <text x="742" y="312">4a Validar IDs guardados</text>
+        <text x="1072" y="312" class="small blue">[PAT]</text>
+        <text x="742" y="350">4b Crear/reutilizar</text>
+        <text x="1072" y="350" class="small gold">[SPN]</text>
+        <text x="742" y="388">4c Guardar + verificar IDs</text>
+        <text x="1072" y="388" class="small blue">[PAT]</text>
+      </g>
+      <g data-box="publisher">
+        <rect x="730" y="402" width="490" height="40" rx="6" fill="#e5f1fb" stroke="#0078d4"/>
+        <text x="744" y="432" class="small blue">5 Publicar: fabric-cicd + parameter.yml</text>
+      </g>
+      <path d="M1208 352 V400" class="data"/>
+      <text x="1160" y="378" class="small blue">IDs</text>
+    </g>
+    <path d="M570 244 H708" class="config"/>
+    <path d="M570 424 H650 V256 H724" class="config"/>
+    <path d="M724 388 H668 V354 H572" class="config"/>
+    <path d="M1120 192 V143 H1415 V192" class="flow"/>
+    <text x="960" y="130" class="small muted">needs: éxito / misma revisión</text>
+
+    <g data-box="pipeline-control-job">
+      <rect x="1270" y="194" width="290" height="268" rx="10" fill="#ffffff" stroke="#0078d4" stroke-width="2"/>
+      <text x="1286" y="228" class="node-title blue">6 Data Pipeline</text>
+      <g data-box="start-monitor-pipeline">
+        <rect x="1286" y="242" width="258" height="206" rx="8" fill="#faf9f8" stroke="#d2d0ce"/>
+        <text x="1302" y="278" class="node-title">6a Iniciar</text>
+        <text x="1302" y="318">+ supervisar</text>
+        <text x="1302" y="358" class="small gold">[SPN]</text>
+      </g>
+    </g>
+  </g>
+
+  <g data-box="entra">
+    <rect x="20" y="496" width="550" height="314" rx="14" fill="#fffbf0" stroke="#b38618" stroke-width="2"/>
+    <use href="#identity" x="38" y="508" width="28" height="28" style="color:#795b14"/>
+    <text x="80" y="534" class="heading gold">Microsoft Entra ID</text>
+    <g data-box="deployment-spn">
+      <rect x="38" y="550" width="514" height="124" rx="8" fill="#ffffff" stroke="#cfb978"/>
+      <text x="54" y="585" class="node-title gold">Service principal de despliegue (SPN)</text>
+      <text x="54" y="623" class="small">Gestionar conexiones + publicar</text>
+      <text x="54" y="659" class="small">Iniciar / supervisar el Data Pipeline</text>
+    </g>
+    <g data-box="admin-group">
+      <rect x="38" y="690" width="514" height="118" rx="8" fill="#ffffff" stroke="#cfb978"/>
+      <use href="#people" x="54" y="704" width="28" height="28" style="color:#795b14"/>
+      <text x="96" y="726" class="node-title gold">Connections-Admins</text>
+      <text x="54" y="762" class="small">Grupo de seguridad: rol Owner</text>
+      <text x="54" y="798" class="small">en cada conexión de actividad</text>
+    </g>
+  </g>
+  <path d="M38 318 H26 V612 H36" class="identity-link"/>
+
+  <g data-box="fabric">
+    <rect x="610" y="496" width="970" height="314" rx="14" fill="#f1faf8" stroke="#008272" stroke-width="2"/>
+    <use href="#workspace" x="628" y="508" width="28" height="28" style="color:#006b60"/>
+    <text x="670" y="534" class="heading teal">Microsoft Fabric</text>
+
+    <g data-box="activity-connections">
+      <rect x="630" y="550" width="360" height="258" rx="8" fill="#ffffff" stroke="#008272"/>
+      <use href="#plug" x="646" y="562" width="26" height="26" style="color:#006b60"/>
+      <text x="686" y="584" class="node-title teal">Data Pipeline</text>
+      <text x="646" y="622" class="node-title teal">2 conexiones de actividad</text>
+      <g data-box="notebook-connection">
+        <rect x="646" y="638" width="170" height="82" rx="6" fill="#e1f3ee" stroke="#8bbfb3"/>
+        <text x="660" y="672" class="small">Notebook</text>
+        <text x="660" y="708" class="small">cargar/valid.</text>
+      </g>
+      <g data-box="refresh-connection">
+        <rect x="830" y="638" width="144" height="82" rx="6" fill="#e1f3ee" stroke="#8bbfb3"/>
+        <text x="844" y="672" class="small">Power BI</text>
+        <text x="844" y="708" class="small">actualizar</text>
+      </g>
+      <text x="646" y="758" class="small teal">Autent.: Workspace Identity</text>
+      <text x="646" y="794" class="small muted">WI ya existe; /connections</text>
+    </g>
+
+    <g data-box="prod-workspace">
+      <rect x="1010" y="550" width="550" height="258" rx="8" fill="#ffffff" stroke="#008272"/>
+      <text x="1026" y="584" class="node-title teal">Workspace Prod</text>
+      <g data-box="published-items">
+        <rect x="1026" y="598" width="234" height="202" rx="6" fill="#faf9f8" stroke="#d2d0ce"/>
+        <text x="1042" y="632" class="small">5a Lakehouse</text>
+        <text x="1042" y="668" class="small">+ Ontology</text>
+        <text x="1042" y="704" class="small">5b Notebooks</text>
+        <text x="1042" y="740" class="small">+ modelo / otros</text>
+        <text x="1042" y="776" class="small">5c Data Pipeline</text>
+      </g>
+      <g data-box="pipeline-runtime">
+        <rect x="1274" y="598" width="270" height="202" rx="6" fill="#e1f3ee" stroke="#8bbfb3"/>
+        <text x="1290" y="632" class="node-title teal">6b Data Pipeline</text>
+        <text x="1290" y="668" class="small teal">Workspace Identity</text>
+        <text x="1409" y="706" text-anchor="middle">Cargar</text>
+        <text x="1409" y="744" text-anchor="middle">Validar</text>
+        <text x="1409" y="782" text-anchor="middle">Actualizar</text>
+      </g>
+    </g>
+  </g>
+
+  <path d="M726 350 H684 V488 H930 V548" class="flow"/>
+  <path d="M1110 444 V482 H1000 V650 H1024" class="flow"/>
+  <path d="M1415 464 V596" class="flow"/>
+  <path d="M554 742 H600 V633 H731 V636" class="ownership"/>
+  <path d="M600 633 H902 V636" class="ownership"/>
+  <circle cx="600" cy="633" r="3" fill="#8a6d1d"/>
+  <g data-box="connection-api-identity">
+    <rect x="620" y="422" width="90" height="40" rx="6" fill="#fff4cf" stroke="#cfb978"/>
+    <text x="665" y="452" text-anchor="middle" class="small gold">[SPN]</text>
+  </g>
+  <g data-box="publish-api-identity">
+    <rect x="944" y="498" width="112" height="40" rx="6" fill="#fff4cf" stroke="#cfb978"/>
+    <text x="1000" y="528" text-anchor="middle" class="small gold">5 [SPN]</text>
+  </g>
+</svg>

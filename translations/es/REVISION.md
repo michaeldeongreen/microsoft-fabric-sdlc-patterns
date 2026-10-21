@@ -50,6 +50,14 @@ aviso de procedencia asistida por IA y corrigió calcos y matices de fuerza
 («debería» frente a «debe»). Las decisiones quedan en el
 [glosario](GLOSARIO.md#convenciones-de-la-actualización-del-15-10-2026).
 
+Una actualización posterior, también asistida por IA —un especialista en
+traducción técnica y el agente coordinador— y sin validación de hablantes
+nativos, sincroniza únicamente la
+[presentación vigente](presentations/fabric-sdlc-cd.md) con el original en
+inglés `137df6d` y añade el octavo diagrama, `fabric-test-to-prod-flow.svg`. No
+se volvieron a revisar los demás documentos; la revisión humana sigue
+pendiente.
+
 Para la revisión humana se proponen **comprobaciones puntuales**:
 
 1. **Abrir dos o tres documentos al azar** y leer unos párrafos de cada uno. Lo que se busca es si *suena* a español escrito por una persona.

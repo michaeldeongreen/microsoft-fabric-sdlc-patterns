@@ -1,6 +1,8 @@
 ---
-# Preview locally from the repository root:
-# npx --yes @marp-team/marp-cli@4.5.1 presentations/fabric-sdlc-cd.md --preview --allow-local-files
+# Vista previa en VS Code: Tasks: Run Task → Marp: Preview Fabric SDLC CD (Español).
+# Ctrl+Shift+B abre la versión en inglés.
+# Vista previa local desde la raíz del repositorio:
+# npx --yes @marp-team/marp-cli@4.5.1 translations/es/presentations/fabric-sdlc-cd.md --preview --allow-local-files
 marp: true
 theme: default
 paginate: true
@@ -107,6 +109,21 @@ style: |
     margin-top: 0.35em;
     margin-bottom: 0.35em;
   }
+  section.architecture {
+    padding: 40px 48px;
+  }
+  section.architecture h1 {
+    font-size: 32px;
+    line-height: 1.2;
+    padding: 0;
+    margin: 0 0 8px;
+  }
+  section.architecture p {
+    margin: 0;
+  }
+  section.architecture img {
+    display: block;
+  }
   section.customer-challenges {
     background: #faf9f8;
   }
@@ -158,7 +175,7 @@ style: |
   }
 ---
 
-<!-- source: presentations/fabric-sdlc-cd.md @ f7f949d | translated: 2026-10-15 -->
+<!-- source: presentations/fabric-sdlc-cd.md @ 137df6d | translated: 2026-10-20 -->
 
 <!-- _class: title -->
 <!-- _paginate: false -->
@@ -172,16 +189,13 @@ style: |
 **Michael Green**<br/>
 *[CSA / DevSquad / MCSA]*
 
-Octubre de 2026
-
 [Implementación de referencia](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns)
-
-Estado operativo: Dev `a417191`; lanzamiento de Test verificado en `e87f435`
-el 14 de octubre de 2026.
 
 <!--
 Presentar la sesión como la continuación sobre CD de la presentación anterior sobre CI e introducir a quien expone.
 La documentación oficial de Microsoft es la canónica; este repositorio presenta una implementación en GitHub con decisiones de diseño propias.
+Novedades que mencionar brevemente, sin citar una revisión anterior: despliegue del Data Pipeline, conexiones de actividad del Data Pipeline con Connections-Admins como Owner, ETL de la misma revisión y recursos en español con asistencia de IA.
+Cronograma de 50 minutos: 0:00 diap. 1–5 · 0:05 diap. 6–11 · 0:10 diap. 12–15 · 0:17 diap. 16–17 · 0:20 EN VIVO (15) · 0:35 diap. 18–20 · 0:40 diap. 21–23 · 0:43 preguntas y respuestas, que absorben cualquier exceso de tiempo. Si hay retraso a las 0:20, omitir las diap. 4, 7–8, 15 y 22.
 -->
 
 ---
@@ -276,7 +290,7 @@ Fase 3:   Consultar de nuevo los IDs de Notebook/SemanticModel → publicar Data
 <!--
 Abrir los archivos enlazados si resulta útil. El Data Agent referencia directamente la Ontology, no el Lakehouse.
 El Lakehouse y la Ontology son elementos base de la fase 1 para cadenas de dependencia distintas.
-El SDK conserva el estado en caché durante una llamada; la fase 3 vuelve a consultar los IDs de las dependencias del Data Pipeline creadas en la fase 2.
+El estado del workspace de fabric-cicd se conserva en caché durante una llamada; la fase 3 vuelve a consultar los IDs de las dependencias del Data Pipeline creadas en la fase 2.
 Este es un ejemplo concreto de los retos generales de la diapositiva anterior, no un tema nuevo.
 -->
 
@@ -418,28 +432,29 @@ El historial de Git sirve para cualquier opción respaldada por Git; la fila de 
 
 <!-- _class: dense -->
 
-# Dentro de la opción 3: `fabric-cicd` frente a las API masivas
+# Dentro de la opción 3: orden y vinculaciones de destino
 
-| Aspecto | `fabric-cicd` no masivo | `fabric-cicd` masivo | API masivas directas |
+**Dos rutas no masivas:** `fabric-cicd` (predeterminada) usa **fases en el script, sin plan**.
+Con `fabric-cicd-plan` (experimental), **el script lee `plan.yml`** para ordenar la publicación elemento a elemento.
+
+| | `fabric-cicd` (predeterminada)<br>Biblioteca de Python, llamadas por elemento | `fabric-cicd-bulk` (experimental)<br>Publicación masiva; el script lee el plan | `bulk`<br>Ejemplo directo de la API Bulk |
 |---|---|---|---|
-| Transporte | API por elemento, en orden | **Masivo estricto; sustituciones dinámicas filtradas (1.4.x)** | Una o varias llamadas Bulk Import gestionadas por el cliente |
-| Vinculación y parámetros | Todas las funciones de `parameter.yml` | fabric-cicd: sustituciones de `parameter.yml` y activación del conjunto de valores | Sin configuración incorporada; el cliente reescribe y configura tras importar |
-| Dependencias | Orden de la biblioteca + fases del cliente | Dependencias de fabric-cicd + grupos del plan en adaptador independiente | Grafo lógico admitido; cliente: IDs físicos y orden explícito |
-| Limpieza de huérfanos | `unpublish_all_orphan_items()` | Limpieza aparte; Bulk Import solo publica | Llamadas Delete Item aparte |
-| Este repositorio | Tres llamadas con Data Pipeline; estado actualizado | Grupos del plan; un fallo detiene las llamadas posteriores | Tres lotes: base → dependientes → Data Pipeline |
+| ¿Lee `plan.yml`? | No | Sí: **el script** interpreta el YAML | No: la API admite planes; este script no adjunta ninguno |
+| Orden entre llamadas | **El script**: 3 llamadas por fases; elementos base → dependientes → Data Pipeline tras volver a leer el workspace | **El script**: lotes ordenados por dependencias a partir de `plan.yml` | **El script**: 3 lotes manuales; captura los IDs físicos del destino |
+| Orden dentro de una llamada | **fabric-cicd** ordena los elementos | **fabric-cicd** calcula las etapas de `$items` y agrupa los elementos relacionados; **el servicio de Fabric** resuelve las referencias por ID lógico | **El servicio de Fabric** resuelve las dependencias admitidas por ID lógico |
+| Vinculación + conjunto de valores de la Library | **fabric-cicd** aplica `parameter.yml` antes de subir y selecciona el conjunto de valores del entorno de destino | **fabric-cicd** aplica el mismo `parameter.yml` y selecciona el conjunto de valores; las reglas literales funcionan y las dinámicas necesitan filtros | **El script** sustituye los IDs con `bulk-parameter.yml`; un PATCH activa el conjunto de valores tras importar |
+| Limpieza | **fabric-cicd** elimina los huérfanos que corresponda tras publicar | Igual, tras todos los lotes | No implementada en este ejemplo |
 
-**Predeterminado y recomendado:** `fabric-cicd` no masivo.
-
-Planes experimentales. Bulk Import v1 no documenta `?beta=true`; el cliente
-REST aún lo usa y no está verificado con una ejecución real.
-
-**Vincular ≠ eliminar:** corregir referencias no borra elementos ausentes del origen.
+**Plan = orden de publicación; parámetros = IDs de destino. El script debe cubrir todas las dependencias.**
 
 <!--
-El repositorio limita fabric-cicd a >=1.4.0,<1.5.0. La vuelta a la publicación estándar por variables dinámicas anterior a 1.4 es histórica; la mera presencia de un archivo de parámetros no provoca esa vuelta en 1.4.0.
-Las pruebas sin conexión con fabric-cicd real y HTTP simulado comprueban las sustituciones, los resultados masivos y la ausencia de POST de definiciones estándar. No demuestran el funcionamiento real de las rutas masivas o con plan.
-La ordenación masiva es un adaptador independiente del repositorio, no un plan nativo adjunto. Library, Import, Validation y Model son requisitos previos explícitos del Data Pipeline. La muestra actual de 11 elementos tiene lotes declarados de [1,5,2] elementos y otros 3 restantes: cuatro selecciones y cuatro POST masivos de importación de definiciones esperados en el contrato sin conexión, no cuatro solicitudes HTTP totales ni una verificación real. Debe previsualizarse tras cambiar el plan o el inventario. Las vinculaciones byPath del Report aún necesitan validación real.
-El script REST directo obtiene primero los IDs de Lakehouse/Ontology, después el ID del modelo y, por último, publica el Data Pipeline. Estos tres lotes gestionan las referencias físicas; las dependencias por ID lógico admitidas son otra capacidad del servicio.
+fabric-cicd es una biblioteca de despliegue en Python. Usar tres nombres de actor de forma coherente: el script del repositorio, la biblioteca fabric-cicd y el servicio de Fabric. La ruta no masiva predeterminada sigue siendo el punto de partida recomendado.
+El repositorio limita fabric-cicd a >=1.4.0,<1.5.0. La vuelta a la publicación estándar por variables dinámicas anterior a 1.4 es histórica; la mera presencia de un archivo de parámetros no provoca esa vuelta en 1.4.0. La versión 1.4.0 instalada tiene el indicador enable_bulk_publish y ningún indicador nativo de Deployment Plan.
+El plan redactado es un archivo YAML en data/fabric/DeploymentPlan.DeploymentPlan/plan.yml, localizado mediante la variable DEPLOYMENT_PLAN_PATH. La ruta predeterminada nunca lo lee. fabric-cicd-plan lo lee para llamadas secuenciales sin publicación masiva; fabric-cicd-bulk lo interpreta con PyYAML para agrupar en lotes los grupos listos. Ambos son adaptadores del repositorio que solo ordenan, no Fabric ejecutando un plan desplegado. La API Bulk Import puede admitir la asociación de un plan nativo; este script directo envía definitionParts con allowPairingByName=false, no adjunta ninguno y deja fuera de la subida los elementos de control DeploymentPlan.
+La ordenación tiene tres capas. El script se encarga del orden entre llamadas y de que las dependencias estén completas. Dentro de una llamada, la biblioteca fabric-cicd ordena los elementos, y solo su ruta masiva calcula las etapas dinámicas de $items y mantiene juntos los elementos relacionados. El servicio de Fabric resuelve las referencias por ID lógico admitidas dentro de una solicitud masiva. fabric-cicd-plan también hace la limpieza de huérfanos que corresponda después de sus grupos ordenados y de los elementos restantes.
+Las vistas previas sin conexión (dry-run) de ambos adaptadores pasaron con el plan real. La ruta masiva genera los lotes listos [1,5,2] más 3 elementos no listados: cuatro selecciones y cuatro POST masivos de importación de definiciones esperados en el contrato sin conexión, no cuatro solicitudes HTTP en total. El plan no masivo genera 8 grupos ordenados más esos mismos 3. Se superaron sin conexión 323 pruebas específicas de los scripts, del plan y de las vinculaciones. El HTTP simulado y las vistas previas locales no son una verificación en un entorno real de las rutas masiva o con plan.
+El script directo captura primero los IDs de Lakehouse y Ontology, después el ID del modelo y, por último, publica el Data Pipeline; las dependencias por ID lógico admitidas son otra capacidad del servicio. Library, Import, Validation y Model son requisitos previos explícitos del Data Pipeline. Debe previsualizarse tras cambiar el plan o el inventario. Las vinculaciones byPath del Report aún necesitan validación real.
+Vincular no es eliminar: la vinculación corrige las referencias de destino; la limpieza de huérfanos elimina los elementos ausentes del origen. La documentación actual de Bulk Import muestra v1 sin ?beta=true; el script directo del repositorio, que usa la consulta antigua, sigue sin verificar.
 -->
 
 ---
@@ -472,7 +487,7 @@ Una única vía activa de actualización de definiciones por workspace
 - Dev lo gestiona Fabric Git.
 - Las definiciones de Test y Prod se gestionan por API.
 - Los trabajos seleccionados de Test/Prod crean o reutilizan las conexiones
-  de Workspace Identity antes de publicar.
+  de actividad del Data Pipeline antes de publicar.
 - GitHub inicia un único Data Pipeline de Fabric: carga → validación →
   actualización nativa.
 
@@ -496,13 +511,13 @@ Publicación 3: Data Pipeline (nueva consulta de IDs de Notebook/SemanticModel)
 Después: un Data Pipeline — carga → validación → actualización nativa
 ```
 
-También queda codificado: el ámbito de elementos, la creación o reutilización
-de conexiones de Workspace Identity, la verificación de Owner, la persistencia
-de IDs solo si faltan, la búsqueda del Data Pipeline por nombre, las dependencias
-de éxito y el comportamiento ante fallos. Un DeploymentPlan ordena la
-publicación, no las actividades de la carga de trabajo ni la configuración de conexiones.
+También se codifican: ámbito de elementos; creación o reutilización de conexiones de actividad; asignación y comprobación del rol Owner; persistencia de IDs solo si faltan; búsqueda del Data Pipeline por nombre; dependencias de éxito y gestión de fallos. La ruta predeterminada no lee DeploymentPlan; los adaptadores experimentales lo usan solo para ordenar la publicación.
 
 > El *pipeline* deja de depender del conocimiento no documentado del equipo cuando ese conocimiento queda explícito y verificable en el repositorio.
+
+<!--
+Las dos conexiones de actividad del Data Pipeline son conexiones de Fabric que se pueden compartir; se gestionan en /connections, en el plano de control de Fabric, fuera de los elementos del workspace de Prod. La conexión de Notebook se usa en las actividades de carga y validación, y la conexión de Power BI datasets, en la actualización nativa del Semantic Model; ambas usan credenciales de Workspace Identity. No son conexiones de Git ni la vinculación del origen de datos del propio Semantic Model. La Workspace Identity existente y el acceso de la carga de trabajo son requisitos previos, y el lanzamiento no concede roles de workspace. Los IDs de conexión de la ejecución actual llegan a parameter.yml como valores $ENV mediante salidas de pasos dentro del trabajo de despliegue, y las variables guardadas del entorno de GitHub se reutilizan en ejecuciones posteriores.
+-->
 
 ---
 
@@ -527,9 +542,7 @@ verificada de elementos/identidades y coordinación compartida del lanzamiento.
 
 ### Por qué REST directo exige más código
 
-El cliente empaqueta definiciones, sustituye IDs, sondea importaciones, activa
-conjuntos de valores y comprueba resultados por elemento. No implementa todo
-`parameter.yml` ni elimina huérfanos.
+El script empaqueta las definiciones, sustituye IDs con su propio `bulk-parameter.yml` antes de importar, sondea las importaciones, activa el conjunto de valores con un PATCH y comprueba los resultados por elemento. No lee `parameter.yml` ni elimina huérfanos.
 
 ---
 
@@ -540,40 +553,35 @@ conjuntos de valores y comprueba resultados por elemento. No implementa todo
 
 # Recorrido en vivo
 
-## Seguir un lanzamiento desde `main` hasta Prod
+## Seguir un lanzamiento: `test` → `main` → Prod
 
 <!--
 Pasar de la presentación a GitHub después de la siguiente diapositiva de flujo.
+Volver a comprobar antes, porque la configuración puede cambiar: DEPLOY_METHOD es fabric-cicd, el ruleset de main exige ambas comprobaciones, la ejecución de Test para este contenido está en verde y el PR no incluye cambios en data/fabric (editar el comentario del flujo de trabajo basta para cumplir la coincidencia de rutas de Prod).
+Última comprobación: 20 de octubre de 2026. El entorno Prod no tiene control de aprobación y hay 0 aprobaciones obligatorias, de modo que el merge inicia la ejecución de inmediato.
+Decir en voz alta que el cambio que activa el despliegue es solo un comentario del flujo de trabajo y que, aun así, se ejecutan el redespliegue completo, la limpieza de huérfanos y el ETL.
+En Fabric, limitarse a la supervisión de solo lectura: sin ediciones, cambios de vinculación, un segundo Data Pipeline ni valores de secretos.
 -->
 
 ---
 
-<!-- _class: dense -->
+<!-- _class: architecture -->
 
 # Del *pull request* a un workspace utilizable
 
-**fabric-cicd no masivo**, predeterminado; otros métodos, otros flujos.
+![w:1150 Arquitectura del lanzamiento de test a main y a Prod, con ejecución independiente del Data Pipeline](../../../assets/es/fabric-test-to-prod-flow.svg)
 
-```text
-PR test → main: controles de rama + pruebas unitarias; merge/push
-DEPLOY_METHOD elige publicador; entorno Prod: identidad/workspace
-PAT: comprobar acceso e IDs de conexiones guardados
-SP: crear/reutilizar el par WI; verificar Owner del grupo
-PAT: crear variables ausentes → IDs actuales al publicador
-Plantilla: revisión + autenticación → script + parameter.yml → API
-3 llamadas de publicación → limpieza de huérfanos
-Éxito → ETL inicia/sondea Data Pipeline; controles de lanzamiento aparte
-```
-
-### Archivos que seguir
-
-1. [`enforce-promotion-path.yml`](../../../.github/workflows/enforce-promotion-path.yml): permite únicamente `test → main`.
-2. [`run-tests.yml`](../../../.github/workflows/run-tests.yml): dependencias y pytest en cada PR.
-3. [`deploy-prod.yml`](../../../.github/workflows/deploy-prod.yml): ruta estándar seleccionada, destino Prod.
-4. [`reusable-deploy-fabric-cicd.yml`](../../../.github/workflows/reusable-deploy-fabric-cicd.yml): comprobaciones, conexiones, IDs y publicación.
-5. [`deploy_fabric_cicd_non_bulk.py`](../../../scripts/deploy_fabric_cicd_non_bulk.py): fases y limpieza de huérfanos.
-   - [`parameter.yml`](../../../data/fabric/parameter.yml): sustituye IDs de workspace/elementos antes de publicar.
-6. [`reusable-fabric-etl.yml`](../../../.github/workflows/reusable-fabric-etl.yml): `run-etl` dependiente; inicia el Data Pipeline solo tras publicar con éxito.
+<!--
+Pasar a GitHub aquí; t0 es el clic en el merge. Mostrar las dos comprobaciones obligatorias en paralelo (Enforce promotion path, Run unit tests), hacer el merge y seguir después los trabajos «Deploy via fabric-cicd (Prod)» (unos 2,5 min registrados) y «Run ETL (Prod)» (unos 3 min) con los números del diagrama.
+Si a t0+9 la ejecución sigue sin terminar, pasar a la diap. 18 y volver en la 19. Si está en rojo o sigue en curso a t0+12, decirlo primero y abrir después la ejecución registrada de Prod, indicando que es registrada. Sin un segundo Data Pipeline ni ediciones en Fabric.
+Esta es la ruta predeterminada de fabric-cicd sin publicación masiva: el script establece tres fases de publicación y no lee plan.yml, aunque la variable DEPLOYMENT_PLAN_PATH esté configurada. La ruta experimental independiente fabric-cicd-plan sí lee ese archivo; no añadir una entrada de plan a este diagrama ni cambiar la selección del despliegue para que coincida con ella.
+Los trabajos de despliegue a Prod y de control del Data Pipeline se ejecutan en ejecutores hospedados distintos. El segundo depende del primero mediante needs: solo se inicia si el primero termina con éxito y usa la misma revisión. Los scripts se ejecutan en GitHub; el Service principal de despliegue autentica ante Fabric la gestión de conexiones, la publicación y las llamadas de inicio y de estado del Data Pipeline. La Workspace Identity autentica las actividades dentro de Fabric. El PAT y las salidas de los pasos permanecen en el trabajo de despliegue; el trabajo de control del Data Pipeline localiza el Data Pipeline por nombre y no usa PAT. Esa búsqueda es un detalle de implementación, no una acción independiente de cara a la audiencia.
+El paso 4 empieza en «Preparar conexiones de actividad» y contiene solo 4a–c. El paso 5 es una acción de publicación independiente. Los IDs de conexión de la ejecución actual pasan de 4b a 5 mediante steps.connections.outputs; 4c los guarda para lanzamientos posteriores y su éxito condiciona la publicación, pero no genera salidas de ID.
+Las tres llamadas del paso 5 publican Lakehouse y Ontology; después Variable Library, Notebooks, Semantic Model, Report y Data Agent; y por último el Data Pipeline, tras volver a leer el workspace. La limpieza de huérfanos que corresponda va después de toda la publicación y debe terminar con éxito antes del paso 6; ese detalle queda en las notas para no saturar el marco de ejecución.
+El paso 6 ejecuta el Data Pipeline: 6a inicia y supervisa un único Data Pipeline; 6b es la carga, la validación de solo lectura y la actualización nativa del Semantic Model de esa ejecución, no un segundo inicio. El marco 6b está separado de los elementos publicados, pero permanece dentro del workspace de Prod, justo debajo del trabajo del paso 6. El trabajo real de GitHub sigue llamándose «Run ETL (Prod)» y su paso «Run Fabric item job»; esos nombres de registro van en las notas, no en los rótulos del diagrama.
+Indicaciones por paso: 1 enforce-promotion-path y 2 run-tests se ejecutan en paralelo; 3 deploy-prod selecciona el flujo de trabajo de Prod; 4a «Validate saved connection IDs and GitHub access», 4b «Ensure WI connections and verify admin-group Owner» y 4c «Save and verify connection IDs for future releases» están en reusable-deploy-fabric-cicd; 5 «Deploy with fabric-cicd» es el script de despliegue con parameter.yml, tres llamadas y después la limpieza que corresponda; 6 reusable-fabric-etl, «Run Fabric item job», inicia y supervisa el Data Pipeline.
+Archivos: [1 Comprobación del origen](../../../.github/workflows/enforce-promotion-path.yml) · [2 Pruebas](../../../.github/workflows/run-tests.yml) · [3 Flujo de Prod](../../../.github/workflows/deploy-prod.yml) · [4 Conexiones de actividad](../../../.github/workflows/reusable-deploy-fabric-cicd.yml) · [5 Publicador](../../../scripts/deploy_fabric_cicd_non_bulk.py) + [reglas](../../../data/fabric/parameter.yml) · [6 ETL](../../../.github/workflows/reusable-fabric-etl.yml).
+-->
 
 ---
 
@@ -583,27 +591,29 @@ Plantilla: revisión + autenticación → script + parameter.yml → API
 
 | Paso | Control |
 |---|---|
-| Promover a `main` | Reglas de rama, comprobaciones de estado y origen permitido |
-| Seleccionar el despliegue | Variable de repositorio `DEPLOY_METHOD` |
-| Entrar en Prod | Secretos del entorno de GitHub y revisores opcionales |
-| Gestionar las conexiones de Fabric | Service principal de despliegue de ámbito de entorno |
-| Guardar los IDs de conexión | PAT de GitHub de ámbito de entorno |
+| Promover a `main` | El *ruleset* exige PR, **Enforce promotion path** y **Run unit tests** |
+| Seleccionar y entrar en Prod | `DEPLOY_METHOD`; secretos del entorno; el flujo de trabajo restringe Prod a `main` |
+| Conexiones y publicación | Service principal de despliegue (SPN); Contributor en el destino |
+| Acceso a las conexiones de actividad | Grupo de seguridad Connections-Admins (Owner) |
+| Guardar los IDs de conexión | El PAT de GitHub solo lee o crea dos variables de ID; `GITHUB_TOKEN` es de solo lectura |
 | Ejecutar las actividades | Workspace Identity de Prod |
-| Ejecutar el flujo | `GITHUB_TOKEN` de solo lectura, acciones fijadas |
 | Demostrar el resultado | SHA de *commit*, registros, resultado del ETL y auditoría de Fabric |
 
-### Postura en producción
+### Recomendado para producción
 
-- Una identidad de despliegue por entorno siempre que sea viable
-- Rol Contributor únicamente en el workspace de destino
-- Restringir los despliegues a Prod a la rama `main`
-- Añadir revisores de Prod donde se requiera aprobación previa al despliegue
+- Revisores del entorno + política de ramas de despliegue
+- Una identidad de despliegue distinta por entorno
 - Evaluar OIDC de GitHub en lugar de un secreto de cliente almacenado
 
 <!--
 Antes de mostrar Settings en una sesión en vivo, volver a comprobar las reglas
 de rama, la protección de los entornos y DEPLOY_METHOD. No presentar como actual
 una configuración de una demostración anterior.
+Según la última comprobación, del 20 de octubre de 2026, el entorno Prod no tiene revisores ni política de ramas de despliegue, de modo que la rama main solo está restringida en el flujo de trabajo, y el ruleset «Protect main» exige un PR y ambas comprobaciones con 0 aprobaciones. Los revisores y la política de ramas de la diapositiva son recomendaciones, no controles configurados.
+El PAT solo se usa para leer o crear las dos variables de ID del entorno; no se han verificado los ámbitos de su token ni si es un PAT independiente, así que no afirmar ninguna de las dos cosas. Tampoco se han verificado los IDs de cliente por etapa.
+Connections-Admins son administradores humanos de confianza con acceso Owner a cada una de las dos conexiones de actividad: Notebook para carga y validación, y Power BI datasets para la actualización nativa del modelo. No equivale al rol Admin del workspace, ni a la propiedad del Data Pipeline, ni a una propiedad exclusiva, ni a una identidad de ejecución. La Workspace Identity, el acceso de la carga de trabajo, el rol Contributor del SPN y la autorización del inquilino para usar las API se configuran de antemano.
+Orígenes de configuración, solo nombres y nunca valores: la variable de repositorio FABRIC_CONNECTION_ADMINS_GROUP_ID (Settings → Secrets and variables → Actions → Variables; hoy no hay una sustitución a nivel del entorno Prod, aunque tendría prioridad) llega al flujo de trabajo como vars y después al entorno del proceso del script, donde se valida el GUID y se concede al grupo el rol Owner, o se actualiza a Owner, en cada conexión; el resultado se comprueba con una lectura posterior de las asignaciones mediante la API; no hay búsqueda por nombre de grupo ni con Graph. DEPLOY_METHOD también es una variable de repositorio.
+El entorno Prod contiene las credenciales del SPN (AZURE_TENANT_ID, AZURE_CLIENT_ID y AZURE_CLIENT_SECRET; el ID de cliente por sí solo no autentica), el secreto del PAT GH_ENV_VARIABLES_TOKEN y las variables guardadas NOTEBOOK_CONNECTION_ID y SEMANTIC_MODEL_REFRESH_CONNECTION_ID. El trabajo de ETL no usa PAT, y el SPN también inicia y sondea el Data Pipeline.
 -->
 
 ---
@@ -617,8 +627,6 @@ El trabajo dependiente `run-etl` del flujo de despliegue inicia y sondea
 la misma revisión del flujo de trabajo.
 
 - Fabric se encarga de **carga → validación de solo lectura → actualización nativa**. No hay una segunda actualización.
-- `minimum_patient_count` de la Library: política Integer positiva, valor de referencia `5`.
-- `run_label` del Data Pipeline: entrada String independiente, `manual` de forma predeterminada, sustituible desde CI.
 
 ```text
 Publicar definiciones + vinculaciones de destino
@@ -626,10 +634,7 @@ Publicar definiciones + vinculaciones de destino
   → comprobaciones aparte de fechas del modelo, DAX y consumidores
 ```
 
-> Verificado el 14 de octubre de 2026: conexiones de Test del método predeterminado,
-> publicación y Data Pipeline de la misma revisión. Prod, los publicadores
-> alternativos y el ciclo Branch Out completo de la revisión actual aún
-> necesitan verificación real.
+> **Ejecuciones registradas:** la ruta predeterminada `fabric-cicd` completó con éxito, en Test y Prod, la preparación de conexiones, la publicación en tres fases y la ejecución del Data Pipeline de la misma revisión. Las comprobaciones de quienes consumen los datos son independientes.
 
 <!--
 El acceso al origen del propietario del modelo y las comprobaciones de fechas/DAX
@@ -639,6 +644,12 @@ Los flujos ETL independientes siguen siendo herramientas manuales de recuperaci�
 los nombres actualizados de los flujos de despliegue evitan que los flujos
 antiguos que recibían esos eventos inicien trabajos duplicados del Data Pipeline
 durante la transición.
+Parámetros: minimum_patient_count de la Library es una política Integer positiva con valor de referencia 5; run_label del Data Pipeline es una entrada String independiente, con manual como valor predeterminado y sustitución desde CI.
+Las ejecuciones registradas son un registro histórico: no son la ejecución de hoy ni certifican todos los estados o publicadores.
+Test, configuración inicial: https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns/actions/runs/38581072000 en e87f435.
+Test, reutilización del par guardado: https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns/actions/runs/38614382201 en cdfc4e8.
+Prod: https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns/actions/runs/38616456778 en d0987a9, el 14 de octubre de 2026; despliegue de unos 2 min 38 s y ETL de unos 3 min 11 s.
+Mantener separadas las ejecuciones registradas y la ejecución en vivo; si la ejecución en vivo falla, decirlo antes de mostrar las registradas. No extenderlas a las comprobaciones de DAX o fechas de los consumidores ni a publicadores alternativos.
 -->
 
 ---
@@ -736,3 +747,5 @@ Es reproducir una solución de Fabric que funcione, entre tipos de elemento cuya
 |---|---|
 | [Planificar CI/CD para soluciones de Fabric](https://learn.microsoft.com/en-us/fabric/fundamentals/understand-best-practices-fabric-cicd)<br>[Elegir un flujo de CI/CD para Fabric](https://learn.microsoft.com/en-us/fabric/cicd/manage-deployment)<br>[Tutorial de automatización de principio a fin](https://learn.microsoft.com/en-us/fabric/cicd/tutorial-end-to-end-automation) | [Configuración](../SETUP.md)<br>[Proceso de desarrollo](../fabric-development-process.md)<br>[Proceso de lanzamiento](../fabric-release-process.md)<br>[Controles de calidad y recuperación](../fabric-cicd-quality-gates-and-release-controls.md) |
 | [Parametrización de `fabric-cicd`](https://microsoft.github.io/fabric-cicd/1.4.0/how_to/parameterization/)<br>[Funciones opcionales y selectivas](https://microsoft.github.io/fabric-cicd/1.4.0/how_to/optional_feature/)<br>[Referencia de código](https://microsoft.github.io/fabric-cicd/1.4.0/reference/code_reference/) | [Implementación directa con la API masiva](../fabric-bulk-cicd-guide.md)<br>[Adaptadores de Deployment Plan](../fabric-deployment-plan-guide.md)<br>[Implementación de referencia](https://github.com/michaeldeongreen/microsoft-fabric-sdlc-patterns) |
+
+**Recursos en español** (con asistencia de IA; revisión humana pendiente; posibles desfases respecto al inglés): [documentación](../README.md) · [presentación](fabric-sdlc-cd.md)

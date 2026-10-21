@@ -4,6 +4,10 @@
     {
       "label": "Marp: Preview Fabric SDLC CD",
       "type": "shell",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
       "command": "npx",
       "args": [
         "--yes",

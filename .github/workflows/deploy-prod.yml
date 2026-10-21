@@ -1,13 +1,16 @@
 # Orchestrator workflow for deploying Fabric items to the Prod workspace.
 #
 # Deploys all supported items via fabric-cicd. The reusable workflow handles
-# phased deployment internally (Lakehouse + Ontology first, then everything
-# else) to satisfy fabric-cicd dependency resolution.
+# phased deployment internally (Lakehouse + Ontology, other dependents, then
+# DataPipeline) to satisfy fabric-cicd dependency resolution.
 #
 # The `prod` GitHub Environment should have protection rules configured
 # (e.g., required reviewers, branch policy restricting to main only).
 #
 # The dependent ETL job uses this same workflow revision after deployment.
+#
+# Workflow-only edits match the Test and Prod deployment path filters.
+# Selected releases still publish all scoped items and run the DataPipeline.
 
 name: Deploy and Run Pipeline - Prod (fabric-cicd)
 
